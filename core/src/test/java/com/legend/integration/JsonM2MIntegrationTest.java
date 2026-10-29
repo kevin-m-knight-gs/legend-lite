@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code data:application/json,...} URIs in the runtime's JsonModelConnection.
  */
 @DisplayName("JSON Source M2M Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class JsonM2MIntegrationTest {
 
     private Connection connection;
@@ -112,7 +114,7 @@ class JsonM2MIntegrationTest {
     void setUp() throws SQLException {
         // In-memory DuckDB — no test data to set up!
         // All data comes from JsonModelConnection.
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach

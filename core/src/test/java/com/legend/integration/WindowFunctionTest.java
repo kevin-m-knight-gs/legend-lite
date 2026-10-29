@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Parser and SQL Generator unit tests removed — those tested old pipeline types
  * (PureExpression, SQLGenerator, ExtendNode, etc.) that no longer exist.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class WindowFunctionTest {
 
     private Connection connection;
@@ -103,7 +105,7 @@ class WindowFunctionTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         queryService = new QueryService();
 
         try (Statement stmt = connection.createStatement()) {

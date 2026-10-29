@@ -1,8 +1,9 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -22,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code extractFromSemiStructured(col, 'path', 'SQLTYPE')}.
  */
 @DisplayName("JSON Mapping Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class JsonMappingIntegrationTest {
 
     private Connection connection;
@@ -125,7 +127,7 @@ class JsonMappingIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach

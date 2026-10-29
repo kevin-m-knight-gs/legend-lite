@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * has a Pure (M2M) mapping like:  fullName: $src.firstName + ' ' + $src.lastName
  */
 @DisplayName("M2M2R Tabular Tests - Clean Pipeline")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class M2M2RTabularTest {
 
     private Connection connection;
@@ -198,7 +200,7 @@ class M2M2RTabularTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                     CREATE TABLE T_RAW_PERSON (

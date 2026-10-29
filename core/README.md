@@ -181,10 +181,13 @@ core/src/main/java/com/legend/
 │       ├── DuckDb.java
 │       └── Sqlite.java
 │
-└── exec/                              K. SQL string + JDBC → typed results
-    ├── Executor.java
-    ├── ConnectionResolver.java
-    ├── Result.java
+└── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
+    ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
+    ├── Sessions.java + SessionState.java    (the typed session seam; PlanSessions.java wraps a Connection)
+    ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
+    ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
+    ├── TypedSide.java                       (the judges' collected side; ExecutionResult until 2026-10-29)
+    ├── Connectors.java + *Connector.java    (each database's driver facts)
     ├── Row.java
     └── Column.java                          (result-side column; distinct from element/store/Column)
 ```

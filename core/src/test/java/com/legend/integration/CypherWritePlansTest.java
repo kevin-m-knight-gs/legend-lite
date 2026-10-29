@@ -3,6 +3,8 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 
 import com.legend.TypedQuery;
@@ -11,7 +13,6 @@ import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.SqlParity;
@@ -34,9 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * transaction, answering as the statement's execution does -- its rows, and the graph it leaves. Each statement runs
  * both ways in a transaction rolled back after, so each starts from the graph as seeded.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class CypherWritePlansTest {
 
-    private static final TestBackend PLATFORM = TestBackends.platform();
+    private static final TestBackend PLATFORM = LaneFloor.backend();
 
     /** The graph each statement starts from: two nodes, a relationship from b to a. */
     private static final CypherAnswers.Graph GRAPH = new CypherAnswers.Graph(List.of(

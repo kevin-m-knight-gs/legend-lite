@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * - NO MANUAL SQL: All execution goes through QueryService.executeGraphFetch()
  */
 @DisplayName("M2M Integration Tests - Legend graphFetch Syntax")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class M2MIntegrationTest {
 
     private Connection connection;
@@ -318,7 +320,7 @@ class M2MIntegrationTest {
     @BeforeEach
     void setUp() throws SQLException {
         // Create in-memory DuckDB with test data
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         setupTestData();
     }
 

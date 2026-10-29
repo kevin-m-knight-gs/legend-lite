@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the fold.
  */
 @DisplayName("Relation ~func mapping: windows are extent boundaries")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class RelationMappingWindowSeamTest {
 
     private Connection conn;
@@ -41,7 +43,7 @@ class RelationMappingWindowSeamTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE PERSON (ID INT, NAME VARCHAR(100), AGE INT, GRP VARCHAR(20), SAL INT)");
             // Group A: Peter (23, sal 10) ranks 1st, John (30, sal 20) 2nd;

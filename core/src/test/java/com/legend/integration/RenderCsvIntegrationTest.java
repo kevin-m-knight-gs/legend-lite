@@ -60,16 +60,15 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                 id: [DB] T_PERSON.ID, name: [DB] T_PERSON.NAME,
                 nick: [DB] T_PERSON.NICK, dob: [DB] T_PERSON.DOB } )
             ###Connection
-            RelationalDatabaseConnection store::Conn { type: %s;
-                %s; }
+            RelationalDatabaseConnection store::Conn { type: DuckDB;
+                specification: DuckDB { }; auth: Test; }
             ###Runtime
             Runtime test::RT { mappings: [ test::M ];
                 connections: [ test::DB: [ environment: store::Conn ] ]; }
             """;
 
     private String csv(String query) throws SQLException {
-        Lean.Result r = Lean.run(MODEL.formatted(backend().type(), backend().specificationAndAuth()), query,
-                "test::RT", connection);
+        Lean.Result r = Lean.run(MODEL, query, "test::RT", connection);
         return r.one().toString();
     }
 

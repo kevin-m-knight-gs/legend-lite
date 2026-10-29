@@ -1,9 +1,9 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * print form).
  */
 @DisplayName("Metamodel store: Class.all() through the store lane")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelStoreTest {
 
     private static final String MODEL = """
@@ -43,7 +44,7 @@ class MetamodelStoreTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -52,7 +53,7 @@ class MetamodelStoreTest {
     }
 
     private Lean.Result run(String query) throws SQLException {
-        return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
+        return Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
     }
 
     @Test
@@ -106,7 +107,7 @@ class MetamodelStoreTest {
         var r1 = run(METACLASS
                 + ".all()->filter(c | $c.name == 'Trade')->size()");
         assertEquals(0L, ((Number) r1.one()).longValue());
-        var r2 = Program.last(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", Databases.PLATFORM),
+        var r2 = Program.last(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", LaneFloor.backend().type()),
                 METACLASS + ".all()->filter(c | $c.name == 'Trade')->size()", StorelessRuntime.RUNTIME,
                 connection);
         assertEquals(1L, ((Number) r2.one()).longValue(),

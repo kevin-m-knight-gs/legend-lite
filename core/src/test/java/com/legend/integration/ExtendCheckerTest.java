@@ -2042,17 +2042,18 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("now() — current datetime in extend")
         void testNow() throws SQLException {
-            // the year of DuckDB's own clock either side of the query, not the JVM's (P3-15)
-            String before = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
-            String beforeUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
+            // the year of the database's own clock either side of the query, not the JVM's (P3-15), by the backend's
+            // own probe (T-d2: DuckDB's spelling ran on every lane); the UTC year from the launcher's clock (one zone)
+            String before = dbScalar(backend().yearOfNowSql());
+            String beforeUtc = String.valueOf(java.time.Year.now(java.time.ZoneOffset.UTC).getValue());
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~ts: x | now())""");
             assertEquals(1, r.rowCount());
-            String after = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
-            String afterUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
+            String after = dbScalar(backend().yearOfNowSql());
+            String afterUtc = String.valueOf(java.time.Year.now(java.time.ZoneOffset.UTC).getValue());
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
             // the value may be rendered in the session's zone or in UTC: either year, either side of the query
             assertTrue(java.util.stream.Stream.of(before, after, beforeUtc, afterUtc).anyMatch(ts::startsWith),

@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.error.LegendCompileException;
 import com.legend.plan.QueryPlan;
 import com.legend.server.QueryService;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Test data: John Smith (30), Jane Smith (28), Bob Jones (45).
  */
 @DisplayName("User Function Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class UserFunctionIntegrationTest {
 
     // ==================== Model Source ====================
@@ -90,7 +92,7 @@ class UserFunctionIntegrationTest {
 
     @BeforeAll
     static void initDb() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                 CREATE TABLE T_PERSON (

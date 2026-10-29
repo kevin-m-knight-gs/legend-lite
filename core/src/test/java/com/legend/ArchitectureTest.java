@@ -1052,7 +1052,8 @@ final class ArchitectureTest {
             // 2026-10-29 (the result boundary program's track B, B1b): BodyDriver LEFT the pin -- the body
             // driver holds a session (Sessions.Session) and reaches the database only through its statements;
             // Execution, the front door, keeps the execute entries' Connection parameters and wraps each as the
-            // driver's session (PlanSessions.session)
+            // driver's session (PlanSessions.session); 2026-10-29 (track D): the execute entries are gone and
+            // Execution keeps only run's and runProgram's Connection parameters
             .and().haveNameNotMatching("com\\.legend\\.(Execution"
                     // THE EXCEPTION SEAM (user directive 2026-09-01):
                     // SQLException stops at the executor boundary —
@@ -1541,7 +1542,7 @@ final class ArchitectureTest {
                     // call and a parameter let (2 + 2); the lineage and the model
                     // builder carry 2 + 4. Owed: each family moves into the parser or
                     // the normalizer, and its row goes to 0 in that commit. The
-                    // driver's own hand-built view accessor (BodyDriver, 4)
+                    // driver's own hand-built view accessor (StatementExecutor, 4)
                     // was deleted the day this was pinned — it is not a row.
                     // RE-PINNED 2026-10-10 (L7 "resolve once" step 3): every AppliedFunction construction in
                     // compiler/, validation/ moved into Calls (179 by script, 25 by hand; the design note's

@@ -64,7 +64,7 @@ library in the product.
 | Running a plan | `exec/PlanRunner.java` (`stream`, `rows`, `update`, `effect`), `exec/JdbcStatements.java` (the JDBC boundary; stamps the trace comment), `exec/JdbcDecode.java` (a JDBC cell by the plan's facts; `Driver` holds the drivers' quirks as facts), `exec/PlanSessions.java`, `exec/NonFiniteJson.java`, `core/src/main/mongodb/.../MongoDbDecode.java` |
 | The result and the writers | `result/`: `ResultSink`, `Batch`, `Batcher`, `Collector` (collect into memory), `RowDecode` (a cell from a JSON row), `HostRows` (rows a host ran), `CellText` (every cell spelling: Pure's print forms, legend-engine's tokens, lite's), `PureV1Writer` (LEGACY), `JsonRowsWriter` and `CsvWriter` (LEAN) |
 | The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`), `server/QueryService.java` (`executeUpstream`, and the streaming `execute(..., OutputStream, OutputFormat)`) |
-| The OLD door (goes in track D) | `Execution.execute*` and `executeResolved` -> `StatementExecutor.java` (3,270 lines: the body driver) -> `BodyCompiler.java` -> `exec/ExecutionResult.java` (sealed, 152 lines); `QueryService`'s three materialized `execute` methods; `test/PureTestRunner.java`, `test/ServiceTestRunner.java` |
+| The old door (DELETED, track D, 2026-10-29) | `Execution.execute*`, `executeResolved`, the materialized `ExecutionResult`, `QueryService`'s three materialized `execute` methods: gone; `exec/TypedSide` is the judges' collected side, `BodyDriver` (`StatementExecutor` until then) the body driver behind `Execution.runProgram` |
 | The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `exec/VerdictBatch`, `exec/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `PctExecuteNative` (the native the reference calls), `PctPlanRoute` (plan, run; a relation through `PureV1Api.engineWriter`), `ValueBridge` (`engineTDS` for a relation, `values` for a value), `PctBackend` (the lane's sessions, `LEGENDLITE_PCT_BACKEND`); `pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure` (the Pure adapter; `engineTDS` = legend-engine's `getTDSResultFromProtocol`), `pct_types.pure`; `pct/.../channelb/ChannelB.java` (channel B); the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java` |
 | The corpus | `spec/src/test/java/com/legend/rcorpus/` (`MinimalCorpus`, `JudgeLedger`), its rosters `spec/src/test/resources/rcorpus/`, the referee `spec/src/test/java/com/legend/harness/ReplayReferee.java`, `RefereeVerify.java` |
@@ -91,7 +91,7 @@ order; the steps are the program's §5):
 | 4. PCT from typed rows; the TDS text deleted | phase 4; S1.3 | `b3311cd6`; `ac4bb7d3`, `6811256b`, `4eaf1b07`, `d8ab8434` | done: a relation crosses as legend-engine's adapter reads it |
 | 5. The lean writers | phase 2 (JSON, CSV) | `12b89c7d` | JSON and CSV done; Arrow not (track A); `conformValueEgress` not deleted (track L) |
 | 6. Mixed lists typed | -- | -- | not started (track L) |
-| 7. The old executor goes | phase 5; S1.2 | `0fe63b42`, `f883d42b` | half: `exec.Executor` deleted; the old door, `StatementExecutor` and `ExecutionResult` remain (tracks B, T, C, D) |
+| 7. The old executor goes | phase 5; S1.2 | `0fe63b42`, `f883d42b` | done 2026-10-29 (track D): `exec.Executor` deleted (phase 5); the old door, the materialized result and the service's materialized `execute` deleted; `StatementExecutor` is `BodyDriver`, the judges' orchestration behind `Execution.runProgram`, every statement through its plan (track B) |
 | 8. Optional deletions | -- | -- | parked for the user (the engine-style SQL-text dialects) |
 
 **The audit's three stages** (2026-10-27, accepted with "keep it, and keep going"): stage 1 S1.1 to S1.3 done, S1.4 to
@@ -437,6 +437,14 @@ floor. Census: `python3 -I docs/result-boundary-homework/probes/test_census.py.t
   harness assumptions corrected, no value moved. No MongoDB lane yet (the base opens a JDBC session; MongoDB has
   none): with track D's session-seam move. Item 4 (the compile-only tests) closed by T-b2/T-c. Track T is built; its
   remaining item is Arrow's judge (track A). Next: track D.
+- **T-d2 built 2026-10-29** (GATES, the T-d2 entry; the decisions log D49; the ledger, batch T-d2): every integration
+  test on the lanes (the 37 classes the base did not cover, under `LaneFloor`; the exclusions named), the floors
+  re-measured at the lane's full scope -- sqlite 89, h2 270 and one NOT-RUN pin (a new floor-line form, dated, for
+  a failure that ends the run: H2's planner exhausting the heap on a twenty-call chain); a test's own connection
+  text re-spelled to the session's backend (`LaneFloor.model`); floor keys by invocation ordinal; the floors live
+  (`LaneFloorTest`); the T-d audit's fixes and the track D audit's records. Three findings for track F (the
+  `asOfJoin` emulation, `concatenate`'s mismatch refused by the database, H2's nesting). Track T is built but for
+  Arrow's judge (A). Next: track L.
 
 ### Track C. The corpus, channel B and the service tests on track B
 
@@ -503,6 +511,11 @@ written as `null`; the PCT JVMs at their 4 GB heap ceiling. Added 2026-10-29 (S1
 D24): the writer's refusal of a fold-built object in a value root CSV loses the old door's reason (the object's
 identity is not tracked); LEGACY spells a year as its number (`%d`) where legend-engine's `ValueTransformer` pattern
 is `yyyy` (zero-padded year-of-era: a year below 1000 and a BC year differ in bytes), unprobed.
+Added 2026-10-29 (track T's lanes, T-d and T-d2; the T-d audit's findings 3 and 4): the `asOfJoin` emulation on SQLite and
+H2 answers matches against an empty right side (DuckDB's `ASOF JOIN` answers none: a wrong answer, on both floors); a
+`concatenate` of relations of different column counts reaches SQL and the database refuses it, not the typer (invariant
+4); H2's planner is exponential in nested derived tables (a twenty-call chain of a window-extending function exhausts
+the heap and ends the run: the H2 floor's one not-run pin).
 
 ### Track P. The backlog from the plan path program
 
@@ -706,7 +719,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
    zero).
 8. Before the first message to a lane: `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 to §6 and `docs/CLOUD_SESSIONS.md`.
 9. The code: `ExecutionPlan.java`'s javadoc, `exec/PlanRunner.java`, `result/CellText.java`, `PctPlanRoute.java`,
-   `AbstractDatabaseTest.java`, `StatementExecutor.execute`.
+   `AbstractDatabaseTest.java`, `BodyDriver.execute` (`StatementExecutor` until track D).
 
 ## 12. The message that opens a new session
 

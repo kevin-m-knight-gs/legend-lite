@@ -1,8 +1,9 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 
-import com.legend.testbackend.TestBackends;
 import com.legend.compiler.element.ModelContext;
 import org.junit.jupiter.api.*;
 
@@ -22,13 +23,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * 4. Filter and project using enum values
  */
 @DisplayName("User-Defined Enum Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class EnumIntegrationTest {
 
     private Connection connection;
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach

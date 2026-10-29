@@ -108,7 +108,7 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
-            // origin; a Connection in, the database executes (moved from BodyDriver)
+            // origin; a Connection in, the database executes (moved from StatementExecutor, BodyDriver since 2026-10-29)
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
             // holds no JDBC

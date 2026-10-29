@@ -15791,7 +15791,7 @@ decisions log D47; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026
 
 1. **Built:** `testing/LaneFloor` (a JUnit extension on `AbstractDatabaseTest`: the lane by `-Dlegend.test.lane`, the
    run held to the lane's recorded floor `src/test/resources/lanes/<lane>.txt`, which only shrinks; a floored test
-   whose set-up fails is skipped); `//core:core_tests_integration_sqlite` and `_h2`, the suite `//core:core_tests_lanes`
+   whose set-up fails is not run: its invocation skipped, said in the log); `//core:core_tests_integration_sqlite` and `_h2`, the suite `//core:core_tests_lanes`
    in `//gates:core`; the backend's own session set-up (`TestBackend.sessionSetUp`: DuckDB's UTC statement, named by its
    owner alone -- the census's `DialectLeakRatchetTest` caught the two tests that named the database themselves); four
    harness assumptions in the integration tests corrected, no value moved; the T-b2/T-c audit's fixes (the records'
@@ -15802,8 +15802,9 @@ decisions log D47; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026
    node, and the writer-carriage guard refuses a `Double.parseDouble` in a writer by design). No MongoDB lane (the
    base opens a JDBC session; MongoDB has none).
 2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
-   `//core:core_tests`, `//core:core_tests_lanes` (the platform 2,232 of 2,232; sqlite 2,232 with 15 on its floor; h2
-   2,232 with 169), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four
+   `//core:core_tests` (the platform's integration run 2,232 of 2,232), `//core:core_tests_lanes` (sqlite 2,232 with 15
+   on its floor; h2 2,232 with 169 -- the floors as T-d measured them, over the base class's subclasses alone: the T-d
+   audit, corrected in T-d2), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four
    DuckDB parity lanes 36 of 36; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
    `//gates:corpus_h2` 12 of 12; the 21 PCT lanes 21 of 21; `//datacube:python_execute_test` passes; the product
    job's guard (`tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)`) empty. Two guards caught drift
@@ -15818,7 +15819,9 @@ path program's step 11, its status noted there).
 
 1. **Built:** `Execution.execute` (five overloads), `Execution.executeResolved` (four) and the query service's three
    materialized `execute` entries deleted; `exec/ExecutionResult` renamed `exec/TypedSide` (the judges' collected side,
-   35 files); `StatementExecutor` renamed `BodyDriver` (36 files, `tools/native-axes.py`, a BUILD comment); the guards'
+   39 files; counted 2026-10-29 at T-d2 as the files the two track D commits changed that named it -- 114 more,
+   history and records, keep the old name); `StatementExecutor` renamed `BodyDriver` (42 files by the same count, 167
+   keep it; `tools/native-axes.py`, a BUILD comment); the guards'
    entries moved with dated notes (`JavaEvalLedgerTest`'s carriage register and the body driver's path pin at the same
    count, 2273; `ArchitectureTest`'s exec register; `ErrorShapeGuardrailTest`); the one materialized-execute call the
    compiler found (`DuckDBIntegrationTest`, the service's qualified name across a line break) moved to `Lean.run`;
@@ -15831,3 +15834,49 @@ path program's step 11, its status noted there).
    `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12; the 21 PCT lanes 21 of 21;
    `//datacube:python_execute_test` passes; the product job's unlaned-tests guard empty.
 3. **Not measured:** CI's lanes.
+4. **Commits:** `6f4f654b` (the deletions and the renames) missed four renamed files (`spec/`, `pct/`, `core/README.md`),
+   completed by `132a4ff2`; the generated claims register (`native-claims.tsv`, whose rows name `BodyDriver` now) was
+   not regenerated with them, so `//:generated` was red on both: regenerated with T-d2 (the track D audit).
+
+## 2026-10-29 — Track T, T-d2: every integration test on the lanes; the floors re-measured; the track D audit's fixes; PR #80's CI read
+
+The result boundary program's track T, its lanes at full scope (docs/RESULT_BOUNDARY_START_HERE.md, track T; the
+decisions log D49; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-d2).
+
+1. **Built:** the integration package's other 37 classes under `testing/LaneFloor` (the parity and corpus lane files,
+   `Stress*`, the two database-named tests and `SqlIslandIntegrationTest` off the lane by name: the ledger); a test's
+   own connection text re-spelled to the SESSION's backend (`LaneFloor.model`: the backend of the connection the test
+   opened, else the lane's; untouched on the platform) in the reader, `Program` and the streaming test's service calls;
+   a floor key by invocation ordinal (`Class#method[#N]`); the floors LIVE (`testing/LaneFloorTest`: every key names a
+   class and a method that exist); a NEW floor-line form, the not-run pin (`not run <date>: <cause>`, the test's
+   invocation skipped and said in the log; moves only with a dated justification), for a failure that ends the run: H2's
+   planner exhausts the 512 MB heap on a twenty-call chain of nested derived tables (`QueryExpressionIndex`) and JUnit
+   rethrows the `OutOfMemoryError` as unrecoverable -- the first T-d2 H2 run died at its 759th test. The floors
+   re-measured at the lanes' full scope: sqlite 89, h2 270 and the one pin, the platform 0 of 2,232 (the ledger's
+   table, by cause). Harness corrections, no value moved: the backend's session set-up in three more tests and the
+   warehouse backend; `ExtendCheckerTest.testNow` by the backend's own year probe (`TestBackend.yearOfNowSql`);
+   `ConcatenateFlattenCheckerTest`'s error-text assertions case-insensitive; T-d's templated connection text in
+   `DynaFunctionIntegrationTest` and `RenderCsvIntegrationTest` UNDONE (whole Pure text again: the own-corpus parity
+   harvest reads the tests' models as Pure, and a template is a source the reference parser rejects -- PR #80's
+   `parser_equivalence` lane measured the matched elements 3004 -> 2999 at `132a4ff2`; 3004 again here). The T-d
+   audit's fixes (the records' wording, the lane's true scope, three findings for track F: the `asOfJoin` emulation's
+   wrong answer, `concatenate`'s mismatch refused by the database and not the typer, H2's nesting). The track D audit's
+   fixes: the generated claims register regenerated (`native-claims.tsv` names `BodyDriver`; `//:generated` was red on
+   `6f4f654b` and `132a4ff2`), the rename's counts by a stated rule (39 and 42 files), history notes in five guard files
+   name `StatementExecutor` again where they date from before the rename, AGENTS.md's step K, the front page's and the
+   FAQ's step K, core/README.md's `exec/` tree, a dangling javadoc link in `BodyDriver`, the start page's standing rows,
+   the homework README's end state. PR #80's CI at `132a4ff2` read: `checks` red on the two stale generated files
+   (above), `parser_equivalence` red on the own-corpus count (above), the Windows `warehouse` lane red on
+   `//python:engine_test` at its 300 s ceiling (291 s on main's own green run 2235 at `9de4d3a8`; timed out on three of
+   the branch's heads: the ceiling raised to `long`, dated in `python/BUILD.bazel`).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests` (the platform's integration run 2,232 of 2,232), `//core:core_tests_lanes` (sqlite 2,232 with 89
+   on its floor; h2 2,232 with 270 on its floor and the one pin not run), `//core:core_tests_testing` (the floors
+   live), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB
+   parity lanes; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12
+   of 12; the 21 PCT lanes 21 of 21; `//datacube:python_execute_test`; `//parser-equivalence:parser_parity` (3,004
+   matched, the ratchet unchanged; `bazel run //parser-equivalence:update_ratchets` measured 3,004); `//:generated` and
+   `//gates:checks` 145 of 146 (the arm64-only classpath test skipped); `//python:engine_test` and `//gates:warehouse`
+   analyze; the product job's unlaned-tests guard empty. The session's disk allowance ran out once mid-run (a sandbox's
+   input copy): the action disk cache and the stale sandboxes deleted (docs/CLOUD_SESSIONS.md), the run repeated.
+3. **Not measured:** CI's lanes (PR #80 runs them on the push); the Python suite's own time on Windows.

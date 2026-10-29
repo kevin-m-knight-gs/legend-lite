@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests the complete pipeline: Pure → IR → SQL → DuckDB execution
  */
 @DisplayName("VARIANT/JSON Column Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class VariantIntegrationTest {
 
     private Connection connection;
@@ -72,7 +74,7 @@ class VariantIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         setupDatabase();
     }
 

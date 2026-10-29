@@ -68,7 +68,7 @@ class JavaEvalLedgerTest {
     // Phase 0.8 (batch 134, 2026-09-08): every row re-pinned to its MEASURED
     // stripped count and the check made exact (a shrink re-pins, like
     // EVICT_NAMES) — 723 lines of banked headroom burned: AggAwareActivities
-    // 227→211, BodyDriver 2699→2045, DynamicPivot 118→106, JsonCompare
+    // 227→211, StatementExecutor (BodyDriver since 2026-10-29) 2699→2045, DynamicPivot 118→106, JsonCompare
     // 70→64, StoreNav 199→188, PctExecuteNative 131→107.
     private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
             // 844 -> 850 (documented-debts 2026-08-18): the emptyCell
@@ -157,7 +157,7 @@ class JavaEvalLedgerTest {
             // single node (table accessor / tableToTDS plans; engine
             // spelling facts — precisePrimitives + default relational
             // types via PreciseTypes) and the plan-root finders MOVED here
-            // from BodyDriver (its count fell 2724 -> ~2700 under
+            // from StatementExecutor (BodyDriver since 2026-10-29; its count fell 2724 -> ~2700 under
             // its unchanged pin). Printing engine plan text, no evaluation.
             // 845 -> 881 (batch 112, 2026-09-06): PlanText.storeDbs +
             // tableIn — the plan printer types each physical column by
@@ -354,7 +354,7 @@ class JavaEvalLedgerTest {
             // render judges) + renderSide FRAMING (spec separators over
             // DB-computed element texts) moved here when the canon
             // collapsed into the side query. In exchange the WHOLE
-            // prepCanon/runCanon execution arm left BodyDriver
+            // prepCanon/runCanon execution arm left StatementExecutor (BodyDriver since 2026-10-29)
             // (−402): the verdict system's total surface SHRANK 355.
             // The DB still computes every element text and the
             // canonical order — framing writes '[', ', ', ']' only.
@@ -1019,7 +1019,7 @@ class JavaEvalLedgerTest {
             new LinkedHashMap<>();
 
     static {
-        // E4 — BodyDriver's walk family. 42→40 (2026-08-21):
+        // E4 — StatementExecutor's (BodyDriver since 2026-10-29) walk family. 42→40 (2026-08-21):
         // activityEnvelopeRead moved to compiler.spec.ResultEnvelopeSplice
         // (splice-ownership leg slice 1, Invariant 7) — there it is a
         // private REWRITE RULE; the Java-side derivation it asks for
@@ -1363,7 +1363,7 @@ class JavaEvalLedgerTest {
                     "BodyCompiler.java", "Compiler.java",
                     // C2a (2026-10-04): the execution front door — the execute entry
                     // points moved out of Compiler (the planner): a session handed or
-                    // opened, the planned query run through BodyDriver; it
+                    // opened, the planned query run through StatementExecutor (BodyDriver since 2026-10-29); it
                     // sequences, it evaluates nothing
                     "Execution.java",
                     // C2b (2026-10-05): a query typed once against a compiled model; its

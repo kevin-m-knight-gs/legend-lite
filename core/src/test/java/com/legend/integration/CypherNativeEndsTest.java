@@ -3,9 +3,10 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.SqlParity;
@@ -26,9 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * direction, a MERGE's by the stored relationship's source, which an undirected MERGE matches either way (the rows
  * derived by hand from Cypher's semantics; the TCK's one case, Merge5/[11], is a MERGE that creates).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class CypherNativeEndsTest {
 
-    private static final TestBackend PLATFORM = TestBackends.platform();
+    private static final TestBackend PLATFORM = LaneFloor.backend();
 
     @Test
     void theNodesAtAWrittenRelationshipsEndsAreItsStartAndItsEnd() throws Exception {

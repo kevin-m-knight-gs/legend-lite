@@ -3,8 +3,9 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * alias: DuckDB refused it ("Values list t2 does not have a column named ...").
  */
 @DisplayName("A column only the right side of a join names resolves there")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class PivotJoinColumnTest {
 
     private static final String MODEL = """
@@ -52,7 +54,7 @@ class PivotJoinColumnTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (var st = connection.createStatement()) {
             st.execute("CREATE TABLE T (region VARCHAR, desk VARCHAR, amt DOUBLE)");
             st.execute("INSERT INTO T VALUES ('EMEA','FX',10), ('EMEA','Rates',5),"

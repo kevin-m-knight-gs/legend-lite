@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * (not just inside synthesised mapping bodies). Users can write
  * {@code sourceUrl('data:application/json,[...]')->extend(...)->...} directly.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class SourceUrlUserCallableTest {
 
     private static final String MIN_MODEL = """
@@ -38,7 +40,7 @@ class SourceUrlUserCallableTest {
 
     @Test
     void userCallable_dataUri_extendsAndProjects() throws Exception {
-        try (Connection c = TestBackends.platform().open()) {
+        try (Connection c = LaneFloor.backend().open()) {
             String q = "sourceUrl('data:application/json,[{\"a\":1,\"b\":\"x\"},{\"a\":2,\"b\":\"y\"}]')"
                     + "->extend(~[a:r|cast(get($r.data, 'a'), @meta::pure::metamodel::type::Integer)])"
                     + "->select(~[a])"

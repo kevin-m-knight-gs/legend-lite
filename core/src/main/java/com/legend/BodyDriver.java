@@ -1869,7 +1869,7 @@ final class BodyDriver {
 
     /**
      * The I&rarr;J&rarr;K tail over a resolved TYPED body — shared by
-     * {@link #executeResolved} and the K-native argument evaluation below.
+     * the statement loop and the K-native argument evaluation below.
      */
     /** The runtime's LocalH2 {@code testDataSetupSqls}: the engine
      * executes them when it ESTABLISHES the connection — here, on the

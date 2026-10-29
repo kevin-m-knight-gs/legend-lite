@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * for queries that access inherited properties.
  */
 @DisplayName("Class Inheritance Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class InheritanceIntegrationTest {
 
     /**
@@ -127,7 +129,7 @@ class InheritanceIntegrationTest {
 
         @BeforeEach
         void setUp() throws Exception {
-            connection = TestBackends.platform().open();
+            connection = LaneFloor.backend().open();
 
             // Create table with all columns (including inherited)
             try (Statement stmt = connection.createStatement()) {

@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * All assertions use exact value/type checks — no {@code assertTrue} with strings.
  */
 @DisplayName("GetChecker: variant/JSON access")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 public class GetCheckerTest {
 
     private Connection connection;
@@ -81,7 +83,7 @@ public class GetCheckerTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                     CREATE TABLE T_EVENTS (

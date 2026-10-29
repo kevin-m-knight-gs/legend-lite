@@ -1,9 +1,9 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * query the database answers; nothing here is test-specific Java.
  */
 @DisplayName("Metamodel store: mapping-metamodel query functions as Pure bodies over rows")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelQueryFunctionsTest {
 
     private static final String MODEL = """
@@ -88,7 +89,7 @@ class MetamodelQueryFunctionsTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -97,7 +98,7 @@ class MetamodelQueryFunctionsTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        Lean.Result r = Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
+        Lean.Result r = Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
         return r.values();
     }
 

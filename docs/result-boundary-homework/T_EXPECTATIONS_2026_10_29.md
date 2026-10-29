@@ -131,7 +131,7 @@ and `Lean.of`, the view of the body driver's side until D renames it.
 **By the census** (`probes/old_door_census.py.txt`): at `9ca7482f` 101 files, 461 lines; after T-b2 and T-c 7 files,
 21 lines, every one named above (the T-b2/T-c audit: the records first said 8 and 23, counting `JudgesOnPlansTest`,
 which this batch had already moved). The 94 files that left the old door between the two commits tile as: 76 in the
-eight named packages (root 9, exec 16, lowering 16, resolver 12, server 9 -- the five Postgres lanes' files, the two
+ten directories of the eight named packages (root 9, exec 16, lowering 16, resolver 12, server 9 -- the five Postgres lanes' files, the two
 connection-lease tests, the project rows, the server sessions --, compiler/spec 5, normalizer 3, sql/dialect 3,
 compiler 2, compiler/element 1), 13 in integration (the six the first rule missed; the SQL, Cypher and native Cypher
 parity lanes' files; the IQ parity, IQ corpus and regress corpus lanes' files; `CypherWritePlansTest`), 5 harness
@@ -144,15 +144,17 @@ files in testcases (`SqlParity`, `CypherParity`, `CypherValues`, `IqParity`, `Re
 ## Batch T-d (2026-10-29): the twin's lanes -- core's integration tests on SQLite and H2, each held to its floor
 
 The twin runs per lane like PCT (the start page's track T, item 3): `-Dlegend.test.lane=<backend name>` makes
-`AbstractDatabaseTest.backend()` the lane's (`testing/LaneFloor.backend()`); the Bazel targets
+`AbstractDatabaseTest.backend()` the lane's (`testing/LaneFloor.backend()`) -- at T-d the base class's 26 subclasses
+(two named for a database keep theirs), about 1,280 tests; at T-d2 every integration test (below); the Bazel targets
 `//core:core_tests_integration_sqlite` and `//core:core_tests_integration_h2` (the suite `//core:core_tests_lanes`) set
 it. Every test is held to the lane's RECORDED floor, `core/src/test/resources/lanes/<lane>.txt` (`Class#method`, a tab,
 the reason): a listed test that fails passes the run and is printed; a listed test that PASSES fails the run, asking
-for its line to go; an unlisted failure fails the run. A listed test whose set-up fails is skipped, not run against a
+for its line to go; an unlisted failure fails the run. A listed test whose set-up fails is not run (its invocation skipped, said in the log), not run against a
 broken set-up. The floors are measurements (each line's reason the failure's own message, measured 2026-10-29), not
-judgments: a line moves only with its reason in the commit.
+judgments: a line moves only with its reason in the commit. A listed test whose set-up fails is not run (JUnit reports
+it successful; the run's log says it was not run).
 
-| Lane | Tests | On the floor | The floor's weight, by cause (measured 2026-10-29) |
+| Lane | Tests | On the floor | The floor's weight, by cause (measured 2026-10-29, at T-d: the base class's subclasses) |
 |---|---|---|---|
 | the platform (DuckDB) | 2,232 | 0 | -- |
 | sqlite | 2,232 | 15 | the dialect's refusals (a windowed `ARG_MAX`/`ARG_MIN`, a `PIVOT`, `CURRENT_USER`, `year()`), an `ASOF JOIN` answer, three tests that assert the platform's SQL text (`LEFT JOIN LATERAL`, `UNNEST`, `PIVOT`) |
@@ -167,8 +169,9 @@ executes on DuckDB but the session is <lane>", 35 before); a storeless runtime t
 database reads into a DATE column (`RenderCsvIntegrationTest`).
 
 **No MongoDB lane yet:** the integration base opens a JDBC session (`AbstractDatabaseTest.connection`), and the
-MongoDB backend has none -- measured 2026-10-29: every one of the 2,232 tests refused by that name. Its lane waits
-on the base class moving to the session seam (`Sessions.Session`), queued with track D's `connection` deletions.
+MongoDB backend has none -- measured 2026-10-29: 1,102 of the tests then on the lane (the base class's subclasses)
+refused by that name, the rest ran on the platform's database (the T-d audit's finding 1; T-d2 puts every
+integration test on the lane). Its lane waits on the base class moving to the session seam (`Sessions.Session`).
 
 The start page's item 4 (the ~850 compile-only tests on the old door) is closed by T-b2 and T-c: by the census no
 test reaches the old door to compile or plan (7 files, 21 lines remain, every one track D's); a test of a refusal
@@ -177,3 +180,64 @@ T-d: a display name the `Row` regex rewrote restored (`Phase1AuditTest`), two un
 parentheses of the cast rewrite, a vacuous `assertNotNull` on the lease route replaced by the answer's shape and
 column (`ConnectionLeaseTest`), `SqlParity.grid`'s count arm reading `value()` (a to-one answer of no row is a null
 cell, as a `Scalar(null)` was), the JDBC decoder's own struct loop on the same identity-field rule.
+
+## Batch T-d2 (2026-10-29): every integration test on the lanes; the floors re-measured; the H2 pin
+
+At T-d the lane reached only `AbstractDatabaseTest`'s subclasses (about 1,280 tests; the T-d audit's finding 1).
+T-d2 puts the integration package's other 37 classes on it: each under `@ExtendWith(LaneFloor.class)`, its
+`TestBackends.platform()` now `LaneFloor.backend()` and its `Databases.PLATFORM` the lane's type. Off the lane, by
+name: the parity and corpus lane files (their own lanes), `Stress*`, `DeclaredQuotedTableH2Test` (H2's by
+name), `PostgresRegressCorpusTest` (Postgres's), `SqlIslandIntegrationTest` (its parameterized cases seed a
+DuckDB-spelled island; measured failing on SQLite as a seed, not a case). 2,232 tests run on each lane.
+
+**The re-spelling rule (`LaneFloor.model`).** A test's own connection text -- `type: DuckDB; specification: DuckDB
+{ }; auth: Test;`, matched whitespace-insensitively -- is re-spelled to the SESSION's backend: the backend of the
+connection the test opened (`TestBackends.of(connection)`, so `DuckDBIntegrationTest`'s own DuckDB session keeps
+DuckDB's text on every lane), or the lane's where no connection is in hand (`QueryService`'s string door); on the
+platform the text is untouched. Applied by the reader (`Lean.run`, `established`, `service`), by `Program`, and by
+`StreamingIntegrationTest`'s service calls. Measured on the way: the first T-d2 run put 729 of 866 floor lines on
+"the query executes on DuckDB but the session is <lane>", the second
+283 on the whitespace variants and 59 on the reverse ("executes on SQLite but the session is DuckDB":
+`DuckDBIntegrationTest`), the third 16 (`StreamingIntegrationTest`'s service calls): zero now.
+
+**A floor key for a parameterized or repeated test** is `Class#method[#N]`, the invocation's ordinal (JUnit's
+`[test-template-invocation:#N]`); the floors are LIVE (`testing/LaneFloorTest`: every key names a class and a
+method that exist, so a line cannot outlive its test by a rename or a deletion).
+
+**The not-run pin (new floor-line form).** A line whose reason opens `not run <date>:` pins its test as NOT RUN
+on the lane (its invocation skipped, said in the log): for a failure that would END the run, which no measured line
+can hold. One today: `UserFunctionIntegrationTest$RelationGeneric#aChainOfCallsIsTypedOnceEach` on H2 -- twenty
+chained calls of a window-extending generic function lower to twenty nested derived tables; H2's planner re-plans
+every level per candidate plan (`QueryExpressionIndex.getQuery`) and exhausts the 512 MB heap in
+`Select.getPlanSQL`, and JUnit rethrows the `OutOfMemoryError` as unrecoverable (the first T-d2 H2 run died at its
+759th test with one `<testcase>` reported). It passes on DuckDB and SQLite. A pin carries its date and cause
+(`LaneFloorTest` checks the form) and moves only with one (AGENTS.md's guard-file rule); the start page's track F
+carries the question (a chain of extends over one window could flatten into one select).
+
+**Harness assumptions corrected so the floors measure the dialects (no value moved):** the UTC session statement
+by the backend (`TestBackend.sessionSetUp`: `TypeInferenceIntegrationTest`, `ExecutionResultIntegrationTest`,
+`ComputedProjectIntegrationTest`, the warehouse backend); `ExtendCheckerTest.testNow` reads the year of the
+database's clock by the backend's own probe (`TestBackend.yearOfNowSql`; SQLite's `strftime`) and the UTC year from
+the launcher's clock, where DuckDB's `year(current_timestamp AT TIME ZONE 'UTC')` ran on every lane;
+`ConcatenateFlattenCheckerTest`'s three error-text assertions compare case-insensitively (H2's `Column count does
+not match` failed on its capital alone -- and the finding stands that the DATABASE refuses, not the typer: track
+F); `DynaFunctionIntegrationTest` and `RenderCsvIntegrationTest` keep their connection text as WHOLE Pure text again
+(T-d had templated it, `type: %s; %s;`, from the backend: the own-corpus parity harvest reads the tests' inline models
+as Pure, and a template is a source the reference parser rejects -- PR #80's `parser_equivalence` lane measured the
+matched elements 3004 -> 2999 at `132a4ff2`, the two files' five elements; the lane re-spells the text instead); `FoldCheckerTest`'s storeless runtime typed for the lane; `InstanceIdentityTest`'s residual
+parentheses; `Phase1AuditTest`'s display name.
+
+| Lane | Tests | On the floor | The floor's weight, by cause (measured 2026-10-29, at T-d2: every integration test) |
+|---|---|---|---|
+| the platform (DuckDB) | 2,232 | 0 | -- |
+| sqlite | 2,232 | 89 | `sourceUrl` (an external JSON source: no encoding on SQLite) 56; no corpus workspace on SQLite (the class-writes and staged-rows tests) 6; `PIVOT` (unemulated; one SQL-text assertion) 6; an INSERT of a query's rows (no spelling measured on SQLite) 4; the metamodel store's reads (`MetamodelMappingStoreTest`, `MetamodelQueryFunctionsTest`: the mapping store's answer differs on SQLite -- a finding to read) 4; checked graph fetch (list lambdas; two defect texts) 3; a windowed `ARG_MAX`/`ARG_MIN` 2; two SQL-text assertions of the platform's `UNNEST` and `LEFT JOIN LATERAL`; an integer past 64 bits 2; the `asOfJoin` emulation's wrong answer 1; `CURRENT_USER` 1; `SCHEMA` syntax 1; a union mapping's join cast (`UnionJoinMappedPropertyTest`: `ux::A is not a ux::B` -- a finding to read) 1 |
+| h2 | 2,232 | 270 + 1 pin | variant navigation (no JSON support in the H2 dialect) 84; fold 39; the list encodings (`LIST_GET`, `LIST_MAX`, `LIST_FILTER`, `LIST_TRANSFORM`, `LIST_POSITION`, `LIST_MIN`, membership) 26; `UNNEST` placement 24; a struct literal or extraction 15; the list reductions (`STRING_AGG`, `QUANTILE_CONT`, `VAR_POP`, `VAR_SAMP`) 11; bit operations 11; DuckDB's function spellings reaching H2 unrefused (`ARG_MAX`/`ARG_MIN` 6, `cbrt` 4, `jaro_winkler_similarity` 3, `levenshtein` 2, `reverse` 2, `timezone` 2, `make_date` 1: the H2 dialect has no arm and no refusal for them) 20; `time_bucket` 6; `PIVOT` (one an SQL-text assertion) 6; base64 5; the list predicates (`forAll`, `exists`) 4; a signed 64-bit `hashCode` 4; two SQL-text assertions of the platform's spelling (`UNNEST`, a write plan's text); the minimal-fraction date format 2; `make_timestamp` 1; `printf` 1; checked defects 1; the `asOfJoin` emulation's wrong answer 1; a correlated scalar subquery's outer reference (`CorrelatedRelationCheckerTest`: H2 finds no `"_tds0.id"`) 1; a staged write's temp table already existing in the session (`CypherIslandIntegrationTest`) 1; a Cypher node's JSON 1; an average's digits (`CypherIslandIntegrationTest`: H2's `AVG` over integers is a DECIMAL, `31.66666666667`, where Pure's `average` is a Float and DuckDB's double gives `31.666666666666668` -- upstream's answer to be READ before any fix) 1; `ascii('')` null 1; a Variant compared to an Integer (`JSON to BIGINT`) 1 |
+
+Between T-d and T-d2 the sqlite floor went from 15 to 89 and the h2 floor from 169 to 270 + 1 pin: every added line
+is a test the lane did not reach at T-d, re-measured here; no line is a test that passed at T-d and fails now (the
+confirm run holds every listed line as failing and every other test as passing). The six lines the T-d table
+counted under "two expected-error texts" (`ConcatenateFlattenCheckerTest`'s two) and the `year()` refusal are gone
+by the harness corrections above.
+
+The floors' reasons stay the measured messages, not root causes (D47); the lines named "a finding to read" above
+and in the start page's track F are the ones whose message is a wrong ANSWER rather than a refusal.

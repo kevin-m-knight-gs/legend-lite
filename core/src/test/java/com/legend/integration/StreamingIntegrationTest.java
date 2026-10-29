@@ -1,6 +1,7 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
 import com.legend.server.OutputFormat;
 import com.legend.server.QueryService;
 import com.legend.json.Json;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *       {@code testStreamOutputVisibleIncrementallyDuringExecution}.</li>
  * </ul>
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class StreamingIntegrationTest {
 
     private Connection connection;
@@ -112,7 +114,7 @@ class StreamingIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         queryService = new QueryService();
 
         try (Statement stmt = connection.createStatement()) {
@@ -152,7 +154,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("[{"), "Should be JSON array of objects");
@@ -167,7 +169,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.department == 'Sales'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("["), "Should start with array bracket");
@@ -181,7 +183,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name])->limit(3)";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("[{"), "Should be JSON array of objects");
@@ -194,7 +196,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.salary > 999999})->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertEquals("[]", json, "Empty result should be empty JSON array");
@@ -206,7 +208,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])->limit(5)";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.CSV);
 
         String csv = out.toString(StandardCharsets.UTF_8);
         String[] lines = csv.split("\r\n");
@@ -222,7 +224,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.CSV);
 
         String csv = out.toString(StandardCharsets.UTF_8);
         String[] lines = csv.split("\r\n");
@@ -235,7 +237,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.department == 'Engineering'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.CSV);
 
         String csv = out.toString(StandardCharsets.UTF_8);
         String[] lines = csv.split("\r\n");
@@ -298,7 +300,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])->limit(5)";
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         String streamed = baos.toString(StandardCharsets.UTF_8);
         assertTrue(streamed.startsWith("[{"), "Streamed output should start with [{");
@@ -320,7 +322,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])";
 
         CountingOutputStream cos = new CountingOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos, 1);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, cos, 1);
 
         int writes = cos.writeCallCount.get();
         String result = cos.asString();
@@ -354,7 +356,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.salary > 9999999})->project(~[name:e|$e.name])";
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         assertEquals("[]", baos.toString(StandardCharsets.UTF_8),
                 "Empty result should stream as '[]'");
@@ -384,7 +386,7 @@ class StreamingIntegrationTest {
                 """;
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         String streamed = baos.toString(StandardCharsets.UTF_8);
         assertTrue(streamed.startsWith("[") && streamed.endsWith("]"),
@@ -414,7 +416,7 @@ class StreamingIntegrationTest {
                 """;
 
         CountingOutputStream cos = new CountingOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos, 1);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, cos, 1);
 
         int writes = cos.writeCallCount.get();
         String result = cos.asString();
@@ -461,7 +463,7 @@ class StreamingIntegrationTest {
             @Override public void flush() {}
             @Override public void close() {}
         };
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", countingRows(connection, fetched), out, 1);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", countingRows(connection, fetched), out, 1);
         assertTrue(buffer.size() > 0, "Should have produced some output");
         assertTrue(fetched.get() >= 100, "the recording connection saw " + fetched.get() + " rows fetched, not the"
                 + " 100 the query reads: the stream bypassed it, and this test proves nothing");
@@ -522,7 +524,7 @@ class StreamingIntegrationTest {
                 """;
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         assertEquals("[]", baos.toString(StandardCharsets.UTF_8),
                 "Empty graphFetch should stream as '[]'");
@@ -541,7 +543,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.name->startsWith('tab')})->project(~[name:e|$e.name])";
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         String streamed = baos.toString(StandardCharsets.UTF_8);
 

@@ -71,7 +71,7 @@ public final class Program {
     /** {@link #run(String, String, String, Connection)} with the caller's execute {@code options} (a judge mode). */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
             ExecuteOptions options) {
-        ModelContext ctx = Compiler.compileModel(model);
+        ModelContext ctx = Compiler.compileModel(LaneFloor.model(model, c));
         List<Verdict> verdicts = new ArrayList<>();
         AssertListener listener = new AssertListener() {
             @Override

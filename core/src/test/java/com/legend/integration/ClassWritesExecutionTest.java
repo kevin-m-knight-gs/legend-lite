@@ -3,9 +3,10 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A mapping that is not direct is refused by name. Each database the writes are measured on runs {@link #writes} in
  * a test named for it (DatabaseOwners: a database is named only by its owners).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class ClassWritesExecutionTest {
 
     private static final String MODEL = """
@@ -59,7 +61,7 @@ class ClassWritesExecutionTest {
     /** A class whose mapping is not direct, a column that is no property: refused by name. */
     @Test
     void whatIsNotDirectIsRefusedByName() throws Exception {
-        var backend = TestBackends.platform();
+        var backend = LaneFloor.backend();
         try (Connection c = backend.openWorkspace()) {
             run(c, "CREATE TABLE PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER, FIRM_ID INTEGER)");
             Exception filtered = assertThrows(Exception.class, () -> count(backend, c,
@@ -101,7 +103,7 @@ class ClassWritesExecutionTest {
      *  sub-property the value class lacks refused by name. */
     @Test
     void anEmbeddedPropertysSubPropertiesAreItsColumns() throws Exception {
-        var backend = TestBackends.platform();
+        var backend = LaneFloor.backend();
         try (Connection c = backend.openWorkspace()) {
             run(c, "CREATE TABLE EVENT (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), SPAN_FROM INTEGER, SPAN_TO INTEGER)");
             String model = EMBEDDED.formatted(backend.connectionBody());

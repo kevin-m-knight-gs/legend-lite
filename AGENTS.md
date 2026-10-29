@@ -126,7 +126,7 @@ text                                                             [FRONTEND]
                                                                  [BACKEND]
   J  sql/dialect/      SqlDialect.render              SqlQuery → SQL string
                                                                  [RUNTIME]
-  K  exec/             PlanRunner.run                 a plan + a session → typed rows to a sink
+  K  exec/             PlanRunner.stream              a plan + a session → typed rows to a sink
                        result/                        (the writers spell each cell at the boundary)
 ```
 

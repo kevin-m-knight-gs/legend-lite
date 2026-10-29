@@ -3,10 +3,11 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the statements after the let read that table: a write between them does not change the rows the let holds. The
  * table is the session's own and is dropped when the program has run.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class StagedRowsTest {
 
     private static final String MODEL = """
@@ -42,7 +44,7 @@ class StagedRowsTest {
             Runtime w::RT { mappings: [ ]; connections: [ w::DB: [ c: w::Conn ] ]; }
             """;
 
-    private static final TestBackend BACKEND = TestBackends.platform();
+    private static final TestBackend BACKEND = LaneFloor.backend();
 
     @Test
     void aStagedLetHoldsItsRowsAcrossTheWritesAfterIt() throws Exception {

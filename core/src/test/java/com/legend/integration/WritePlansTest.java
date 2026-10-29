@@ -3,13 +3,14 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.TypedQuery;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.PlanJson;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.io.StringWriter;
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * a query's text, both written by the database. Each database the writes are measured on runs {@link #plans} in a test
  * named for it (as {@link StoreWritesExecutionTest}'s writes are).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class WritePlansTest {
 
     static final String MODEL = """
@@ -53,7 +55,7 @@ class WritePlansTest {
     /** A program's plan holds a step for each of its statements and runs where a query's does. */
     @Test
     void aProgramThatWritesIsPlannedAsItsSteps() {
-        var ctx = com.legend.Compiler.compileModel(MODEL.formatted(TestBackends.platform().connectionBody()));
+        var ctx = com.legend.Compiler.compileModel(MODEL.formatted(LaneFloor.backend().connectionBody()));
         ExecutionPlan plan = com.legend.Compiler.query(ctx, "{age: Integer[1] |let s = #>{w::DB.SRC}#->filter(r|$r.AGE"
                 + " > $age)->meta::legend::lite::stage(); $s->write(#>{w::DB.T}#); $s->select(~[ID]);}")
                 .executionPlan("w::RT");

@@ -45,11 +45,11 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
 
                 ###Connection
                 import test::*;
-                RelationalDatabaseConnection store::Conn { type: %s; %s; }
+                RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
                 ###Runtime
                 import test::*;
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
-                """.formatted(backend().type(), backend().specificationAndAuth(), mappingName, dbName);
+                """.formatted(mappingName, dbName);
     }
 
     private Lean.Result exec(String model, String query) throws SQLException {

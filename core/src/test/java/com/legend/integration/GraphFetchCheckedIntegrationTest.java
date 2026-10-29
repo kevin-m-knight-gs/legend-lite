@@ -3,8 +3,9 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * not-true and an object violating EVERY constraint reported
  * {@code "defects":[]}.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class GraphFetchCheckedIntegrationTest {
 
     private Connection conn;
@@ -37,7 +39,7 @@ class GraphFetchCheckedIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE T_EDGE (ID INTEGER PRIMARY KEY,"
                     + " S_STRING VARCHAR(100), S_INT INTEGER)");

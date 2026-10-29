@@ -30,7 +30,7 @@ import java.util.List;
  * its keys have run), and each cell decoded from the JSON by its column's three type facts with the product's own
  * row decoder ({@link RowDecode}: an Integer a long, a Float a double, a Decimal an exact BigDecimal, a date its
  * {@code PureDateLiteral}, a String its text). A reader of the product's output, never a copy of the old door's
- * {@code TypedSide}; it keeps the accessor names the tests use ({@code rows().get(0).get(0)},
+ * {@code ExecutionResult} (deleted in track D); it keeps the accessor names the tests use ({@code rows().get(0).get(0)},
  * {@code columns().get(0).name()}, {@code rowCount()}). Test code only.
  */
 public final class Lean {
@@ -45,7 +45,8 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(model, query, runtime, Sessions.given(c), PlanSessions.given(c), p -> sink.of(p));
+            plan = Execution.run(LaneFloor.model(model, c), query, runtime, Sessions.given(c), PlanSessions.given(c),
+                    p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -62,7 +63,7 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = new com.legend.server.QueryService().execute(model, query, runtime, p -> sink.of(p));
+            plan = new com.legend.server.QueryService().execute(LaneFloor.model(model), query, runtime, p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -79,7 +80,8 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query), runtime,
+            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query),
+                    runtime,
                     Sessions.given(c), PlanSessions.given(c), Execution.Establish.DECLARED_SETUP, p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -240,7 +242,7 @@ public final class Lean {
     }
 
     /**
-     * The judges' collected side ({@code TypedSide}, the body driver's typed side until track D renames it) read
+     * The judges' collected side ({@code TypedSide}; {@code ExecutionResult} until track D renamed it) read
      * through the same reader: for a body only the program entry runs (a read of the system metamodel store, which
      * the plan path does not route; a DDL native; a staged let; an assert body) -- {@link Program}. A scalar or a
      * collection is a VALUE answer of one column {@code value}; a relation a RELATION answer; a graph fetch an OBJECTS

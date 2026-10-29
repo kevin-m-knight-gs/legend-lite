@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * </pre>
  */
 @DisplayName("JSON Source M2M Chain Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class JsonM2MChainIntegrationTest {
 
     private Connection conn;
@@ -344,7 +346,7 @@ class JsonM2MChainIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
     }
 
     @AfterEach

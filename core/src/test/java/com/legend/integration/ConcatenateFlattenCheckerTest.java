@@ -151,7 +151,8 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                               2, Bob
                               #
                             )"""));
-            assertTrue(ex.getMessage().contains("mismatch") || ex.getMessage().contains("column"),
+            assertTrue(ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("mismatch")
+                    || ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("column"),
                     "Expected column mismatch error, got: " + ex.getMessage());
         }
 
@@ -169,7 +170,8 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                               2, Bob, 30
                               #
                             )"""));
-            assertTrue(ex.getMessage().contains("mismatch") || ex.getMessage().contains("column"),
+            assertTrue(ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("mismatch")
+                    || ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("column"),
                     "Expected column mismatch error, got: " + ex.getMessage());
         }
 
@@ -187,7 +189,8 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                               2, 30
                               #
                             )"""));
-            assertTrue(ex.getMessage().contains("mismatch") || ex.getMessage().contains("column"),
+            assertTrue(ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("mismatch")
+                    || ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("column"),
                     "Expected column mismatch error, got: " + ex.getMessage());
         }
     }

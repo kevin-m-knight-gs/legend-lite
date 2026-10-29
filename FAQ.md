@@ -317,7 +317,7 @@ core/    the compiler — 418 files, ~120K LOC. THIS is where work happens.
   compiler/  NameResolver, element/ (F), spec/ (G — Typer, checkers)
   normalizer/ resolver/ lowering/           E, H, I
   sql/ + sql/dialect/                       MIR (sealed, pure data) → SQL
-  exec/                                     JDBC → ExecutionResult
+  exec/                                     a plan + a session → typed rows to a sink
   Compiler.java                             the one driver
 
 engine/  FROZEN legacy + the still-live wire layer:

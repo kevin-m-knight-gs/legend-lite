@@ -100,8 +100,8 @@ class InstanceIdentityTest {
     @Test
     @DisplayName("a let-bound keyless instance equals ITSELF (identity)")
     void sameInstanceEqual() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|let p = ^m::P(name='a'); assertEquals($p, $p);}"))
+        assertEquals(Boolean.TRUE, run(
+                "{|let p = ^m::P(name='a'); assertEquals($p, $p);}")
                 .value());
     }
 
@@ -109,8 +109,8 @@ class InstanceIdentityTest {
     @DisplayName("two constructor sites are DISTINCT instances even when"
             + " content-equal (the engine-FALSE the content fabrication hid)")
     void distinctSitesNotEqual() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertNotEquals(^m::P(name='a'), ^m::P(name='a'))}"))
+        assertEquals(Boolean.TRUE, run(
+                "{|assertNotEquals(^m::P(name='a'), ^m::P(name='a'))}")
                 .value());
         assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::P(name='a'); let b = ^m::P(name='a');"
@@ -225,12 +225,12 @@ class InstanceIdentityTest {
         // Sub REDECLARES sides WITHOUT the key stereotype: it stops
         // being a key — Subs differing only in sides stay equal, and n
         // (Sub's own key) still separates
-        assertEquals(Boolean.TRUE, (run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let s1 = ^m::Side(sid='a'); let s3 = ^m::Side(sid='b');"
                         + " let u1 = ^m::Sub(name='t', n=1, sides=[$s1]);"
                         + " let u2 = ^m::Sub(name='t', n=1, sides=[$s3]);"
                         + " let u3 = ^m::Sub(name='t', n=2, sides=[$s1]);"
-                        + " assert(equal($u1, $u2) && !equal($u1, $u3));}"))
+                        + " assert(equal($u1, $u2) && !equal($u1, $u3));}")
                 .value());
     }
 
@@ -238,10 +238,10 @@ class InstanceIdentityTest {
     @DisplayName("F13c: contains/in over keyed instances is equal() per"
             + " element — a fresh key-matching instance IS contained")
     void containsIsKeyedEquality() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x'); let b = ^m::K(id=2, other='y');"
                         + " assert([$a, $b]->contains(^m::K(id=1, other='z'))"
-                        + " && !([$a, $b]->contains(^m::K(id=3, other='x'))));}"))
+                        + " && !([$a, $b]->contains(^m::K(id=3, other='x'))));}")
                 .value());
     }
 
@@ -253,16 +253,16 @@ class InstanceIdentityTest {
         // database judge JUDGES the nested Pair pair (its key tree renders), never names it unjudged
         long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
         long unjudged = CanonicalDivergence.sqlUnjudgedCount();
-        assertEquals(Boolean.TRUE, (runBoth(
+        assertEquals(Boolean.TRUE, runBoth(
                 "{|assert(equal(pair(pair(1, 'a'), 2),"
-                        + " pair(pair(1, 'a'), 2)));}")).one());
-        assertEquals(Boolean.TRUE, (runBoth(
+                        + " pair(pair(1, 'a'), 2)));}").one());
+        assertEquals(Boolean.TRUE, runBoth(
                 "{|assert(!equal(pair(pair(1, 'a'), 2),"
-                        + " pair(pair(1, 'b'), 2)));}")).one());
+                        + " pair(pair(1, 'b'), 2)));}").one());
         // and through the VERDICT wrap (the zip family's shape):
-        assertEquals(Boolean.TRUE, (runBoth(
+        assertEquals(Boolean.TRUE, runBoth(
                 "{|assertEquals(pair(pair(1, 'a'), 2),"
-                        + " pair(pair(1, 'a'), 2))}")).one());
+                        + " pair(pair(1, 'a'), 2))}").one());
         assertEquals(judged + 3, CanonicalDivergence.sqlJudgedInDatabaseCount(),
                 "Pair-of-Pairs must be JUDGED by the database judge: " + CanonicalDivergence.summary());
         assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),

@@ -1,8 +1,9 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Without the fix, this fails with:
  *   NullPointerException: Cannot invoke "RelationType.columns()" because "sourceType" is null
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 public class ComputedProjectIntegrationTest {
 
     /**
@@ -82,9 +84,11 @@ public class ComputedProjectIntegrationTest {
 
     @Test
     void testSimpleProjectList_pctExpression() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
             var result = Lean.run(MODEL, PCT_EXPRESSION, "test::TestRuntime", connection);
@@ -145,9 +149,11 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testFilterPostProject() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
             var result = Lean.run(
@@ -208,9 +214,11 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testGroupByCastBeforeAgg() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
             var result = Lean.run(
@@ -259,9 +267,11 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testGroupByCastAfterAgg() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
             var result = Lean.run(
@@ -327,9 +337,11 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testOLAPAggCastWithPartitionWindow() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
             var result = Lean.run(
@@ -399,9 +411,11 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testSimpleRelationProject_computedColumn() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
             var result = Lean.run(

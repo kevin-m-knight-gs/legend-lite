@@ -25,12 +25,16 @@ import java.util.Map;
  * {@link TestBackends#named}: {@code sqlite}, {@code h2}, {@code mongodb}, ...; unset, the platform's own engine, and
  * nothing here applies). On a lane, every test is held to the lane's RECORDED floor, the classpath resource
  * {@code lanes/<lane>.txt}: one line per test that fails on that lane today, {@code Class#method} (the class without
- * its package, a nested class with {@code $}; a parameterized invocation {@code Class#method[its display name]}), a
+ * its package, a nested class with {@code $}; a parameterized invocation {@code Class#method[#N]}, its ordinal), a
  * tab, the reason (a dialect gap, a database's own rule, a defect by its register row). A listed test that fails
  * passes the run, printed; a listed test that PASSES fails the run, asking for its line to go (the floor only
- * shrinks); a failing test the floor does not list fails the run, as on the platform. The floor is a measurement,
- * never a judgment: a line moves only with the reason in the commit (AGENTS.md: a ceiling, pin or allowlist entry
- * moves only with a dated justification).
+ * shrinks); a failing test the floor does not list fails the run, as on the platform; a listed test whose set-up fails
+ * is not run (reported successful, said in the log); a line whose reason opens {@code not run <date>:} PINS its test
+ * as not run on the lane, for a failure that would end the run (one JUnit rethrows as unrecoverable, say the
+ * database's planner exhausting the heap) -- dated, with its cause, moved only with one. Every integration test is on the lane: the subclasses of
+ * {@code AbstractDatabaseTest} through its {@code backend()}, every other through {@link #backend()} where it opened
+ * the platform's database itself (T-d2). The floor is a measurement, never a judgment: a line moves only with the
+ * reason in the commit (AGENTS.md: a ceiling, pin or allowlist entry moves only with a dated justification).
  */
 public final class LaneFloor implements InvocationInterceptor {
 
@@ -57,13 +61,13 @@ public final class LaneFloor implements InvocationInterceptor {
     @Override
     public void interceptTestMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext,
             ExtensionContext extensionContext) throws Throwable {
-        judge(invocation, key(extensionContext, false), extensionContext);
+        judge(invocation, key(extensionContext), extensionContext);
     }
 
     @Override
     public void interceptTestTemplateMethod(Invocation<Void> invocation,
             ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
-        judge(invocation, key(extensionContext, true), extensionContext);
+        judge(invocation, key(extensionContext), extensionContext);
     }
 
     /** A listed test's set-up may be what fails on the lane (a table the dialect cannot create): on the floor too. */
@@ -81,8 +85,7 @@ public final class LaneFloor implements InvocationInterceptor {
 
     private static void around(Invocation<Void> invocation, ExtensionContext ctx, String what) throws Throwable {
         String lane = lane();
-        String key = ctx.getTestMethod().isPresent() ? key(ctx, ctx.getTestMethod().get().isAnnotationPresent(
-                org.junit.jupiter.params.ParameterizedTest.class)) : null;
+        String key = ctx.getTestMethod().isPresent() ? key(ctx) : null;
         String reason = lane == null || key == null ? null : floor(lane).get(key);
         if (reason == null) {
             invocation.proceed();
@@ -104,12 +107,60 @@ public final class LaneFloor implements InvocationInterceptor {
         return message.length() > 200 ? message.substring(0, 200) + "..." : message;
     }
 
-    /** {@code Class#method}, the class without its package; an invocation of a template with its display name. */
-    static String key(ExtensionContext ctx, boolean invocation) {
+    /** {@code Class#method}, the class without its package; an invocation of a template (a parameterized or repeated
+     *  test) with its ordinal, {@code Class#method[#N]}, as JUnit names it in the context's unique id
+     *  ({@code [test-template-invocation:#N]}) and the run's report names it ({@code method(...)[N]}). */
+    static String key(ExtensionContext ctx) {
         String cls = ctx.getRequiredTestClass().getName();
         int dot = cls.lastIndexOf('.');
         String name = cls.substring(dot + 1) + "#" + ctx.getRequiredTestMethod().getName();
-        return invocation ? name + "[" + ctx.getDisplayName() + "]" : name;
+        java.util.regex.Matcher m = INVOCATION.matcher(ctx.getUniqueId());
+        return m.find() ? name + "[#" + m.group(1) + "]" : name;
+    }
+
+    /** A floor line's reason that pins its test as not run on the lane: {@code not run <date>: <cause>}. */
+    static final String NOT_RUN = "not run ";
+
+    private static final java.util.regex.Pattern INVOCATION = java.util.regex.Pattern.compile(
+            "\\[test-template-invocation:#(\\d+)\\]");
+
+    /** THE PLATFORM'S CONNECTION CLAUSE as every test spells "the database this test runs on" in its model text:
+     *  DuckDB's own, whatever its whitespace. */
+    static final java.util.regex.Pattern PLATFORM_CONNECTION = java.util.regex.Pattern.compile(
+            "type:\\s*DuckDB;\\s*specification:\\s*DuckDB\\s*\\{\\s*\\};\\s*auth:\\s*Test;");
+
+    /** {@code model} on the SESSION {@code c} is on: its platform connection clause ({@link #PLATFORM_CONNECTION},
+     *  the spelling of "the database this test runs on") re-spelled as that session's backend's
+     *  ({@code TestBackend.connectionBody}), so the same model runs on the lane's database; the text itself on the
+     *  platform's lane, or for a session on the platform's database (a test named for it keeps its own session
+     *  whatever the lane). A model that names a database by any other spelling is a test of that database and is
+     *  not touched. The twin's reader and the program helper apply it to every model they run (T-d2, 2026-10-29:
+     *  681 tests of the laned classes carried the platform's clause in their own text and could only report "the
+     *  query executes on DuckDB"). */
+    public static String model(String model, java.sql.Connection c) {
+        if (lane() == null) {
+            return model;
+        }
+        TestBackend on;
+        try {
+            on = TestBackends.of(c);
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("the lane cannot tell the session's database", e);
+        }
+        return respell(model, on);
+    }
+
+    /** {@link #model(String, java.sql.Connection)} for a run with no caller's session: the lane's backend. */
+    public static String model(String model) {
+        return lane() == null ? model : respell(model, backend());
+    }
+
+    private static String respell(String model, TestBackend on) {
+        if (on.type() == com.legend.database.Databases.PLATFORM) {
+            return model;
+        }
+        return PLATFORM_CONNECTION.matcher(model).replaceAll(
+                java.util.regex.Matcher.quoteReplacement(on.connectionBody()));
     }
 
     private static void judge(Invocation<Void> invocation, String key, ExtensionContext ctx) throws Throwable {
@@ -123,10 +174,20 @@ public final class LaneFloor implements InvocationInterceptor {
             invocation.proceed();
             return;
         }
-        if (ctx.getStore(NAMESPACE).get(SET_UP_FAILED) != null) {
-            // its set-up failed on the floor: the test is not run against a broken set-up (which would pass or fail
-            // for the wrong reason); it stays on the floor until its set-up passes here
+        if (reason.startsWith(NOT_RUN)) {
+            // a PIN, not a measurement: the test cannot be run on this lane without ending the run (a failure JUnit
+            // rethrows as unrecoverable -- say the database's planner exhausting the heap), so it is NOT RUN, said in
+            // the log; its line carries the date and the cause, and moves only with one (AGENTS.md's guard-file rule)
             invocation.skip();
+            System.out.println("[lane " + lane + "] on the floor, not run: " + key + " (" + reason + ")");
+            return;
+        }
+        if (ctx.getStore(NAMESPACE).get(SET_UP_FAILED) != null) {
+            // its set-up failed on the floor: the test is NOT RUN against a broken set-up (which would pass or fail
+            // for the wrong reason) -- JUnit reports the invocation successful, the run's log says it was not run --
+            // and it stays on the floor until its set-up passes here
+            invocation.skip();
+            System.out.println("[lane " + lane + "] on the floor, not run (its set-up failed): " + key);
             return;
         }
         try {

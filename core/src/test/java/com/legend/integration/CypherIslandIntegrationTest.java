@@ -3,10 +3,11 @@
 
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.error.LegendCompileException;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the plan's next landing), the island composes with Pure, and a refusal is the compile error its kind says, placed
  * in the source.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class CypherIslandIntegrationTest {
 
     /** The platform's own engine: the island's session, its tables and the connection its model declares. */
-    private static final TestBackend PLATFORM = TestBackends.platform();
+    private static final TestBackend PLATFORM = LaneFloor.backend();
 
     private static final String MODEL = """
             ###Pure

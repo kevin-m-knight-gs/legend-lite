@@ -1,9 +1,9 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link #witnessMainTableForB1} (the navigation-depth leg, 2026-09-02).
  */
 @DisplayName("Metamodel store: the mapping metamodel as relations")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelMappingStoreTest {
 
     private static final String MODEL = """
@@ -78,7 +79,7 @@ class MetamodelMappingStoreTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -87,7 +88,7 @@ class MetamodelMappingStoreTest {
     }
 
     private Lean.Result run(String query) throws SQLException {
-        return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
+        return Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
     }
 
     private List<Object> values(String query) throws SQLException {

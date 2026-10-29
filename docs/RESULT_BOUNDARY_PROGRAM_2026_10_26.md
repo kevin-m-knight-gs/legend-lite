@@ -516,6 +516,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
   sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
   egress lower bound). Next: T-d, then D.
+- **2026-10-29, track T, T-d2: every integration test on the lanes; the floors re-measured** (GATES, the T-d2
+  entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 270 and one not-run pin (H2's
+  planner on a twenty-call chain), the platform 0 of 2,232; a test's own connection text re-spelled to the
+  session's backend; the T-d and track D audits' fixes. Track T built but for Arrow's judge (A). Next: track L.
 - **2026-10-29, track D built: the old door deleted, the judges' side and the body driver named for what they are**
   (GATES, the track D entry; the decisions log D48): `Execution.execute*`, `executeResolved` and the service's
   materialized `execute` gone; `ExecutionResult` -> `TypedSide`, `StatementExecutor` -> `BodyDriver`; the old-path

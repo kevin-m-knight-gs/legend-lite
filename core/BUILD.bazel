@@ -478,6 +478,7 @@ legend_java_library(
             "src/test/java/com/legend/testcases/*.java",
             "src/test/java/com/legend/testing/Lean.java",
             "src/test/java/com/legend/testing/Program.java",
+            "src/test/java/com/legend/testing/LaneFloor.java",
             # the tests' databases are :test_backends's
             "src/test/java/com/legend/testbackend/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
@@ -654,9 +655,9 @@ test_suite(
 # twin of PCT and the corpus (docs/RESULT_BOUNDARY_START_HERE.md, track T) -- on each in-process database beside
 # PCT's lanes, each run held to the lane's recorded floor (testing/LaneFloor; src/test/resources/lanes/<lane>.txt:
 # the tests that fail on that lane today, each with its reason; the floor only shrinks). The platform's own lane is
-# :core_tests_integration. No MongoDB lane yet: the integration base opens a JDBC session (AbstractDatabaseTest
-# .connection), and the MongoDB backend has none (measured 2026-10-29: every test refused by that name); its lane
-# waits on the base class moving to the session seam (the ledger, batch T-d).
+# :core_tests_integration. No MongoDB lane yet: the integration tests open a JDBC session, and the MongoDB backend has
+# none (measured 2026-10-29: every test on the lane refused by that name); its lane waits on the tests moving to the
+# session seam (the ledger, batch T-d).
 _CORE_LANES = {
     # lane -> (data, jvm_flags, tags, target_compatible_with)
     "sqlite": ([], [], [], []),
@@ -1319,6 +1320,7 @@ legend_java_library(
     srcs = glob(["src/test/java/com/legend/testcases/*.java"]) + [
         "src/test/java/com/legend/testing/Lean.java",
         "src/test/java/com/legend/testing/Program.java",
+        "src/test/java/com/legend/testing/LaneFloor.java",   # the lanes (T-d2): every integration test is on one
     ],
     deps = [
         ":core",

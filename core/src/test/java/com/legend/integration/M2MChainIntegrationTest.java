@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
 import com.legend.testing.Lean;
-import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -45,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * </pre>
  */
 @DisplayName("M2M Chain Integration Tests — project() + graphFetch() through multi-hop chains")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class M2MChainIntegrationTest {
 
     private Connection conn;
@@ -453,7 +455,7 @@ class M2MChainIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("""
                     CREATE TABLE T_EMPLOYEE (
