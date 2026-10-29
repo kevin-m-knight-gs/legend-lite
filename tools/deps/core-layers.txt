@@ -55,6 +55,9 @@
 # planner and ide reach `door` (their texts' parses).
 # 2026-10-27 (the result boundary program, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8): `result`, a plan's typed result
 # as a stream of batches and the writers at the edge; exec reaches it (PlanRunner.stream hands each batch to a sink).
+# 2026-10-29 (the result boundary program's track Z, the final audit's finding 2): `test` reaches `result`, `execution_plan`
+# and `json` -- the service test runner spells a cell through CellText.engine, the LEGACY writer's cell, and reads it
+# back as the tree its assertions compare; its own spelling rules and their String.valueOf fallback are gone.
 # 2026-10-29 (the result boundary program's track A, docs/RESULT_BOUNDARY_START_HERE.md): `result` and `pure_v1` reach
 # `arrow_ipc` (//arrow_ipc, below core beside base and json: the Arrow IPC framer, a FlatBuffers builder and a zstd
 # frame over base alone, no Arrow library) -- ArrowWriter writes a result's batches as Arrow IPC at the edge, and
@@ -95,6 +98,6 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
-test	base compiler driver error exec model planner protocol sql values
+test	base compiler driver error exec execution_plan json model planner protocol result sql values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

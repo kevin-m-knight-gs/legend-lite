@@ -56,6 +56,7 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
             // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
             // column was a double -- and is removed
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             // step 9, 2026-10-19, the Trino lane on the plan route: the NaN cell crosses as the text carrier spells it
             // (Trino's JSON text of a NaN double, quoted) and Pure's parseFloat refuses its first character, where the

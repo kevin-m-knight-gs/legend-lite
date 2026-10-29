@@ -639,6 +639,7 @@ public final class LiteralSpelling {
      *  {@code +0000} already): one with seconds and no zone takes Pure's {@code +0000}, as Pure prints a DateTime;
      *  every other precision is its text, Pure's DateTime literal taking a zone only after seconds (the MongoDB
      *  lane, 2026-10-18: {@code %1973-11-13T23} and {@code %2025-02-10T20:10:20+0000} are read as written). */
+    // the zone a written date-time text gets in SQL (register S121, pending: legend-pure writes +0000 from the minute)
     public static SqlExpr dateTimeTextOfText(SqlExpr text) {
         SqlExpr colons = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, text),
                 SqlExpr.Call.of(SqlFn.LENGTH, SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(":"),

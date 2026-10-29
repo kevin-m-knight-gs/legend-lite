@@ -15930,6 +15930,10 @@ the program's step 6; docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B).
    H2) and `testDayOfMonth` (the canon's digits).
 3. **Not measured:** CI's lanes (PR #80 runs them on the push).
 
+(Correction 2026-10-29, track Z's audit, finding 8: the `CarrierPurityRatchetTest` numbers above are not D50b's --
+D50b records LIST_ 170, UNNEST 15, ArrayLit 44, OrderedListAgg 2 at L1; the tree after L2 holds 173 / 13 / 42 / 4, the
+L2 entry's figures.)
+
 ## 2026-10-29 — Track L, L2: the LITERAL spelling carrier deleted; the census reads zero
 
 The result boundary program's track L, L2 (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D52; the
@@ -16095,3 +16099,38 @@ homework README §9, every row updated).
    D46 and D51.
 4. **Measured locally before the commit:** the same chain as track A's entry above (one commit carries both).
 5. **Not measured:** CI's lanes (PR #80 runs them on the push); the MariaDB lane (CI alone).
+
+## 2026-10-29 — Track Z: the final audit of the whole program folded; the service test runner's cells through the boundary's writer; the records corrected; the open questions in one table
+
+The result boundary program's track Z (docs/RESULT_BOUNDARY_START_HERE.md, track Z; the decisions log D59): an
+independent, read-only audit of the whole program at `1e3065d4` (twelve findings, none on the code's correctness:
+the old-path census zero on every old-door symbol, the JDBC seams held, every guard pin moved with a dated note,
+every `default ->` of the program's new code a refusal by name), its findings folded before this commit.
+
+1. **Built:** `test/ServiceTestRunner` spells a program's last side through `result/CellText.engine` (legend-engine's
+   JSON token, a carrier it cannot spell refused by name) and reads it back as the tree its assertions compare; its
+   own rules and their `String.valueOf` fallback are gone; the file joins `WriterCarriageGuardTest`'s scan (an empty
+   register); `:test` reaches `:result`, `:execution_plan` and `//json` (the layer map, dated). `ProgramReport.last`
+   stays the one materialized side a public entry returns, for this runner alone (D59 (2): streaming it to a sink is
+   the next step, posted). Register row S127 (the crossing-numbers refusal, pending); citations of S119, S120, S121,
+   S123 and S125 at their code sites; `CsvSeed`'s javadoc names `Statements.load`.
+2. **Records:** AGENTS.md's census sentence qualified (two named residues: `conformValueEgress` by D51, MariaDB's own
+   `floatLayout` by a shared name); the start page's §0, §1, §2, §3 (the hashes of B2, T, C, D), §10a (the open
+   questions, one table), §12 and its track T block; IN_FLIGHT's spliced fragment; the program's §9 reordered newest
+   first with the Z entry; the L1 entry's ratchet figures corrected by a dated note (above); the H2 floor's count (269
+   and the pin; 268 since track F); core/README's two dates; `Rows.java`'s description; the homework README §9 rows for
+   the MongoDB lane, track T's queued items, D44's two findings, D27's unrun probe and D41's second compiler; PR #80's
+   title and body rewritten to the whole program.
+3. **Measured locally before the commit:** the full local chain (as root; the Postgres targets as the unprivileged
+   user): `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped), `//core:core_tests`
+   (every lane), `//core:core_tests_lanes` (floors unmoved), `//core:guardrails` (the runner scanned), `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178, 1 skipped; the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (rosters
+   unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test`
+   the container's segmentation fault at the headless host's V8, as at every chain; CI judged it green at `0c516091`);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+4. **CI:** PR #80 at `0c516091` (the records head before this fold; the code of `1e3065d4`): `gates green` passed --
+   every lane on Linux, Windows, ARM and macOS (52 check runs, all green: the first run of the branch green on macOS
+   too; run 40900182043, 16:14Z). This fold's push runs every OS again.
+5. **Not measured:** the MariaDB lane (CI alone); apache-arrow JS's reading of the union (the track A audit's scratch
+   program, no gate).

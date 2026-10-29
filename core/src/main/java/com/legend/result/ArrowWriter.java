@@ -27,7 +27,8 @@ import java.util.function.IntFunction;
  * boundary program's track A, 2026-10-29): the result as ONE Arrow IPC stream -- the schema from the plan's columns,
  * each batch a record batch, the end marker -- framed by the warehouse's own framer ({@code com.legend.arrowipc}), no
  * Arrow library. A column's Arrow type is its SLOT's (the database type the plan declares), as legend-engine's Arrow
- * answer types a column from its JDBC metadata (docs/SEMANTICS_REGISTER.md S28): an Integer slot int64, a HUGEINT
+ * answer types a column from its JDBC metadata (docs/SEMANTICS_REGISTER.md S28; the four divergences from S28's
+ * format are register S125, pending the user's ruling): an Integer slot int64, a HUGEINT
  * decimal128(38, 0), a Float float64, {@code DECIMAL(p,s)} decimal128(p, s) at exactly that scale (a cell with more
  * digits is refused, never rounded: S28's defect is not copied), a Decimal of no declared scale its plain digits as
  * text, a StrictDate date32, a time-bearing column timestamp[ns, UTC] (lite's DateTime holds nine digits:

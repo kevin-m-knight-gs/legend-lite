@@ -405,5 +405,5 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
 - [x] Phase H: StoreResolver + resolver/ (see `docs/RELATIONAL_CORPUS.md` for the coverage ledger)
 - [x] Phase I: Lowerer + lowering/ + sql/ data records
 - [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
-- [x] Phase K: PlanRunner + exec/ (Executor deleted 2026-10-29, the result boundary program's track D)
+- [x] Phase K: PlanRunner + exec/ (`exec.Executor` deleted 2026-10-27, the result boundary program's phase 5; the old door 2026-10-29, its track D)
 - [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)

@@ -59,6 +59,7 @@ public class Test_LegendLite_SQLite_EssentialFunctions_PCT extends PCTReportConf
             // 2026-10-20: the Float is the database's double, as for the same expression over a column (the special case
             // that kept a literal-only Float a DECIMAL removed, as on the DuckDB lane)
             // 2026-10-27, phase 4 (typed rows): the double crosses as itself; Pure prints its shortest digits
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ACOS is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ASIN is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),

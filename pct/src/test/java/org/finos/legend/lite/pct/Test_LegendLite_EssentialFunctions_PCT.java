@@ -51,6 +51,7 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // column was a double -- and is removed
             // 2026-10-27, the result boundary program's phase 4 (the PCT reads typed rows): the double crosses as
             // itself and Pure prints its shortest digits, no longer the database's text of it
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,

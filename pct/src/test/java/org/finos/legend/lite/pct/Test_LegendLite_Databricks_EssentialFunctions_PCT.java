@@ -53,6 +53,7 @@ public class Test_LegendLite_Databricks_EssentialFunctions_PCT extends PCTReport
             // 2026-10-27, the result boundary program (the PCT reads typed rows; measured on this lane by its own session):
             // testBigFloatAbs prints a double's shortest digits, and the arcCos/arcSin NaN reaches the bridge as a double,
             // refused by name (Pure's Float has no NaN), no longer parsed from its text
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             // 2026-10-19, step 9, the plan route (as on DuckDB): the NaN cell is spelled NaN and Pure's parseFloat
             // refuses the character (the legacy route's Java BigDecimal said "Infinite or NaN")

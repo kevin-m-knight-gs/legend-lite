@@ -20,7 +20,6 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.values.PureDateLiteral;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -441,7 +440,11 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     // ---- SERIALIZE + JUDGE ----------------------------------------------------
 
-    /** The result as the JSON tree its serialization format produces. */
+    /** The result as the JSON tree its serialization format produces: each cell spelled by the boundary's writer
+     *  ({@link com.legend.result.CellText#engine}: legend-engine's own JSON token, a carrier it cannot spell refused
+     *  by name) and read back as the plain tree the assertions compare. Until track Z (2026-10-29, the final audit's
+     *  finding 2) this runner spelled cells by rules of its own with a {@code String.valueOf} fallback: a second
+     *  writer outside the boundary. */
     static @com.legend.base.Nullable Object serialize(TypedSide result,
             @com.legend.base.Nullable String format) {
         String fmt = format == null ? "DEFAULT" : format;
@@ -465,42 +468,34 @@ public final class ServiceTestRunner implements AutoCloseable {
                 for (var row : t.rows()) {
                     Map<String, Object> o = new LinkedHashMap<>();
                     for (int i = 0; i < t.columns().size(); i++) {
-                        o.put(t.columns().get(i).name(), cell(row.values().get(i)));
+                        o.put(t.columns().get(i).name(), cell(row.values().get(i), t.columns().get(i)));
                     }
                     rows.add(o);
                 }
                 yield rows;
             }
-            case TypedSide.Scalar s -> cell(s.value());
+            case TypedSide.Scalar s -> cell(s.value(), s.columns().get(0));
             case TypedSide.Collection c -> {
                 List<Object> vs = new ArrayList<>(c.values().size());
-                c.values().forEach(v -> vs.add(cell(v)));
+                c.values().forEach(v -> vs.add(cell(v, c.columns().get(0))));
                 yield vs;
             }
         };
     }
 
-    /** A result cell as a JSON tree leaf (the engine's value transformer:
-     *  dates as their engine string, numbers as numbers, the rest as-is). */
-    private static @com.legend.base.Nullable Object cell(@com.legend.base.Nullable Object v) {
-        return switch (v) {
-            case null -> null;
-            case PureDateLiteral d -> d.toEngineJson();   // the engine's JSON spelling: nanos + "+0000" on time-bearing values
-            case Map<?, ?> m -> {
-                Map<String, Object> o = new LinkedHashMap<>();
-                m.forEach((k, x) -> o.put(String.valueOf(k), cell(x)));
-                yield o;
-            }
-            case List<?> l -> {
-                List<Object> o = new ArrayList<>(l.size());
-                l.forEach(x -> o.add(cell(x)));
-                yield o;
-            }
-            case Number n -> n;
-            case Boolean b -> b;
-            case String s -> s;
-            default -> String.valueOf(v);
-        };
+    /** A result cell as the JSON tree leaf legend-engine's writer spells ({@code CellText.engine}, the LEGACY
+     *  writer's cell), read back as a plain tree. The side's column names the cell's Pure type; it carries no slot
+     *  and no precision fact (a judge's side is collected, not planned), so a cell is spelled by its carrier's own
+     *  kind, as a slotless column's is. */
+    private static @com.legend.base.Nullable Object cell(@com.legend.base.Nullable Object v,
+            com.legend.exec.Column column) {
+        if (v == null) {
+            return null;
+        }
+        com.legend.executionplan.ExecutionPlan.Column c = new com.legend.executionplan.ExecutionPlan.Column(
+                column.name(), column.pureType().typeName(), new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1),
+                null, null, null);
+        return com.legend.sql.Json.parse(com.legend.json.Json.toCompact(com.legend.result.CellText.engine(v, c)));
     }
 
     private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,

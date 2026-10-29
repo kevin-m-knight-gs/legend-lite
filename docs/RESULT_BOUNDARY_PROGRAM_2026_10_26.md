@@ -502,43 +502,34 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
-- **2026-10-29, track T begun: the LEAN reader and the first batch** (GATES, the T-a entry; the decisions log D42;
-  the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`): `testing/Lean.java` reads lite's JSON
-  rows back through the product's own row decoder; the 28 `AbstractDatabaseTest` subclasses (2,232 tests) judged on
-  it, no expectation moved. Next: the remaining 115 test files on the old door, the helpers, the per-lane targets.
-- **2026-10-29, track T, T-b: the integration package's remaining 31 files; `testing/Program.java`; a plan-path bug
-  fixed** (GATES, the T-b entry; the decisions log D44; the ledger, batch T-b): a navigate's slot column is flattened
-  once for the plan's columns and the judges' (`TypedRows.flat`); six files whose bodies only the program entry runs
-  go through `Program`; 2,232 of 2,232. Findings queued to D and F: the plan path's missing metamodel-store route on
-  a given session; `PureV1Api`'s positional tdsColumns. Next: the other packages (85 files by the counting rule).
-- **2026-10-29, track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product
-  bugs fixed** (GATES, the T-b2/T-c entry; the decisions log D45, D46; the ledger): `Json.parse`'s negative zero and
-  `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
-  sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
-  egress lower bound). Next: T-d, then D.
-- **2026-10-29, track L, L1: a mixed list as a list of tagged values** (GATES, the L1 entry; the decisions log
-  D50): `SqlExpr.TaggedList`, parallel typed arrays by position, rows of a tagged value at a root; the operations in
-  `TaggedLists`; the PCT essential suites on every local lane and channel B at their counts. Next: L2, the deletions.
-- **2026-10-29, track L, L2: the spelling carrier deleted** (GATES, the L2 entry; the decisions log D52): the
-  `LITERAL` slot, `LiteralText`, the decoders' and dialects' arms, the lowering's spellers; the census zero; plan
-  format 19. Open: `Fold.conformValueEgress` (step 5's delete) waits on D51's ruling.
-- **2026-10-29, track L, the L2 audit's fold** (GATES, the L2 audit entry; the decisions log D54; the register
-  S123, S124): the flatten's numbering of a sorted star frame and of an ordered source; crossing numbers refused by
-  name; `filter` over a mixed list; the cells' size; the gate over typed columns. Next: track A.
-- **2026-10-29, track A: the Arrow writer at the boundary** (GATES, the track A entry; the decisions log D55, D56):
-  `//arrow_ipc`, the warehouse's framer shared; `result/ArrowWriter`; the server's ARROW_IPC execute; the embedded
-  hosts' entry points; R9's closure guard; the pyarrow round-trip gate. Steps 2 and 5's Arrow half done; the
-  consumers' switch (Python's route, the tab) posted for the user (D56). Next: track F.
-- **2026-10-29, track A audited and folded** (the decisions log D57; GATES, the track A entry): eighteen findings,
-  two blockers (the union's type ids for the browser's reader; the decoders' 63-bit bound) fixed before the commit;
-  three questions posted (a day under a TIMESTAMP column, the JSON route's tenth subsecond digit, the server's Arrow
-  format against S28: register S125).
+- **2026-10-29, track Z: the final audit folded; the program's work on the branch is complete** (the decisions log
+  D59; GATES, the track Z entry): twelve findings, none on the code's correctness; the service test runner's cells
+  through the boundary's writer (its own spelling and `String.valueOf` fallback gone); the crossing-numbers refusal
+  ledgered (S127); the records corrected where stale; the open questions in one table (the start page's §10a). Left
+  to the user: the rulings of §10a and the landing of PR #80 (no session pushes `main` or merges).
 - **2026-10-29, track F: the open findings** (the decisions log D58; GATES, the track F entry): built S116 (the
   engine's `toVariant` of an empty), the H2 JSON parse (63 corpus tests gained), the tag in the batch; closed the
   `concatenate` width, the `[0..1]` element and the unbounded Decimal by upstream's own rule; posted `asOfJoin`'s empty
   right side (S126), the multi-key ordered list aggregate (sized), the lane twin and the typed kind. Next: track Z.
+- **2026-10-29, track A audited and folded** (the decisions log D57; GATES, the track A entry): eighteen findings,
+  two blockers (the union's type ids for the browser's reader; the decoders' 63-bit bound) fixed before the commit;
+  three questions posted (a day under a TIMESTAMP column, the JSON route's tenth subsecond digit, the server's Arrow
+  format against S28: register S125).
+- **2026-10-29, track A: the Arrow writer at the boundary** (GATES, the track A entry; the decisions log D55, D56):
+  `//arrow_ipc`, the warehouse's framer shared; `result/ArrowWriter`; the server's ARROW_IPC execute; the embedded
+  hosts' entry points; R9's closure guard; the pyarrow round-trip gate. Steps 2 and 5's Arrow half done; the
+  consumers' switch (Python's route, the tab) posted for the user (D56). Next: track F.
+- **2026-10-29, track L, the L2 audit's fold** (GATES, the L2 audit entry; the decisions log D54; the register
+  S123, S124): the flatten's numbering of a sorted star frame and of an ordered source; crossing numbers refused by
+  name; `filter` over a mixed list; the cells' size; the gate over typed columns. Next: track A.
+- **2026-10-29, track L, L2: the spelling carrier deleted** (GATES, the L2 entry; the decisions log D52): the
+  `LITERAL` slot, `LiteralText`, the decoders' and dialects' arms, the lowering's spellers; the census zero; plan
+  format 19. Open: `Fold.conformValueEgress` (step 5's delete) waits on D51's ruling.
+- **2026-10-29, track L, L1: a mixed list as a list of tagged values** (GATES, the L1 entry; the decisions log
+  D50): `SqlExpr.TaggedList`, parallel typed arrays by position, rows of a tagged value at a root; the operations in
+  `TaggedLists`; the PCT essential suites on every local lane and channel B at their counts. Next: L2, the deletions.
 - **2026-10-29, track T, T-d2: every integration test on the lanes; the floors re-measured** (GATES, the T-d2
-  entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 270 and one not-run pin (H2's
+  entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 269 and one not-run pin (268 since track F; H2's
   planner on a twenty-call chain), the platform 0 of 2,232; a test's own connection text re-spelled to the
   session's backend; the T-d and track D audits' fixes. Track T built but for Arrow's judge (A). Next: track L.
 - **2026-10-29, track D built: the old door deleted, the judges' side and the body driver named for what they are**
@@ -554,6 +545,20 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   (GATES, the track C entry; the decisions log D39): the body typed once, the session the caller's, nothing
   materialized returned to the corpus runner or channel B; the referee keeps `ExecutionResult` as the judges' side
   until D (D36). The plan path program's step 10 is this entry. Next: track T (core's tests as the LEAN twin).
+- **2026-10-29, track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product
+  bugs fixed** (GATES, the T-b2/T-c entry; the decisions log D45, D46; the ledger): `Json.parse`'s negative zero and
+  `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
+  sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
+  egress lower bound). Next: T-d, then D.
+- **2026-10-29, track T, T-b: the integration package's remaining 31 files; `testing/Program.java`; a plan-path bug
+  fixed** (GATES, the T-b entry; the decisions log D44; the ledger, batch T-b): a navigate's slot column is flattened
+  once for the plan's columns and the judges' (`TypedRows.flat`); six files whose bodies only the program entry runs
+  go through `Program`; 2,232 of 2,232. Findings queued to D and F: the plan path's missing metamodel-store route on
+  a given session; `PureV1Api`'s positional tdsColumns. Next: the other packages (85 files by the counting rule).
+- **2026-10-29, track T begun: the LEAN reader and the first batch** (GATES, the T-a entry; the decisions log D42;
+  the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`): `testing/Lean.java` reads lite's JSON
+  rows back through the product's own row decoder; the 28 `AbstractDatabaseTest` subclasses (2,232 tests) judged on
+  it, no expectation moved. Next: the remaining 115 test files on the old door, the helpers, the per-lane targets.
 - **2026-10-29, track B, B1a and B1b built: the body driver sends nothing itself and holds no connection** (GATES, the
   B1a and B1b entries; the decisions log D33, D35). B1a: the session seam answers a statement's reported columns
   (`Statements.columns`, `describe`) and loads rows (`load`); the three schema probes, the seeds and the static pivot

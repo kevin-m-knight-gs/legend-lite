@@ -181,6 +181,7 @@ public final class CellText {
             case Long n -> Json.num(n);
             case Integer n -> Json.num(n);
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
+            // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
             case Double d -> !pure ? engineFloat(d)
                     : Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
             case BigDecimal d -> token(d.toPlainString(), d);
@@ -200,6 +201,7 @@ public final class CellText {
             return Json.nil();
         }
         return switch (cell) {
+            // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
             case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
             case BigDecimal d -> token(isFloat(c) ? pureFloat(d) : d.toPlainString(), d);
             case PureDateLiteral d -> Json.str(pureDate(d, c.type(), c));

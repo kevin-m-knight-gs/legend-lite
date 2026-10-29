@@ -3445,6 +3445,7 @@ final class Scalars {
             return null;
         }
         String s = cd.value().toEngineString();
+        // a DateTime literal's text with its zone (register S121, pending: legend-pure writes +0000 from the minute)
         return new SqlExpr.StringLit(t == Type.Primitive.DATE_TIME ? s + "+0000" : s);
     }
 

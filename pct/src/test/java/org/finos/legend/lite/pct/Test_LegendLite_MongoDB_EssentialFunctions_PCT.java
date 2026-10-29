@@ -68,6 +68,7 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
             // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
             // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
             // column was a double -- and is removed
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),

@@ -38,8 +38,8 @@ public final class CsvSeed {
     }
 
     /** One step of a seed, in order: a statement (the dialect's DDL text), or
-     *  rows to load ({@code exec.Executor.load} &mdash; an engine's bulk API when
-     *  it has one; its text is the one multi-row insert). */
+     *  rows to load ({@code exec.Statements#load}, the session's bulk load &mdash; an engine's
+     *  bulk API when it has one; its text is the one multi-row insert). */
     public sealed interface Step permits Step.Sql, Step.Rows {
         /** A statement: written for the database {@code writtenFor} (its connection's declared type, by name;
          *  decision D2), or by the session's own dialect ({@code writtenFor} null). */

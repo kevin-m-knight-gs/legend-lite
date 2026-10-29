@@ -47,6 +47,7 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             // column was a double -- and is removed
             // 2026-10-27, the result boundary program (typed rows): the double crosses as itself and Pure prints its shortest
             // digits, no longer Postgres's fifteen-digit text of it (measured on this lane by its own session)
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "expected: 1\nactual:   2"),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "expected: 4\nactual:   5"),

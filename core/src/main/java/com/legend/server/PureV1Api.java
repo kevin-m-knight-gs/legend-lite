@@ -437,8 +437,9 @@ public final class PureV1Api {
      * each field's metadata), its schema carrying the metadata upstream's answer carries ({@code legend.builder},
      * {@code legend.activities}, {@code legend.columns}: {@link #arrowPlan}'s), the stream wrapped as one zstd frame
      * (raw blocks, our own: {@code arrowipc/ZstdFrame}) under upstream's headers (Content-Type application/json,
-     * x-legend-response-format FormatNotSet; measured 2026-10-08). A graph fetch is answered in JSON (as upstream's
-     * relational serializer answers relations only); a value's answer is unprobed.
+     * x-legend-response-format FormatNotSet; measured 2026-10-08). A graph fetch under it is refused by name (upstream's
+     * answer unprobed; D57 (7)); a value's answer is unprobed. The columns' Arrow types are the plan's slots', not
+     * upstream's JDBC-driven ones (register S125, pending the user's ruling).
      */
     public static Answer executeArrow(String body, Runner runner, Models models) {
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();

@@ -153,7 +153,9 @@ user-visible error carries one of these eight.
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
-answer is a plan, written at the boundary; `docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero.
+answer is a plan, written at the boundary; `docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero on every
+old-door symbol (two named residues remain by the user's question D51 and by a shared name: `Fold.conformValueEgress`,
+and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 
 `compileModel` and `buildModule` differ by **one argument**:
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every

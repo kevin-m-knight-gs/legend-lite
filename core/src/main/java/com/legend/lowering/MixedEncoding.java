@@ -276,6 +276,8 @@ final class MixedEncoding {
     /** An element's rank for a mixed list's order (the engine's compare over mixed kinds: numbers, then dates,
      *  then Boolean, then String; within a group by the group's own channel), built from the TYPED value: a struct
      *  {@code {g, n, d, s}} whose fields order lexicographically. Null for a kind outside the eight. */
+    // a Decimal ranks with the numbers (register S123: compiled legend-pure sorts a BigDecimal after dates, Booleans and
+    // Strings; the user's ruling)
     static @com.legend.base.Nullable SqlExpr rankedComparableOf(Type t, @com.legend.base.Nullable TypedSpec e,
             SqlExpr x) {
         int group;

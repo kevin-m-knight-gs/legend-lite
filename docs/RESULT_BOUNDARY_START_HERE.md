@@ -18,7 +18,7 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   exactly as legend-engine's own PCT adapter reads it), our own core tests (the LEAN twin, per lane: track T), the
   core_relational corpus and the service test runner (track C) -- a query through `Execution.run`, a test body
   through `Execution.runProgram` (track B). The old door (`Execution.execute*`, `StatementExecutor`'s JDBC, the
-  materialized `ExecutionResult`) is deleted (track D). Left: mixed lists as typed values (L), the Arrow writer (A),
+  materialized `ExecutionResult`) is deleted (track D); mixed lists are typed values (L); the Arrow writer is at the boundary (A); the open findings are settled or posted (F); the final audit is folded (Z, 2026-10-29). Left: nothing of the tracks -- the user's rulings (§10a) and the landing. (As written before Z: mixed lists as typed values (L), the Arrow writer (A),
   the open findings (F), the final audit and the landing (Z).
 - **The branch.** `claude/wizardly-dirac-rw6tim` (since 2026-10-28, the next session's designated branch, from
   `claude/upbeat-johnson-l4hogx`'s head `7a9a368b`: that branch's 20 commits on top of `7b8c89dc`, PR #78's merge into
@@ -26,7 +26,7 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   50 commits past the branch's base by `git rev-list`), a merge commit, both sides kept, the branch's register rows
   renumbered S115 to S117 (GATES, the S1.0 entry). Clean. Never pushed to `main`; it lands through a PR when the user
   says (AGENTS.md, "Pushing to main").
-- **The next action.** Track B (a test body as a sequence of plans: the body driver on the session seam, the judges'
+- **The next action (2026-10-29, after Z).** The landing: CI green on every OS at the head, the user rules the open questions (§10a) and merges PR #80; no session pushes to `main` or merges. (The next action as written before the tracks: track B (a test body as a sequence of plans: the body driver on the session seam, the judges'
   typed sides, one entry for a program; its design in §4's track B block, the decisions log D29 and D30), while
   draft PR #80 (S1.6, opened 2026-10-29 under the user's "keep going", D11; the merge the user's) runs CI on every
   OS: red there is work before anything else. Stage 1 is done: S1.4 corrected under the upstream-fidelity tenet
@@ -50,7 +50,7 @@ session and streams typed batches to a sink (`result/ResultSink`); a writer spel
 | Renderer | Who reads it | Written by | Judged by |
 |---|---|---|---|
 | LEGACY: legend-engine's exact answers | Studio, legend clients, `pure/v1` | `result/PureV1Writer`, `CellText.engine` | PCT (legend-pure's own function tests, 12 databases) and the core_relational corpus (legend-engine's own relational tests): legend-engine's tests, legend-engine's expectations |
-| LEAN: lite's own lossless output | lite's query service, the warehouse, DataCube, Python | `result/JsonRowsWriter`, `CsvWriter`, Arrow (not built) | our own core tests, rewritten as the platform twin of PCT and the corpus (track T): the same queries and logic, judged on what lite's users actually get |
+| LEAN: lite's own lossless output | lite's query service, the warehouse, DataCube, Python | `result/JsonRowsWriter`, `CsvWriter`, `ArrowWriter` (track A) | our own core tests, rewritten as the platform twin of PCT and the corpus (track T): the same queries and logic, judged on what lite's users actually get |
 
 **Two judges, kept forever (R10).** Every assertion a test body makes is judged twice: the HOST judge (each side a
 typed plan, compared in Java) and the DATABASE judge (both sides in one SQL verdict statement); a disagreement fails
@@ -69,9 +69,9 @@ library in the product.
 | The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `exec/VerdictBatch`, `exec/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `PctExecuteNative` (the native the reference calls), `PctPlanRoute` (plan, run; a relation through `PureV1Api.engineWriter`), `ValueBridge` (`engineTDS` for a relation, `values` for a value), `PctBackend` (the lane's sessions, `LEGENDLITE_PCT_BACKEND`); `pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure` (the Pure adapter; `engineTDS` = legend-engine's `getTDSResultFromProtocol`), `pct_types.pure`; `pct/.../channelb/ChannelB.java` (channel B); the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java` |
 | The corpus | `spec/src/test/java/com/legend/rcorpus/` (`MinimalCorpus`, `JudgeLedger`), its rosters `spec/src/test/resources/rcorpus/`, the referee `spec/src/test/java/com/legend/harness/ReplayReferee.java`, `RefereeVerify.java` |
-| What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/src/main/java/com/legend/testing/Rows.java` (the `//testing` module; 23 call sites in 7 test files)); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
-| Mixed values (track L) | `sql/SqlExpr.java` and `SqlType.java` (`Tagged`), `lowering/MixedEncoding.java` (`rankedElems`), `lowering/Scalars.java`, `lowering/Lowerer.java`, `lowering/Fold.java` (`conformValueEgress`), `lowering/LiteralSpelling.java`, `LiteralText`, the `LITERAL` slot (94 sites), `exec/TaggedSelectionTest` |
-| The Arrow framer (track A) | `warehouse/src/main/java/com/legend/warehouse/server/duck/ArrowStreams.java` and `FlatBuilder` (written by hand, no library), its judge `warehouse/src/test/python/arrow_matches_json.py` |
+| What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/src/main/java/com/legend/testing/Rows.java` (the `//testing` module; 23 call sites in 7 test files -- a row-sorting and multiset-comparing helper that executes nothing, the Z audit's correction); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
+| Mixed values (track L, built) | `sql/SqlExpr.java` (`TaggedList`) and `SqlType.java` (`Tagged`), `lowering/TaggedLists.java` (every operation), `lowering/MixedEncoding.java`, `lowering/ValueCollections.java` (a relation's cells), `lowering/Scalars.java`, `lowering/Lowerer.java`, `lowering/Fold.java` (`conformValueEgress`, kept by D51), `result/TaggedCell.java` and `Batch.tag` (track F), `exec/TaggedListTest`, `exec/TaggedSelectionTest`. (Before L: `lowering/LiteralSpelling.java`'s carrier, `LiteralText`, the `LITERAL` slot's 94 sites -- deleted at L2) |
+| The Arrow framer and writer (track A, built) | `arrow_ipc/` (`FlatBuilder`, `ArrowType`, `ArrowField`, `ArrowIpc`, `ZstdFrame`; on `//base` alone), `result/ArrowWriter.java`, `server/PureV1Api.java` (`executeArrow`, `arrowAnswer`), the hosts' `executeArrowAnswer`; the gates `core/src/test/java/com/legend/result/ArrowWriterTest.java` with `core/src/test/python/arrow_matches_rows.py`, `tools/deps/ArrowClosureTest.java`; the warehouse's `ArrowStreams.java` delegates its framing (its judge `warehouse/src/test/python/arrow_matches_json.py` unchanged) |
 | legend-pure's source, readable (spec only, never a runtime input) | Bazel's external repository `$(bazel info output_base)/external/+http_archive+legend_pure_src` (5.99.0): e.g. `legend-pure-runtime/legend-pure-runtime-java-engine-compiled/.../CompiledSupport.java` (a Float's text), `legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/` (the PCT functions and their tests); what it says: the homework README §7 |
 | legend-engine's answers, recorded | `core/src/test/resources/upstream-api/` (e1, e5, e8, e9 answers; the Variant probe's `e8-variant-*.json` and `variant-probe.pure`), judged by `server/PureV1ApiTest` |
 | The engine itself, runnable | `tools/engine-runner` (legend-engine 4.145.0's jars, `@maven_runner`); how to ask it anything: the homework README §7 |
@@ -92,7 +92,7 @@ order; the steps are the program's §5):
 | 4. PCT from typed rows; the TDS text deleted | phase 4; S1.3 | `b3311cd6`; `ac4bb7d3`, `6811256b`, `4eaf1b07`, `d8ab8434` | done: a relation crosses as legend-engine's adapter reads it |
 | 5. The lean writers | phase 2 (JSON, CSV); track A (Arrow) | `12b89c7d`; `1e3065d4` | JSON, CSV and Arrow done; `conformValueEgress` not deleted (D51, the user's call) |
 | 6. Mixed lists typed | track L | `63ddd3f4`, `a93806d3`, `38f5e367` | done 2026-10-29: tagged lists; the LITERAL carrier deleted; plan format 19 |
-| 7. The old executor goes | phase 5; S1.2 | `0fe63b42`, `f883d42b` | done 2026-10-29 (track D): `exec.Executor` deleted (phase 5); the old door, the materialized result and the service's materialized `execute` deleted; `StatementExecutor` is `BodyDriver`, the judges' orchestration behind `Execution.runProgram`, every statement through its plan (track B) |
+| 7. The old executor goes | phase 5; S1.2; track D | `0fe63b42`, `f883d42b`; `6f4f654b`, `132a4ff2` | done 2026-10-29 (track D): `exec.Executor` deleted (phase 5); the old door, the materialized result and the service's materialized `execute` deleted; `StatementExecutor` is `BodyDriver`, the judges' orchestration behind `Execution.runProgram`, every statement through its plan (track B) |
 | 8. Optional deletions | -- | -- | parked for the user (the engine-style SQL-text dialects) |
 
 **The audit's three stages** (2026-10-27, accepted with "keep it, and keep going"): stage 1 S1.1 to S1.3 done, S1.4 to
@@ -132,8 +132,9 @@ audit itself and what it found: the homework README §1.
   `//datacube:python_execute_test` (GATES, "B1a's gate" and "B1b's gate"). The second merge of `main` (`f4ce65b2`): the
   local gate with the parser-equivalence lane, 454 targets (GATES, "the second merge's gate recorded"); CI on PR #80
   green on every finished lane at that head (47 of 50 when the B1b push superseded the run).
-- Tracks T, C, D, L, A and F (2026-10-29; `L1` `63ddd3f4`, `L2` `a93806d3`, the L2 audit's fold `38f5e367`, tracks A
-  and F `1e3065d4`), each: the full local chain (GATES, each entry's "Measured locally before the commit"): `//json:tests`,
+- Tracks B2, T, C, D, L, A and F (2026-10-29; B2 `cda191e8`; T-a to T-d2 `39a2a657`, `9ca7482f`, `62837d67`, `32243d80`,
+  `e767c57b`, `d8d05bad`; C `643f1bbe`; D `6f4f654b`, `132a4ff2`; `L1` `63ddd3f4`, `L2` `a93806d3`, the L2 audit's fold
+  `38f5e367`; tracks A and F `1e3065d4`; Z's fold the commit after), each: the full local chain (GATES, each entry's "Measured locally before the commit"): `//json:tests`,
   `//:generated`, `//gates:checks`, `//core:core_tests`, `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`,
   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine Postgres targets; the two
   corpus gates and `//spec:judge_lanes`; the 21 PCT lanes; the five Postgres PCT lanes; the readers (`//engine-client`,
@@ -451,12 +452,17 @@ floor. Census: `python3 -I docs/result-boundary-homework/probes/test_census.py.t
   remaining item is Arrow's judge (track A). Next: track D.
 - **T-d2 built 2026-10-29** (GATES, the T-d2 entry; the decisions log D49; the ledger, batch T-d2): every integration
   test on the lanes (the 37 classes the base did not cover, under `LaneFloor`; the exclusions named), the floors
-  re-measured at the lane's full scope -- sqlite 89, h2 270 and one NOT-RUN pin (a new floor-line form, dated, for
+  re-measured at the lane's full scope -- sqlite 89, h2 269 and one NOT-RUN pin (268 since track F's H2 parse; a new floor-line form, dated, for
   a failure that ends the run: H2's planner exhausting the heap on a twenty-call chain); a test's own connection
   text re-spelled to the session's backend (`LaneFloor.model`); floor keys by invocation ordinal; the floors live
   (`LaneFloorTest`); the T-d audit's fixes and the track D audit's records. Three findings for track F (the
   `asOfJoin` emulation, `concatenate`'s mismatch refused by the database, H2's nesting). Track T is built but for
   Arrow's judge (A). Next: track L.
+- **The queued items, as they stand after Z (2026-10-29, the audit's finding 4):** D18's four hour-on-zone sites,
+  D17's element-name print and D7's host-judge trim wait on S121's ruling (pending; the README §9 row); the MongoDB
+  lane is NOT built (the seeds need the session seam: a README §9 row, the user's call); item 5 (Arrow in the LEAN
+  judge with a gate that the two agree) is met by `//core:arrow_writer_test` over one batch of every kind, not by the
+  twin's tests (a README §9 row).
 
 ### Track C. The corpus, channel B and the service tests on track B
 
@@ -784,6 +790,36 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-29 | "wherever possible we should stick to upstream legend-pure and legend-engine as possible - every answer should be 'can we do exactly as pure/engine does, or as close to as possible where too expensive to be exact but with an explicit posting to me and a ledger for diverging' every decision should be settled with that tenet" (answering S1.4's report, its two open questions among them) | the upstream-fidelity tenet (AGENTS.md; §5's first rule; the register's header): exact upstream by default, a divergence only where too expensive, posted and ledgered; S1.4's open questions settled by it (§4, S1.4); S1.5's classification of the 51 writer differences is by upstream's answer |
 | 2026-10-29 | "The standing rule is if changing to something that diverges from upstream not if change something in lite - but have you checked pct and core-relational? Are you sure it's always 9 digits expected? I feel like lite mostly copied what tests expect / Also no need to stop, just keep going all the way until done with whole program and all old ways to execute are deleted - do a deep audit after every phase and keep a log of decisions you made or wanted to so you can post me on decisions you made after each phase too with audit - don't stop keep going" (answering S1.4's correction report) | three readings, each recorded where it acts: (1) the 2026-10-28 rule ("every spelling change to me case by case") binds a change that DIVERGES from upstream; a move TOWARD upstream needs no asking (AGENTS.md's tenet paragraph; the decisions log D4, D13, D14 rest on it); (2) the nine-digit claim checked against the PCT and core_relational (S1.4 corrected: the homework README §7, D5); (3) the program continues without stopping between phases, an independent audit after each, a decisions log posted after each (`docs/result-boundary-homework/DECISIONS_LOG.md`; D11 reads "keep going" as the word for S1.6's DRAFT PR, never a merge). Added to this table 2026-10-29 by the S1.5 audit's finding 2 (the words were quoted only in the program's §9 until then) |
 
+## 10a. The open questions for the user, in one place (2026-10-29, after Z)
+
+Every question the program posted and the user has not ruled; the recommendation is the session's, the call is
+the user's. Where a row names a register id, the row's text holds the expression, upstream's answer and lite's.
+
+| Id | The question | Recommendation |
+|---|---|---|
+| S119 / D15 | LEAN JSON's NaN or infinite Float under a Float column: refuse (legend-pure), `null` (legend-engine's TDS), or the name as a string (today) | refuse, as legend-pure does (the PCT route already does) |
+| S121 / D18, D17, D7 | a DateTime's zone written from the HOUR (lite) where legend-pure writes `+0000` from the MINUTE; an anonymous instance printed as `@_` + id (lite) vs `@_0000003` (the interpreter) / `Anonymous_StripedId` (compiled); the host judge's trim by the slot's text | the minute (legend-pure's rule); the interpreter's instance text; the trim by the precision fact |
+| S123 | a Decimal's place in a mixed sort: with the numbers (lite) or after dates, Booleans and Strings (compiled legend-pure, not transitive) | keep lite's (a total order); ledger it |
+| S124 | a relation of no order of its own in value position: the rows' arrival order (legend-pure) or lite's deterministic numbering (its own sort keys, else an ordered source's, else every column ascending) | keep lite's; ledger it |
+| S125 / D55 | the server's ARROW_IPC format vs upstream's S28: timestamp[ns, UTC] vs [us, UTC]; decimal128 at the slot's scale never rounded vs HALF_UP; typed columns vs JDBC-driven or utf8; per-field `legend.*` metadata | keep lite's (lossless); ledger it |
+| S126 | `asOfJoin` against an empty right side: DuckDB's own 0 rows (a defect of its planner against a proven-empty derived table; the test pins it) or the spec's left rows (the emulation on every other database) | keep DuckDB's answer on DuckDB; report the defect upstream to DuckDB; no workaround in the lowering |
+| S127 / D50c | numbers of different kinds equated by their TEXTS in compiled legend-pure (`3 == 3D` true, `1 == 1.0` false): lite refuses the crossing pairs by name in a mixed list, and the scalar rule is unmeasured | build the text rule only if a user program needs it (the float's shortest digits in SQL); else keep the refusal and ledger |
+| D8 | the tab prints a Float's negative zero as `0` (`signDisplay: 'negative'`) | keep: a display representation (no pinned upstream for a grid's text) |
+| D9 | LEAN's nested dates (a struct's, a list's) keep the value's own precision with `+0000`; legend-engine's graph-fetch JSON writes nine digits and no zone | keep LEAN's (the lean writer is lite's own); ledger if the user wants the engine's |
+| D10 | LEAN's Float with an exponent: legend-pure's layout (`0.00000025`) or legend-engine's JSON (`2.5E-7`) | legend-pure's (the Float rule's shortest digits) |
+| D16 | an instance's text in CSV and `toString()` | the interpreter's (the PCT's reference): `@_` and a counter |
+| D30 | what the body driver keeps in Java (call frames, `assertError`, `$plan` navigation, `planToString`, `print`, the generator's fold) | keep as named residue (planning, carriage of an error, effects); the generator's JDBC on its session is the one to move |
+| D36 / D37 | `ProgramReport.last`: the one materialized side a public entry returns (the service test runner's) | stream the last statement to a sink the runner hands (an hour in `BodyDriver`); then delete `TypedSide` from the public surface |
+| D51 | `Fold.conformValueEgress` (step 5's delete): add a written-digits fact at scalar roots and delete it, or keep it and strike the step | (a): the fact, then the delete |
+| D56 | switch the Python route and the tab to the new Arrow writer (changes the Python route's existing bytes: DuckDB's types to the plan's slots'; timestamp[us] to [ns]) | switch, with the bytes' change posted |
+| D57 (4) | a DAY under a TIMESTAMP column: the JSON route spells its day, the Arrow route refuses | refuse in both (a timestamp holds no day) |
+| D57 (10) | a tenth subsecond digit: the JSON route truncates silently, the Arrow route refuses | refuse in both (a value is never truncated) |
+| D58 (9) | the multi-key ordered list aggregate (a mixed sort's ties; the rank struct's text order on SQLite and MariaDB): plan format 20, ten dialect arms, the MariaDB lane | build it (a day) if the MariaDB lane matters now; else a README row |
+| D58 (10) | the lane twin of the mixed-list gate on SQLite and H2 | build it (an hour) |
+| D58 (11) | a typed kind for a tagged slot; the H2 planner's exponential nesting; a BIT column's type; Snowflake's far-BC timestamp; `HostRows`' Arrow nested values; the PCT heap | each a README §9 row; none urgent |
+| D59 (4b) | the MongoDB lane of core's integration tests (the seeds through the session seam) | build it after the landing |
+| D59 (12) | PR #80: merge as is (96 commits, two merges of `main`) or squash | the user's call; the GATES entries are the per-landing record either way |
+
 ## 11. Reading order
 
 1. This page.
@@ -807,7 +843,7 @@ What the user pastes into a fresh session, from any account (kept here so it is 
 task when they move):
 
 > Repository neema2/legend-lite. Continue the result boundary program from branch claude/wizardly-dirac-rw6tim at its
-> head (S1.5's code commit of 2026-10-29, after the records commit 3e9e739a): fetch it; if your session has its own
+> head (the track Z fold of 2026-10-29; every track built, see the start page's §0 and §3): fetch it; if your session has its own
 > designated branch, create that branch from this head. Never push to main, never merge without my explicit word in
 > your session; S1.6's draft PR opens under my "keep going" of 2026-10-29 (the decisions log D11), the merge is mine.
 >
@@ -815,8 +851,8 @@ task when they move):
 > the traps, my rulings in §10), then docs/result-boundary-homework/README.md, then
 > docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §0, §1, §8 and §9.
 >
-> Your task: the next item of the start page's §4 in order (S1.6's draft PR if none is open; then tracks B, T, C, D,
-> L, A, F, Z), without stopping between phases: after each phase an independent audit of the code against the
+> Your task: what the start page's §0 "next action" says (after Z: the landing, on my rulings of §10a; before it was
+> the next item of §4 in order -- S1.6's draft PR, then tracks B, T, C, D, L, A, F, Z), without stopping between phases: after each phase an independent audit of the code against the
 > tenets, its findings fixed, and the decisions log (docs/result-boundary-homework/DECISIONS_LOG.md) posted to me
 > with what was decided and what is wanted of me. Announce your files in docs/IN_FLIGHT.md before you start.
 >
