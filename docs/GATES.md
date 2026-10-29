@@ -15637,3 +15637,32 @@ to D38). The order changed first (D36): B3, the judges' typed side, is track D's
    unprivileged; `//datacube:python_execute_test`) running as this commit is made: its results in the entry that
    follows.
 6. **Not measured:** the lanes (the S1.4 entry, item 5). Next: track C.
+
+## 2026-10-29 — B2's gate, measured at cda191e8
+
+The chain the B2 entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
+unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5).
+The B2 audit: the entry "the B2 audit recorded" (3374f533) and the decisions log D40.
+
+## 2026-10-29 — track C: the corpus runner, the service test runner and channel B on `Execution.runProgram`
+
+The result boundary program's track C (the start page §4, its track C block; the decisions log D39), one commit after
+B2. `PureTestRunner` (the bodies with their listener and referee; the setups and fixtures through `runFixture`),
+`ServiceTestRunner` (the test's body; its last statement's side, `ProgramReport.last`, serialized as before) and
+`pct/.../channelb/ChannelB` enter through `Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime,
+Sessions.given(connection), listener, referee, options)`: the body typed once, the session the caller's (checked
+against the runtime's declared database as the old door checked it), nothing materialized returned to the corpus
+runner or channel B. Two stale javadoc links (`Compiler#executeResolved`) now name `Execution#runProgram`; the start
+page's §2 named a `testing/Rows.java` that does not exist (`SqlParity.Rows`). The referee keeps reading
+`ExecutionResult` as the judges' side until D renames it (D36). Nothing else changed: the plan path program's step 10
+(the 2,798 bodies through plan sequences, both judges) is this entry.
+
+1. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:guardrails`, `//core:census` pass and `//core:core`, `//pct:pct_channel_b_essential` build; the rest of
+   the chain (`//core:core_tests`, `//pct:pct_discipline`, `//core:mongodb_plan_test`; `//spec:judge_lanes`,
+   `//gates:corpus_duckdb`, `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets unprivileged;
+   `//datacube:python_execute_test`) running as this commit is made: its results in the entry that follows.
+2. **Not measured:** the lanes (the S1.4 entry, item 5). The old door's remaining callers: core's tests (track T,
+   next) and `QueryService`'s three materialized `execute`s (track D).

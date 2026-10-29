@@ -502,6 +502,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, track C built: the corpus runner, the service test runner and channel B on `Execution.runProgram`**
+  (GATES, the track C entry; the decisions log D39): the body typed once, the session the caller's, nothing
+  materialized returned to the corpus runner or channel B; the referee keeps `ExecutionResult` as the judges' side
+  until D (D36). The plan path program's step 10 is this entry. Next: track T (core's tests as the LEAN twin).
 - **2026-10-29, track B, B1a and B1b built: the body driver sends nothing itself and holds no connection** (GATES, the
   B1a and B1b entries; the decisions log D33, D35). B1a: the session seam answers a statement's reported columns
   (`Statements.columns`, `describe`) and loads rows (`load`); the three schema probes, the seeds and the static pivot

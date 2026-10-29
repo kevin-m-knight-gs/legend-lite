@@ -68,7 +68,7 @@ library in the product.
 | The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `exec/VerdictBatch`, `exec/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `PctExecuteNative` (the native the reference calls), `PctPlanRoute` (plan, run; a relation through `PureV1Api.engineWriter`), `ValueBridge` (`engineTDS` for a relation, `values` for a value), `PctBackend` (the lane's sessions, `LEGENDLITE_PCT_BACKEND`); `pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure` (the Pure adapter; `engineTDS` = legend-engine's `getTDSResultFromProtocol`), `pct_types.pure`; `pct/.../channelb/ChannelB.java` (channel B); the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java` |
 | The corpus | `spec/src/test/java/com/legend/rcorpus/` (`MinimalCorpus`, `JudgeLedger`), its rosters `spec/src/test/resources/rcorpus/`, the referee `spec/src/test/java/com/legend/harness/ReplayReferee.java`, `RefereeVerify.java` |
-| What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/Rows.java`); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
+| What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity` (its `Rows` answer), `CypherParity`, `IqParity`, `PlanCases`); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
 | Mixed values (track L) | `sql/SqlExpr.java` and `SqlType.java` (`Tagged`), `lowering/MixedEncoding.java` (`rankedElems`), `lowering/Scalars.java`, `lowering/Lowerer.java`, `lowering/Fold.java` (`conformValueEgress`), `lowering/LiteralSpelling.java`, `LiteralText`, the `LITERAL` slot (94 sites), `exec/TaggedSelectionTest` |
 | The Arrow framer (track A) | `warehouse/src/main/java/com/legend/warehouse/server/duck/ArrowStreams.java` and `FlatBuilder` (written by hand, no library), its judge `warehouse/src/test/python/arrow_matches_json.py` |
 | legend-pure's source, readable (spec only, never a runtime input) | Bazel's external repository `$(bazel info output_base)/external/+http_archive+legend_pure_src` (5.99.0): e.g. `legend-pure-runtime/legend-pure-runtime-java-engine-compiled/.../CompiledSupport.java` (a Float's text), `legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/` (the PCT functions and their tests); what it says: the homework README §7 |
@@ -411,6 +411,14 @@ Switch `PureTestRunner` (bodies and setups), `ChannelB`, `ServiceTestRunner` and
 `ReplayReferee`, `RefereeVerify`) to track B's entry and typed sides. The plan path program's step 10 (the 2,798 bodies
 through plan sequences). Gate: the rosters (`spec/src/test/resources/rcorpus`) unchanged, both judges agreeing,
 `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`, channel B per test on every lane.
+
+**Built 2026-10-29** (GATES, the track C entry; the decisions log D39): `PureTestRunner` (the bodies, the setups, the
+fixtures), `ServiceTestRunner` and `ChannelB` call `Execution.runProgram(Compiler.queryResolved(ctx, resolved),
+runtime, Sessions.given(connection), listener, referee, options)`; nothing else changed. The referee keeps
+`ExecutionResult` as the judges' side until D (D36). Measured: the corpus rosters unchanged, both judges
+(`//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`), channel B x5 on DuckDB identical, channel A
+exact on DuckDB, SQLite and MongoDB, the Postgres targets, the Python route (GATES). The old door's remaining callers
+are core's tests (track T) and `QueryService`'s materialized `execute`s (track D).
 
 ### Track D. The deletions
 

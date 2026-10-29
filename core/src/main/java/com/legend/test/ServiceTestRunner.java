@@ -64,7 +64,7 @@ import java.util.Map;
  *   <li><b>execution</b>: parameters bind as query VARIABLES ({@code let}
  *       statements ahead of the body — never text substitution); the body
  *       executes through the ONE production entry
- *       ({@link Compiler#executeResolved}) against the test runtime;</li>
+ *       ({@link Execution#runProgram}) against the test runtime;</li>
  *   <li><b>serialization</b>: {@code PURE_TDSOBJECT} (and {@code RAW})
  *       render a tabular result as one object per row keyed by column; a
  *       graph result is the JSON envelope the platform produced
@@ -241,7 +241,10 @@ public final class ServiceTestRunner implements AutoCloseable {
         try {
             ExecutionResult result;
             try {
-                result = Execution.executeResolved(resolved, rt.ctx(), rt.runtimeFqn(), conn);
+                // the one entry for a program (track C, 2026-10-29): the test's body typed once, run on the
+                // session; its last statement's side is what the service would serve, serialized below
+                result = Execution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
+                        com.legend.exec.Sessions.given(conn), null, null, com.legend.ExecuteOptions.NONE).last();
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();   // the same diagnostic switch the resolver walls honor
