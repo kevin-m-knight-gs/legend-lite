@@ -101,6 +101,8 @@ work is on the branch as of `1e3065d4` (2026-10-29: tracks B, T, C, D, L, A and 
 audit itself and what it found: the homework README §1.
 
 **The last measurements.**
+- The DuckDB driver bump (2026-10-29, D60; GATES, the D60 entry): the full local chain on 1.5.6.0 alone, green, no
+  PCT or corpus pin flipped; the as-of test asserts the spec on every lane.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -598,7 +600,8 @@ enumeration's value is a kind since D50d).
   (`result/TaggedCell`, `Batch.tag`, the Arrow union reads it). CLOSED by upstream's own rule -- the `concatenate`
   width mismatch (legend-pure compiles it too), the `[0..1]` collection element (legend-pure refuses it too),
   `RootNumericTypes`' unbounded Decimal (by design). RECORDED for the user -- `asOfJoin` against an empty right side
-  (register S126: the emulation answers the spec, DuckDB's own answer is a defect of its planner); the multi-key
+  (register S126: the emulation answers the spec, DuckDB's own answer is a defect of its planner -- resolved the
+  same day by the driver bump to 1.5.6.0, D60); the multi-key
   ordered list aggregate for a mixed sort's ties and the rank struct's text order (sized: plan format 20, ten
   dialect arms, the MariaDB lane); the lane twin of the mixed-list gate; a typed kind; the rest of the list as before.
   NOT REPRODUCED -- the absent to-many property (the probe `anEmptyToManyPropertySerializesAsAnEmptyList` pins `[]`).
@@ -802,7 +805,7 @@ the user's. Where a row names a register id, the row's text holds the expression
 | S123 | a Decimal's place in a mixed sort: with the numbers (lite) or after dates, Booleans and Strings (compiled legend-pure, not transitive) | keep lite's (a total order); ledger it |
 | S124 | a relation of no order of its own in value position: the rows' arrival order (legend-pure) or lite's deterministic numbering (its own sort keys, else an ordered source's, else every column ascending) | keep lite's; ledger it |
 | S125 / D55 | the server's ARROW_IPC format vs upstream's S28: timestamp[ns, UTC] vs [us, UTC]; decimal128 at the slot's scale never rounded vs HALF_UP; typed columns vs JDBC-driven or utf8; per-field `legend.*` metadata | keep lite's (lossless); ledger it |
-| S126 | `asOfJoin` against an empty right side: DuckDB's own 0 rows (a defect of its planner against a proven-empty derived table; the test pins it) or the spec's left rows (the emulation on every other database) | keep DuckDB's answer on DuckDB; report the defect upstream to DuckDB; no workaround in the lowering |
+| S126 | `asOfJoin` against an empty right side: DuckDB's own 0 rows (a defect of its planner against a proven-empty derived table) or the spec's left rows (the emulation on every other database) | RESOLVED 2026-10-29 by the driver (D60): core's DuckDB bumped 1.4.4.0 to 1.5.6.0 on the user's ask; 1.5.5 and later keep the left rows, the test asserts the spec on every lane. Open: whether the warehouse's own pin (1.5.5.1) should be the same version |
 | S127 / D50c | numbers of different kinds equated by their TEXTS in compiled legend-pure (`3 == 3D` true, `1 == 1.0` false): lite refuses the crossing pairs by name in a mixed list, and the scalar rule is unmeasured | build the text rule only if a user program needs it (the float's shortest digits in SQL); else keep the refusal and ledger |
 | D8 | the tab prints a Float's negative zero as `0` (`signDisplay: 'negative'`) | keep: a display representation (no pinned upstream for a grid's text) |
 | D9 | LEAN's nested dates (a struct's, a list's) keep the value's own precision with `+0000`; legend-engine's graph-fetch JSON writes nine digits and no zone | keep LEAN's (the lean writer is lite's own); ledger if the user wants the engine's |

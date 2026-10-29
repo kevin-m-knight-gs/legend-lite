@@ -146,12 +146,16 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         #,
                         {l, r | $l.event_time > $r.ts}
                     )""");
-            // DuckDB's own answer, pinned as measured (register S126, 2026-10-29): asOfJoin is a LEFT join (upstream's
-            // JoinKind.LEFT; the PCT keeps an unmatched left row with nulls), and DuckDB's ASOF LEFT JOIN keeps the
-            // left rows against an empty TABLE -- but drops them against a derived table its planner proves empty
-            // (lite's empty TDS literal, VALUES ... WHERE 1 = 0: probes/asof_empty_right.txt), a DuckDB defect. The
-            // emulation on every other database (AsOfAsPick) answers the spec's two rows: the lanes' floors.
-            assertEquals(0, result.rowCount(), "ASOF JOIN with empty right produces no matches");
+            // asOfJoin is a LEFT join (upstream's JoinKind.LEFT; the PCT's testSimpleAsOfJoin keeps an unmatched
+            // left row with nulls): both left rows, their right columns null. DuckDB 1.4.4 dropped them against a
+            // derived table its planner proved empty (lite's empty TDS literal, VALUES ... WHERE 1 = 0) and this test
+            // pinned that 0 (register S126); 1.5.6 answers the spec (probes/asof_empty_right.txt, the driver bumped
+            // 2026-10-29, D60), as the emulation on every other database (AsOfAsPick) always did.
+            assertEquals(2, result.rowCount(), "an ASOF LEFT JOIN keeps its left rows against an empty right side");
+            for (var row : result.rows()) {
+                assertNull(row.get(2), "the right side's ts is null: " + row);
+                assertNull(row.get(3), "the right side's value is null: " + row);
+            }
         }
 
         @Test

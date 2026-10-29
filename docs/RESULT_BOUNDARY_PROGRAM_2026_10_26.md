@@ -502,6 +502,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the DuckDB driver 1.5.6.0** (the decisions log D60; GATES, the D60 entry): core's pin 1.4.4.0 to
+  1.5.6.0 on the user's ask, measured first on the jars (the pin's LIMIT shape correct on all three versions; the
+  as-of defect of S126 gone from 1.5.5 on); the as-of test asserts the spec on every lane; the chain green on the bump
+  alone, no PCT or corpus pin flipped. Open: the warehouse's own pin (1.5.5.1) as the same version, the user's call.
 - **2026-10-29, track Z: the final audit folded; the program's work on the branch is complete** (the decisions log
   D59; GATES, the track Z entry): twelve findings, none on the code's correctness; the service test runner's cells
   through the boundary's writer (its own spelling and `String.valueOf` fallback gone); the crossing-numbers refusal

@@ -16134,3 +16134,31 @@ every `default ->` of the program's new code a refusal by name), its findings fo
    too; run 40900182043, 16:14Z). This fold's push runs every OS again.
 5. **Not measured:** the MariaDB lane (CI alone); apache-arrow JS's reading of the union (the track A audit's scratch
    program, no gate).
+
+## 2026-10-29 — DuckDB 1.5.6.0: core's driver bumped from 1.4.4.0 (the as-of defect of S126 gone from 1.5.5 on; the LIMIT shape of the pin's reason answers correctly)
+
+The user's ask of 2026-10-29 (the decisions log D60): "I know at some point it was 1.4.4 bc 1.5 had a limit bug - but
+I think 1.5.6 might actually have fixed that bug potentially so might be worth getting to 1.5.6 if fixed for as of and
+limit". Measured on the jars before any pin moved (`docs/result-boundary-homework/probes/duckdb_1_5_6.txt`).
+
+1. **Measured first:** the pin's reason (duckdb/duckdb#21160, the `first()` LIMIT shape 1.5.0 answered with zero rows;
+   docs/SESSION_HANDOFF_2026_09_02.md): five LIMIT shapes over a join chain (a left-join chain of two and three tables,
+   an inner chain with ORDER BY, the far table's column, COUNT(*)) answer their one row on 1.4.4.0, 1.5.5.1 and 1.5.6.0
+   alike. The as-of defect (register S126: `ASOF LEFT JOIN` against a derived table the planner proves empty drops the
+   left rows on 1.3.0 and 1.4.4, `probes/asof_empty_right.txt`) is gone from 1.5.5 on: 1.5.5.1 and 1.5.6.0 keep the two
+   left rows against every proven-empty form and against a right side that empties at run time.
+2. **Built:** `tools/deps/jars_table.bzl` (`duckdb_jdbc` 1.4.4.0 -> 1.5.6.0, sha256
+   `04ae3375d7c40dc88dc9bf0014b82ba5e66715564584af4e3abea39c7ba144d3`, a dated note; the warehouse's
+   `duckdb_jdbc_warehouse` 1.5.5.1 unchanged); `integration/AsOfJoinCheckerTest.testAsOfJoinEmptyRight` asserts the
+   spec on every lane (two rows, the right columns null) where it pinned DuckDB's zero rows; `lanes/sqlite.txt` and
+   `lanes/h2.txt` lose their as-of line (the emulation answered the spec all along); register S126 to `outcome`.
+3. **Measured locally before the commit (the chain on the bump alone, as root; the Postgres targets as the unprivileged
+   user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped), `//core:core_tests`
+   (every lane), `//core:core_tests_lanes` (the floors, each one line shorter), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178, 1 skipped; the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters
+   unmoved); the 21 PCT lanes 21 of 21 (no pin flipped on 1.5.6.0); the five Postgres PCT lanes 5 of 5; the readers
+   11 of 12 (`//python:engine_test` the container's segmentation fault at the headless host's V8, as at every chain);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+4. **CI:** PR #80 runs every OS on the push (the Windows, ARM and macOS lanes fetch the 1.5.6.0 jar there).
+5. **Not measured:** the MariaDB lane (CI alone); DuckDB 1.5.6.0 on Windows, ARM and macOS before CI.
