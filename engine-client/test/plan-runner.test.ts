@@ -80,7 +80,8 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const plan = planned(fn('write', src(), target()));
     assert.match(plan, /"_type":"sequence"/);
     assert.match(plan, /"_type":"update"/);
-    // its answer the count as the database wrote it, a relation of one row
+    // its answer the count as the database answered it, a typed relation of one row the runner writes as JSON rows
+    assert.match(plan, /"_type":"tdsResult"/);
     assert.deepEqual(JSON.parse(await run(plan)), [{ value: 2 }]);
     assert.equal(await rows(), '1:a:1.5 2:b:2.5');
   });
@@ -107,8 +108,8 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => runPlan(JSON.stringify(plan), session), (e: unknown) => e instanceof PlanRefusal && /not run on this Postgres one/.test(e.message));
     await assert.rejects(() => runPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] }), session), /takes parameters/);
     await assert.rejects(() => runPlan('{"format":"other"}', session), /not a legend-lite execution plan/);
-    // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 11): refused, never run
-    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 11/);
+    // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 18): refused, never run
+    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 18/);
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };

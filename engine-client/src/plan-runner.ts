@@ -1,11 +1,14 @@
 // THE PLAN RUNNER, a host's (docs/WRITES_DESIGN_2026_10_18.md leg 7; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-// into a table): an execution plan -- PlanJson's text, version 11, as legend-lite's planner writes it -- run on a host's own
+// into a table): an execution plan -- PlanJson's text, version 18, as legend-lite's planner writes it -- run on a host's own
 // database, for a host that runs its SQL itself: the tab (DuckDB-WASM) and Python's headless DataCube (its DuckDB). The
 // rules are Java's PlanRunner's (core/.../exec/PlanRunner.java), for the plans a host's program makes: a SEQUENCE of
 // steps in one transaction -- each `update` run for the change it makes, its count kept where a later step binds it
-// (`#count`), each `check` run for what its database may raise and its rows dropped, the one `textResult` written once
-// the transaction has committed -- or a `textResult` alone. Every value is the database's: its counts, its text. What
-// a host's program never plans is refused by name, never run some other way: a plan that takes parameters, a type hole,
+// (`#count`), each `check` run for what its database may raise and its rows dropped, the one `tdsResult` read once the
+// transaction has committed -- or a `tdsResult` alone. Every value is the database's: its counts, its rows. The answer
+// is TYPED rows (the result boundary program, 2026-10-27: a plan names no output format), and this runner writes them
+// as lite's JSON rows, one object per row keyed by the plan's column names, for the cells a host's write answers (a
+// count, a text, a boolean); a richer answer is the planner's to write (executeAnswer), refused here by name. What a
+// host's program never plans is refused by name, never run some other way: a plan that takes parameters, a type hole,
 // a list or a key's cell bound, a statement of per-key regions, a step of another database or of several, a database set
 // up first.
 //
@@ -30,15 +33,16 @@ export interface PlanSession {
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly typeHole?: unknown } }
 interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown }
 
-/** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 11 since 2026-10-26,
- *  main's write plans merged into the plan path's format -- their `update`, `check`, `textResult` and `sequence` as
- *  version 5 wrote them; a statement's per-key regions and a key's cell (a dynamic pivot's probe plan) are new, and are
- *  no write's. */
-const PLAN_VERSION = 11;
+/** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 18 since 2026-10-29
+ *  (the result boundary program: a plan's answer is a `tdsResult` of typed columns, never a text result of a format;
+ *  the written-precision fact on a column since S1.4) -- `update`, `check` and `sequence` as version 5 wrote them; a
+ *  statement's per-key regions and a key's cell (a dynamic pivot's probe plan) are no write's. */
+const PLAN_VERSION = 18;
+interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
   | { readonly _type: 'check'; readonly sql: Sql }
-  | { readonly _type: 'textResult'; readonly format: string; readonly sql: Sql }
+  | { readonly _type: 'tdsResult'; readonly shape: string; readonly columns: readonly Column[]; readonly sql: Sql }
   | { readonly _type: 'sequence'; readonly steps: readonly Step[] }
   | { readonly _type: string };
 
@@ -64,10 +68,11 @@ export class PlanRefusal extends Error {
 }
 
 /**
- * A plan run on `session` (`plan`: PlanJson's text): its answer's text, as its `textResult` writes it -- once its writes
- * have committed, all of them or none (a failure rolls back and is thrown, the database's words in it). `joined`: the
- * caller's transaction is open already (a table made before it is written, one change: an Output's create), so the plan
- * runs inside it and neither begins nor ends it -- as Java's runner joins a caller's.
+ * A plan run on `session` (`plan`: PlanJson's text): its answer as lite's JSON rows, written here from the typed rows
+ * its `tdsResult` answers (one object per row, the plan's column names its keys) -- once its writes have committed, all
+ * of them or none (a failure rolls back and is thrown, the database's words in it). `joined`: the caller's transaction
+ * is open already (a table made before it is written, one change: an Output's create), so the plan runs inside it and
+ * neither begins nor ends it -- as Java's runner joins a caller's.
  */
 export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
   const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step };
@@ -78,11 +83,11 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');
   const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
-    : root._type === 'textResult' ? [root] : undefined;
-  if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence or a text result, not a ${root._type}`);
+    : root._type === 'tdsResult' ? [root] : undefined;
+  if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence or a typed result, not a ${root._type}`);
   const sqls = steps.map((s) => stepSql(s));
-  const results = steps.filter((s) => s._type === 'textResult');
-  if (results.length !== 1) throw new PlanRefusal(`a plan answers with one text result, not ${results.length}`);
+  const results = steps.filter((s) => s._type === 'tdsResult');
+  if (results.length !== 1) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
   // one database, as it is: every step's target the same, of this session's type, set up by nothing first
   const [first] = sqls;
   const target = JSON.stringify(first!.target);
@@ -119,8 +124,8 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
         // the database's count, a value it produced, bound where a later step reads it
         const count = (step as { readonly count?: string | null }).count;
         if (count !== undefined && count !== null) values.set(count, countOf(rows));
-      } else if (step._type === 'textResult') {
-        text = textOf((step as { readonly format: string }).format, rows);
+      } else if (step._type === 'tdsResult') {
+        text = rowsOf((step as { readonly columns: readonly Column[] }).columns, rows);
       }
     }
     if (changes) await session.transaction('commit');
@@ -133,8 +138,8 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
 
 /** A step's SQL; refused by name for a step a host's program does not plan. */
 function stepSql(s: Step): Sql {
-  if (s._type === 'update' || s._type === 'check' || s._type === 'textResult') return (s as { readonly sql: Sql }).sql;
-  throw new PlanRefusal(s._type === 'sequence' ? 'a sequence inside a sequence' : `a plan's step is an update, a check or a text result, not a ${s._type}`);
+  if (s._type === 'update' || s._type === 'check' || s._type === 'tdsResult') return (s as { readonly sql: Sql }).sql;
+  throw new PlanRefusal(s._type === 'sequence' ? 'a sequence inside a sequence' : `a plan's step is an update, a check or a typed result, not a ${s._type}`);
 }
 
 /** The count a statement that changes the database answers: its one row's first value. */
@@ -145,17 +150,18 @@ function countOf(rows: readonly (readonly unknown[])[]): number {
   return n;
 }
 
-/** A text result's text, as Java's runner writes it: its first row's first value (CSV, JSON), or each row's, in a list
- *  (JSON_PER_ROW). */
-function textOf(format: string, rows: readonly (readonly unknown[])[]): string {
-  const text = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-  switch (format) {
-    case 'CSV':
-    case 'JSON': {
-      if (rows.length === 0) throw new Error("the plan's statement wrote no text: no row");
-      return text(rows[0]![0]) ?? '';
-    }
-    case 'JSON_PER_ROW': return `[${rows.map((r) => text(r[0]) ?? 'null').join(',')}]`;
-    default: throw new PlanRefusal(`a text result is CSV, JSON or JSON_PER_ROW, not ${format}`);
-  }
+/** A typed result's rows as lite's JSON rows (`[{"value":2}]`: what the planner's JsonRowsWriter writes for the same
+ *  rows), each cell as the host's driver read it: an integer (a bigint within a safe integer, a number), a text, a
+ *  boolean, a null -- a write's answer is its count; any other cell (a date, a decimal, a float, a structure) is the
+ *  planner's to spell by the plan's column facts (executeAnswer), not this runner's: refused by name, never guessed. */
+function rowsOf(columns: readonly Column[], rows: readonly (readonly unknown[])[]): string {
+  const cell = (c: Column, v: unknown): string => {
+    if (v === null || v === undefined) return 'null';
+    if (typeof v === 'boolean') return String(v);
+    if (typeof v === 'string') return JSON.stringify(v);
+    if (typeof v === 'bigint' && Number.isSafeInteger(Number(v))) return String(v);
+    if (typeof v === 'number' && Number.isSafeInteger(v)) return String(v);
+    throw new PlanRefusal(`the host's runner writes an integer, a text or a boolean cell, and '${c.name}' (${c.type}) holds ${typeof v}: the planner writes it (executeAnswer)`);
+  };
+  return `[${rows.map((r) => `{${columns.map((c, i) => `${JSON.stringify(c.name)}:${cell(c, r[i])}`).join(',')}}`).join(',')}]`;
 }

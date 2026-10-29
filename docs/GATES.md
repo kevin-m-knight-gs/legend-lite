@@ -15514,3 +15514,28 @@ The chain the B1a entry above names, run as root in the cloud container after th
 (channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
 unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5);
 D33 names what they measure when they can.
+
+## 2026-10-29 — `main` merged into the result boundary branch a second time (PR #79, the flow mode); the boundary and the host plan runner on the typed plan; PR #80's red lanes
+
+PR #80's first CI runs (at `a0fe9d21`, `3dfe0a00` and `df91f816`) were red on every lane that builds
+`//wasm:boundary` -- core, product, warehouse, ui, datacube and parser_equivalence on Linux, macOS, Windows and arm --
+and green on the rest (the PCT lanes, channel B, the corpus rosters, checks, stress, sdlc). The PR's MERGE commit
+failed to compile, not its head: `main` had moved 14 commits past the branch's last merge (369bb176; PR #79, the flow
+mode, 104 files), and its `Boundary.executionPlanJsonHeld` calls `TypedQuery.executionPlan(runtime, Output.JSON)`,
+deleted by phase 4 (`b3311cd6`). Commented on the PR (2026-10-29), then:
+
+1. **The merge** (`8a7e4f7f`): `origin/main` at `9de4d3a8` merged with a merge commit, both sides kept, no conflict
+   (main's changes are the tab, the engine client, Python's page and the docs; none to `core/`).
+2. **The fix** (the decisions log D34): the boundary's export plans the typed plan (`executionPlan(runtime)`, format
+   18); main's host plan runner (`engine-client/src/plan-runner.ts`: the tab's and the headless Python page's runner for
+   a write's plan) reads the plan's `tdsResult` of typed columns and writes its rows as lite's JSON rows (one object per
+   row keyed by the plan's column names, `[{"value": 2}]`: what `JsonRowsWriter` writes for the same rows) for an
+   integer, text, boolean or null cell, refusing any other cell by name (the planner's to spell, `executeAnswer`); its
+   test (`//engine-client:plan_runner_test`) pins version 18 and the `tdsResult`; the tab's planner client comment
+   follows.
+3. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//wasm:boundary`, `//native:compiler`
+   and `//wasm:planner_dir` build; the rest of the chain (`//engine-client:plan_runner_test`, `//wasm:round_trip_test`,
+   `//pure-protocol:twins_test`, `//datacube:wasm_differential_test`; `--lockfile_mode=error //gates:local` with
+   `//gates:parser_equivalence`; the nine Postgres targets) was running when this commit was made (the stop hook asks
+   for a commit at every pause): its results in the entry that follows, and CI's on the PR.
+4. **Not measured:** the lanes; CI on PR #80 is the merge's first run on every OS.

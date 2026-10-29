@@ -189,14 +189,16 @@ public final class Boundary {
     }
 
     /**
-     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 5): a program
+     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 18): a program
      * that writes -- a store write's {@code Update}, its count bound into the query that answers it, in one
-     * {@code Sequence} -- or a query's one {@code TextResult}, the plan its host's runner runs step by step
-     * (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7).
+     * {@code Sequence} -- or a query's one {@code TdsResult}, its answer TYPED rows the host reads by the plan's
+     * columns (the result boundary program, 2026-10-27: a plan names no output format; a writer at the edge spells
+     * the rows), the plan its host's runner runs step by step (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
+     * into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7).
      */
     public static String executionPlanJsonHeld(int handle, String lambdaJson, String runtime) {
         return MODELS.with(handle, ctx -> com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(ctx,
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime, com.legend.TypedQuery.Output.JSON)));
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
     }
 
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
