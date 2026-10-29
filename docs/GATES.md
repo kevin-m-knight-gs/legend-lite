@@ -15587,3 +15587,52 @@ D35). After B1a the body driver sent nothing itself; after B1b it HOLDS no `java
    follows.
 5. **Not measured:** the lanes (the S1.4 entry, item 5). Not yet (B3): the judges' typed sides; (B2)
    `Execution.runProgram`; (B4, D30) the generator's fold on the seam.
+
+## 2026-10-29 — B1b's gate, measured at 6cf0e83b; the B1b audit
+
+The chain the B1b entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
+unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5).
+
+The B1b audit (an independent agent, read-only against `6cf0e83b` and the pinned sources; the decisions log D38):
+every behavior question CONFIRMED with file:line evidence (the established state's key and logic, the two sides'
+identity compare, the transaction brackets, the trace on every send, the system route's seeding, the version read, the
+generator's door, the MongoDB refusals, the guards' dated notes, the ledger's 2290 reproduced exactly, the records'
+counts and names); two cosmetic findings (a dangling javadoc link in `PlanSessions.statementsOf`, a stale "ambient
+connection" comment in the driver) and one guard limit (an ArchUnit dependency rule cannot see a `.connection()` call
+chained into a `com.legend` callee) fixed with B2's commit: the spelling pinned at zero over the thirteen files
+(`JavaEvalLedgerTest.theBodyDriverSpellsNoConnection`), and MongoDB's `version()` refused by name.
+
+## 2026-10-29 — track B, B2: one entry for a program, `Execution.runProgram`; the old door's entries shims over it; the B1b audit's findings fixed
+
+The result boundary program's track B, third commit (the start page §4, its track B block, B2; the decisions log D36
+to D38). The order changed first (D36): B3, the judges' typed side, is track D's rename, after C and T remove
+`ExecutionResult`'s two other roles; B2 follows B1b directly.
+
+1. **The entry.** `Execution.runProgram(TypedQuery, runtimeFqn, Sessions.Source, AssertListener, SqlReplayReferee,
+   ExecuteOptions) -> ProgramReport(last)`: a test body typed once (`Compiler.query` / `queryResolved`), run by the body
+   driver on the session the source opens for the runtime's target (checked against the declared database, the dialect
+   refined by the server's version, the session setup run once: `dialectOf`), every assert's verdict reported to the
+   listener as it is judged, the SQL-text referee consulted where an assert carries a golden text, nothing materialized
+   returned but the last statement's side (for the service test runner's serializer, track C; typed as the judges'
+   sides are, `ExecutionResult`, renamed at D). The session is closed when the program ends (the source's lease).
+2. **The driver typed once.** `StatementExecutor.execute(TypedQuery, ...)`: the typed body and the spec compiler that
+   typed it (`TypedQuery.body()`, `specs()`, the new package-private `resolved()` for a parameterless lambda's protocol
+   statements); the three resolved-AST overloads deleted. The old door's five entries (`Execution.executeResolved` x4,
+   `execute(model, query, runtime, Source, options)`) are shims: `runProgram(Compiler.queryResolved(ctx, resolved),
+   runtime, PlanSessions.session(connection), ...)` returning `last()`; track D deletes them with their callers
+   (tracks C and T move the callers).
+3. **The B1b audit's findings** (D38): the dangling `{@link #given(Connection, ExecutionTrace)}` in
+   `PlanSessions.statementsOf`; the driver's stale "ONE ambient connection" comment; the guard limit closed by
+   `JavaEvalLedgerTest.theBodyDriverSpellsNoConnection` (the `.connection()` and `java.sql.` spellings at zero over the
+   thirteen session-only files, comment-stripped: an ArchUnit dependency rule cannot see a `.connection()` call chained
+   into a `com.legend` callee); `MongoDbSession.version()` refused by name.
+4. **Guards, dated:** the ledger re-pins `StatementExecutor` 2290 -> 2273; the new spelling pin (a new guard, named).
+5. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline` pass; the rest of the chain (`//core:core_tests`, `//core:mongodb_plan_test`;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets
+   unprivileged; `//datacube:python_execute_test`) running as this commit is made: its results in the entry that
+   follows.
+6. **Not measured:** the lanes (the S1.4 entry, item 5). Next: track C.

@@ -38,6 +38,12 @@ public final class TypedQuery {
         return specs;
     }
 
+    /** The name-resolved query the body is typed from (the body driver reads a parameterless lambda's protocol
+     *  statements off it: the source-shaped lets a handle's rows are built from; track B's B2, 2026-10-29). */
+    com.legend.protocol.spec.ValueSpecification resolved() {
+        return resolved;
+    }
+
     /** The query's statements typed as a query body (Phase G), once. */
     public List<TypedSpec> body() {
         List<TypedSpec> b = body;

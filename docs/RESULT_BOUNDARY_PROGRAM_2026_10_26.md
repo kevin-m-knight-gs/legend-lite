@@ -508,8 +508,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   read and send through it. B1b: the driver's environment holds a `Sessions.Session` (`statements(trace)`, `state()`,
   `version()`), never a `java.sql.Connection`; the judges, the verdict batch, the referee's SPI and the generator's
   natives the same; `Execution` is the one JDBC-aware caller; the guard `ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc`
-  pins thirteen classes by name. `main` merged a second time (PR #79, D34) for PR #80's CI. Next: B3 (the judges'
-  typed sides), B2 (`Execution.runProgram`), then track C.
+  pins thirteen classes by name. `main` merged a second time (PR #79, D34) for PR #80's CI. **B2 built the same day**
+  (D37): `Execution.runProgram`, the one entry for a program, the old door's entries shims over it. The order changed
+  (D36): B3 (the judges' typed side) is track D's rename, after C and T remove `ExecutionResult`'s other two roles.
+  Next: track C.
 - **2026-10-29, S1.6: draft PR #80 opened** (`https://github.com/neema2/legend-lite/pull/80`, from `a0fe9d21`; the
   first CI on every OS since phase 1; under the user's "keep going", D11; the merge the user's). Track B begins
   (the start page's track B block: the design D29, the Java residue D30).

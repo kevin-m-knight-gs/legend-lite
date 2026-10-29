@@ -123,6 +123,13 @@ what it found: the homework README §1.
 - S1.5's code commit (2026-10-29, `d314455a`): GATES, "S1.5's gate, measured at d314455a" (the local gate 446 targets,
   436 pass, 1 skipped, the 9 Postgres targets unprivileged 9 of 9; PCT channel A on DuckDB, SQLite and MongoDB 16 of 16;
   the Python route).
+- Track B's B1a (`df91f816`) and B1b (`6cf0e83b`), 2026-10-29, each: `//core:core_tests`, `//core:guardrails`,
+  `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+  `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged); PCT channel B x5 on DuckDB,
+  `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB 21 of 21; the nine Postgres targets unprivileged 9 of 9;
+  `//datacube:python_execute_test` (GATES, "B1a's gate" and "B1b's gate"). The second merge of `main` (`f4ce65b2`): the
+  local gate with the parser-equivalence lane, 454 targets (GATES, "the second merge's gate recorded"); CI on PR #80
+  green on every finished lane at that head (47 of 50 when the B1b push superseded the run).
 
 **Who still enters through the old door** (measured 2026-10-28; production: nobody):
 
@@ -358,7 +365,17 @@ materialized `execute`s, `PureTestRunner`, `ServiceTestRunner`, `ChannelB`, and 
   `ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc` names the thirteen; the JDBC census loses three files and
   gains `SessionState`; the ledger re-pins `StatementExecutor` 2313 -> 2290. Not yet: B3 (typed sides), B2
   (`Execution.runProgram`), B4 (the residue: the generator still runs JDBC inside `testdatagen` on the session it is
-  handed).
+  handed). Audited (GATES, "B1b's gate"; the decisions log D38): confirmed; its three findings fixed with B2.
+- **The order changed 2026-10-29 (the decisions log D36; the user may reverse):** B3 is deferred to track D as a
+  rename. `ExecutionResult` is already the typed, collected side B3 wants; its other two roles (the verdict, the old
+  door's materialized result) are what C, T and D remove, and building `TypedSide` beside it now would rewrite ~350
+  references twice. Order: B1a, B1b, B2, C, T, D (the deletions, then `ExecutionResult` -> `TypedSide` in the judges).
+- **B2 built 2026-10-29** (GATES, the B2 entry; the decisions log D37): `Execution.runProgram(TypedQuery, runtimeFqn,
+  Sessions.Source, AssertListener, SqlReplayReferee, ExecuteOptions) -> ProgramReport(last)`, the one entry for a
+  program: the body typed once, run on the session the source opens for the runtime's target, every verdict to the
+  listener, the last statement's side for a serializer and nothing else. `StatementExecutor.execute` takes the typed
+  query (the three resolved-AST overloads deleted); the old door's five entries are shims over `runProgram` until D.
+  Next: track C (the corpus runner, channel B and the service test runner on `runProgram` and typed plans).
 
 ### Track T. Our core tests become the LEAN twin of PCT and the corpus
 

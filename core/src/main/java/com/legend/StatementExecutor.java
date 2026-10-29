@@ -27,45 +27,24 @@ final class StatementExecutor {
     private StatementExecutor() {
     }
 
-    /** The G½→H→I→J→K back half over a name-RESOLVED query AST. */
-    static @com.legend.base.Nullable ExecutionResult execute(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            com.legend.exec.Sessions.Session session) {
-        return execute(resolved, ctx, runtimeFqn, dialect, session, null,
-                null);
-    }
-
-    /** Listener overload: {@code assertListener} observes every
-     * statement-root assert verdict (the runner's scoring seam —
-     * judging stays here, in one place); {@code replayReferee} is the
-     * registered SQL-replay referee (SQLTEXT charter §2 — same
-     * registration seam, same nullable carriage; production passes
-     * neither). */
-    static @com.legend.base.Nullable ExecutionResult execute(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            com.legend.exec.Sessions.Session session,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
-        return execute(resolved, ctx, runtimeFqn, dialect, session, assertListener,
-                replayReferee, ExecuteOptions.NONE);
-    }
-
-    /** With the caller's execute OPTIONS (they ride the environment and the
-     * result — no static slot). */
-    static @com.legend.base.Nullable ExecutionResult execute(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+    /** The G½→H→I→J→K back half over a query TYPED ONCE ({@link TypedQuery}: its statements typed as a query body,
+     * by the spec compiler the driver then compiles every helper through), on {@code session} -- the one entry for a
+     * program hands it here ({@link Execution#runProgram}; track B's B2, 2026-10-29: until then the driver typed the
+     * resolved AST itself for each of three entries). {@code assertListener} observes every statement-root assert
+     * verdict (the runner's scoring seam — judging stays here, in one place); {@code replayReferee} is the registered
+     * SQL-replay referee (SQLTEXT charter §2 — same registration seam, same nullable carriage; production passes
+     * neither); the execute OPTIONS ride the environment and the result — no static slot. */
+    static @com.legend.base.Nullable ExecutionResult execute(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             com.legend.exec.Sessions.Session session,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options) {
-        SpecCompiler specs = new SpecCompiler(ctx);
-        java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
+        ModelContext ctx = typed.context();
+        SpecCompiler specs = typed.specs();
+        java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());
+        com.legend.protocol.spec.ValueSpecification resolved = typed.resolved();
         // the execution OPTIONS: the per-call ones ride each execute call's
         // own from (the engine's exeCtx overload binds them onto its bound
         // context); the caller's ride the environment
@@ -90,7 +69,7 @@ final class StatementExecutor {
         return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
     }
 
-    /** The K-phase execution environment: ONE ambient connection, ONE
+    /** The K-phase execution environment: ONE ambient session, ONE
      * dialect (audit 17: recomputing it per arm invited a future
      * mixed-dialect bug), the driver runtime, and the
      * addDriverTablePkForProject execution option (#45 — see

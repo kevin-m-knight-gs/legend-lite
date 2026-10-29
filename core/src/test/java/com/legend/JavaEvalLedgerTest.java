@@ -777,7 +777,8 @@ class JavaEvalLedgerTest {
             // through the seam (ExecEnv.statements); its JDBC tunnel for the grid referee and its connection
             // parameter to lowerAndPrepare are gone)
             // 2313 -> 2290 (2026-10-29, the result boundary program's track B, B1b: the Connection leaves the body driver -- its environment holds a session (Sessions.Session) and reaches the database through the seam's statements, state and version; the established-state class and its two statics moved to exec/SessionState; three unused Connection locals deleted; nothing evaluated)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2290),
+            // 2290 -> 2273 (2026-10-29, track B's B2: the back half takes the query typed once (TypedQuery: its body and its spec compiler) where it typed the resolved AST itself for each of three entries, two of them delegating; nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2273),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1569,6 +1570,47 @@ class JavaEvalLedgerTest {
                 "verdict files JUDGE, never COMPUTE (banned at zero, no"
                         + " register — route the computation to the"
                         + " database):" + drift);
+    }
+
+    /** The files that hold a SESSION and never its connection (the result boundary program's track B, B1b,
+     *  2026-10-29): the body driver, the judges and their arms, the seed and error natives, the generator's natives.
+     *  {@code ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc} pins their bytecode to no {@code java.sql}; an
+     *  ArchUnit dependency rule cannot see a {@code .connection()} call chained into a {@code com.legend} callee
+     *  (the B1b audit's finding 2), so the SPELLING is pinned at zero here, in comment-stripped source. */
+    private static final java.util.List<String> SESSION_ONLY_FILES = java.util.List.of(
+            "core/src/main/java/com/legend/StatementExecutor.java",
+            "core/src/main/java/com/legend/BodyCompiler.java",
+            "core/src/main/java/com/legend/HostJudge.java",
+            "core/src/main/java/com/legend/DatabaseJudge.java",
+            "core/src/main/java/com/legend/JudgePlans.java",
+            "core/src/main/java/com/legend/AssertVerdicts.java",
+            "core/src/main/java/com/legend/SqlTextVerdicts.java",
+            "core/src/main/java/com/legend/AgreementArm.java",
+            "core/src/main/java/com/legend/VerdictArm.java",
+            "core/src/main/java/com/legend/CsvLoad.java",
+            "core/src/main/java/com/legend/SeedSqlForms.java",
+            "core/src/main/java/com/legend/AssertErrorNative.java",
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java");
+
+    private static final Pattern CONNECTION_SPELLING = Pattern.compile("\\.connection\\(\\)|java\\.sql\\.");
+
+    @Test
+    void theBodyDriverSpellsNoConnection() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (String f : SESSION_ONLY_FILES) {
+            String src = Files.readString(SourceFiles.file(f))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "");
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                if (CONNECTION_SPELLING.matcher(lines[i]).find()) {
+                    drift.append("\n  ").append(f).append(":").append(i + 1).append(": ").append(lines[i].strip());
+                }
+            }
+        }
+        assertTrue(drift.length() == 0,
+                "the body driver, the judges and the generator's natives hold a session and never reach its"
+                        + " connection (track B's B1b; banned at zero, no register):" + drift);
     }
 
     @Test

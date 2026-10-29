@@ -115,8 +115,9 @@ public final class PlanSessions {
         return borrowed(connection);
     }
 
-    /** The statements of a caller's own connection, for a reader that holds no plan -- the body driver's schema probes
-     *  and seeds (track B's B1a, 2026-10-29): as {@link #given(Connection, ExecutionTrace)}'s session gives them. */
+    /** The statements of a caller's own connection, for a reader that holds no plan -- the system database's seeding,
+     *  the front door's session setup, the tests (track B's B1a, 2026-10-29): what
+     *  {@link Sessions.Session#statements(ExecutionTrace)} gives for the connection's session (B1b). */
     public static Statements statementsOf(Connection connection, @com.legend.base.Nullable ExecutionTrace trace) {
         return new JdbcStatements(connection, trace);
     }

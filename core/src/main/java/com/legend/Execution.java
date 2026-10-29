@@ -181,7 +181,8 @@ public final class Execution {
 
     /** {@link #execute(String, String, com.legend.model.ImportScope, String, java.sql.Connection, ExecuteOptions)}
      *  on the session {@code sessions} opens for the target the query's runtime declares ({@link Compiler#executesOn}):
-     *  the model compiled once, the connection decided from it, then opened (C3b). */
+     *  the model compiled once, the connection decided from it, then opened (C3b). The old door over
+     *  {@link #runProgram}: its result the program's last statement's (track B's B2, 2026-10-29). */
     public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
             String model, String query, @com.legend.base.Nullable String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, ExecuteOptions options) {
@@ -191,25 +192,62 @@ public final class Execution {
                 parsed instanceof com.legend.protocol.spec.LambdaFunction lf
                         && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(java.util.List.of()), ctx);
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            return executeResolved(resolved, ctx, runtimeFqn, session.connection(), null, null, options);
-        }
+        return runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn, sessions, null, null, options).last();
     }
 
     /**
-     * Phases G&frac12;&rarr;K for an already NAME-RESOLVED query AST — THE
-     * one back-half sequence. Every driver path (text queries above,
-     * EngineTestExecutor's handle-splice path) comes through here; a second
-     * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
+     * THE ONE ENTRY FOR A PROGRAM (track B's B2, 2026-10-29; docs/RESULT_BOUNDARY_START_HERE.md, the track B block;
+     * the plan path program's step 8): a test body -- lets, effects, asserts, a value -- typed once
+     * ({@link Compiler#query}), run statement by statement by the body driver on the session {@code sessions} opens
+     * for the target its runtime declares (checked against the declared database, the dialect refined by the server's
+     * version, the session's setup run once: {@link #dialectOf}), every assert's verdict reported to {@code listener}
+     * as it is judged (one event each, in statement order; a failure is raised after its report), the SQL-text
+     * referee {@code referee} consulted where an assert carries a golden text (the harnesses' registration seam;
+     * production passes neither), nothing materialized returned but the last statement's side for a serializer
+     * ({@link ProgramReport}). The session is closed when the program ends (the source's lease: nothing for a caller's
+     * own, {@link com.legend.exec.Sessions#given}).
+     */
+    public static ProgramReport runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
+        ModelContext ctx = typed.context();
+        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
+            return runProgram(typed, runtimeFqn, session, listener, referee, options);
+        }
+    }
+
+    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.AssertListener,
+     *  com.legend.exec.SqlReplayReferee, ExecuteOptions)} on a session the caller holds and keeps (the old door's
+     *  connection): checked, its dialect decided, the body driver run on it; the one place a program's session meets
+     *  its JDBC connection. */
+    static ProgramReport runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.exec.Sessions.Session session, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
+        ModelContext ctx = typed.context();
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session.connection());
+        return new ProgramReport(StatementExecutor.execute(typed, runtimeFqn, dialect, session, listener, referee,
+                options));
+    }
+
+    /** What a program leaves behind: its last statement's side, collected and typed as the judges' sides are
+     *  ({@link com.legend.exec.ExecutionResult}, the name track D renames; the service test runner serializes it,
+     *  nothing else reads it), or null for a body whose last statement answers nothing. The verdicts are the
+     *  listener's, one event each; a program reports nothing else. */
+    public record ProgramReport(com.legend.exec.@com.legend.base.Nullable ExecutionResult last) {
+    }
+
+    /**
+     * THE OLD DOOR: phases G&frac12;&rarr;K for an already NAME-RESOLVED query AST on the caller's connection --
+     * {@link #runProgram} with the query typed here and the connection as the driver's session
+     * ({@link com.legend.exec.PlanSessions#session}), its result the last statement's. Every driver path that
+     * enters here (the corpus runner, the service test runner, channel B, core's tests) moves to {@link #runProgram}
+     * and the typed plans (the result boundary program's tracks C and T); track D deletes it.
      */
     public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
-        return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection),
-                // the driver holds a session, never a connection (track B's B1b, 2026-10-29)
-                com.legend.exec.PlanSessions.session(connection));
+        return executeResolved(resolved, ctx, runtimeFqn, connection, null, null, ExecuteOptions.NONE);
     }
 
     /** Listener overload — the runner's scoring seam: observes each
@@ -219,8 +257,7 @@ public final class Execution {
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection,
-                assertListener, null);
+        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener, null, ExecuteOptions.NONE);
     }
 
     /** Registration overload (SQLTEXT charter §2): the harness supplies
@@ -232,8 +269,8 @@ public final class Execution {
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener,
-                replayReferee, ExecuteOptions.NONE);
+        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener, replayReferee,
+                ExecuteOptions.NONE);
     }
 
     public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
@@ -243,10 +280,7 @@ public final class Execution {
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options) {
-        return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection),
-                // the driver holds a session, never a connection (track B's B1b, 2026-10-29)
-                com.legend.exec.PlanSessions.session(connection),
-                assertListener, replayReferee, options);
+        return runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
+                com.legend.exec.PlanSessions.session(connection), assertListener, replayReferee, options).last();
     }
 }
