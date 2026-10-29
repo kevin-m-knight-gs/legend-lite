@@ -31,10 +31,9 @@ import java.util.Map;
  * typed-rows plan whose one row is the verdict; the HOST judge receives each side as a plan's result -- the side's
  * lowered query as a typed-rows plan, or a graph fetch's JSON text -- its cells read from the driver by the plan's
  * declared types ({@code exec.JdbcDecode}, the typed seam of step 7: the Z2 ruling's carrier-decode bridge at the
- * plan boundary), then compares. The legacy
- * executor still PLANS a side ({@link BodyDriver#planHostSide}: the let prefix, the inliner's splice, the
- * natives' staging, the store resolution, the wire reconciliation) -- the one road both judges' sides take, until the
- * test runners emit plan sequences (step 8) and it is deleted (step 11).
+ * plan boundary), then compares. The body driver PLANS a side ({@link BodyDriver#planHostSide}: the let prefix, the
+ * inliner's splice, the natives' staging, the store resolution, the wire reconciliation) -- the one road both judges'
+ * sides and the body's streamed answer ({@link #streamResult}, door 1, 2026-10-29) take.
  */
 final class JudgePlans {
 

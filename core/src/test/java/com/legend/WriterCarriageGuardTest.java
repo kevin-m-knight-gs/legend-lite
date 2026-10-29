@@ -149,8 +149,9 @@ class WriterCarriageGuardTest {
     void theWritersCarryAndDecideNothing() throws IOException {
         List<Path> files = new java.util.ArrayList<>(
                 SourceFiles.under(RESULT).stream().filter(p -> p.toString().endsWith(".java")).toList());
-        // track Z, 2026-10-29 (the final audit's finding 2): the service test runner serializes a program's last side
-        // for its assertions -- a writer outside result/, scanned here with an empty register so it spells nothing itself
+        // track Z, 2026-10-29 (the final audit's finding 2): the service test runner spelled a program's last side
+        // itself; since door 1 (2026-10-29) it reads its answer from the boundary's writers -- scanned here with an
+        // empty register so that it never spells a cell again
         files.add(SourceFiles.file("core/src/main/java/com/legend/test/ServiceTestRunner.java"));
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 10);
         StringBuilder drift = new StringBuilder();

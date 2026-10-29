@@ -1551,10 +1551,24 @@ public final class TestDataGenerator {
      *  after a run that failed rides the run's own error, suppressed; one after a run that succeeded is the error --
      *  the doors, 2026-10-29: until then a failed drop was swallowed, the temps dying with the connection). */
     private record Temps(Session st, List<String> names) implements AutoCloseable {
+        /** Every temp dropped, whatever an earlier drop did: the first refusal is the error, the later ones suppressed
+         *  onto it (the doors' audit, 2026-10-29, finding 4: the loop stopped at the first). */
         @Override
         public void close() {
+            com.legend.error.DataError first = null;
             for (String t : names) {
-                effect(st, st.dialect().render(new SqlDdl.DropTable(null, t, NameQuoting.BARE)));
+                try {
+                    effect(st, st.dialect().render(new SqlDdl.DropTable(null, t, NameQuoting.BARE)));
+                } catch (com.legend.error.DataError e) {
+                    if (first == null) {
+                        first = e;
+                    } else {
+                        first.addSuppressed(e);
+                    }
+                }
+            }
+            if (first != null) {
+                throw first;
             }
         }
     }

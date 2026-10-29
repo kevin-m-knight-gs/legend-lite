@@ -16285,3 +16285,35 @@ returned (`Execution.ProgramReport.last`, D36/D37's open question).
    corpus lanes, PCT on H2, DuckDB, channel B and Postgres, datacube, warehouse, product, stress, sdlc, ui, the
    parser equivalence); this push runs every OS in turn.
 5. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The doors' audit folded: the effect-last answer after its script; every temp dropped; the dead arms deleted; the records corrected
+
+The independent audit of the doors (2026-10-29; the decisions log D64 holds every finding and its ruling): twelve
+findings, two blockers on the records (corrected with door 1's commit), one on the code (here).
+
+1. **Built:** `BodyCompiler.collectEffect` collects an effect statement that ends the body and answers it as host
+   rows at the body's end, after `closeEffects` has sent its script (until now its constant was written first);
+   `TestDataGenerator.Temps.close` drops every temp, the first refusal the error with the later ones suppressed (a
+   catch of `DataError` alone; the broad-catch census unmoved); DELETED: `PrepTrace.prepared`, `executed`, `record`
+   (the timed prepare/execute lines; the branch-size trace stays), `SqlTypeCensus.probeWire`, `WireReading`, the D1
+   watch (`WireWatch`, `wireValueSeen`, `wireNullSeen`, `settleWire`), `delivers`, `integerFamily`, `metaToType`,
+   `wireSpelling`, `sized`, `hasPivot`, and its ten counters with `summary()`'s wire part (dead gates, `DanglingStateGuardTest`:
+   readers and no writer), the PCT census gate's five wire pins and channel B's two (every one zero by construction),
+   the static-field allowlist's two slack entries, the dangling-state guard's slot floor 40 to 36 and the harness
+   discipline register's `SqlTypeCensus` sort sites 3 to 2 (each dated);
+   `TypedSide.asScalar/asCollection/asTabular/asGraph`, `Lean.ofCollectedSide`; `PrepTrace.java` and
+   `SqlTypeCensus.java` LEAVE the JDBC census (dated; neither spells `java.sql` now); the stale javadocs of
+   `PlanSessions`, `TypedSide`, `JudgePlans` and the writer guard's reason for scanning the service runner;
+   `BodyDriver.statementOf` on `ExecutionPlan.Sql.of` (its size pin MEASURED, dated). Not built, posted to the user
+   (D64): two readings of the service test runner, the routing of the plan path's seeds and the server's fill.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** `619e0c12` (door 1, run 40946141905) GREEN on every OS at 20:57Z, `gates green` passing, 52 check runs
+   none failed; this push runs every OS in turn.
+4. **Not measured:** the MariaDB lane (CI alone).

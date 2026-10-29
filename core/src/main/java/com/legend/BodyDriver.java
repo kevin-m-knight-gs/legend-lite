@@ -2212,7 +2212,7 @@ final class BodyDriver {
     /** {@code sql} as a plan's statement for the body's session: no slot, its target the body's
      *  ({@link JudgePlans#target}). */
     private static com.legend.executionplan.ExecutionPlan.Sql statementOf(ExecEnv env, String sql) {
-        return new com.legend.executionplan.ExecutionPlan.Sql(sql, java.util.List.of(), JudgePlans.target(env), null);
+        return com.legend.executionplan.ExecutionPlan.Sql.of(sql, JudgePlans.target(env));
     }
 
     /** The Lowerer a statement's body lowers with (lowerAndPrepare's and the store write's): the model's layouts,

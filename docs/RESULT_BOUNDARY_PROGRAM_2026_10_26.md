@@ -502,6 +502,12 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the doors' audit folded** (the decisions log D64; GATES, the fold entry): the records corrected (with
+  door 1); an effect statement that ends the body answered after its script runs; every generator temp dropped; the
+  dead arms deleted (`PrepTrace`'s timed prepare/execute, `SqlTypeCensus`'s wire arm, `TypedSide`'s accessors,
+  `Lean.ofCollectedSide`), both files off the JDBC census; the stale sentences. Posted to the user, not built: two
+  readings of the service test runner (the presented column name; the one-object graph envelope), the routing of the
+  plan path's seeds and the server's fill through the runner. Next: the decisions post.
 - **2026-10-29, the doors, 1** (the decisions log D63; GATES, the door 1 entry): a program's last statement streams
   to the sink the caller hands for its shape; `Execution.ProgramReport` deleted, `TypedSide` off the public surface;
   the service test runner reads its answer from the boundary's writers (`PureV1Writer.objects`, the new

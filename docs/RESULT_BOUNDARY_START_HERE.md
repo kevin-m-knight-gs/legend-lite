@@ -106,6 +106,7 @@ audit itself and what it found: the homework README §1.
 - Doors 3, 4 and 5 (2026-10-29, D61; GATES, the doors 3-5 entry): the full local chain on the patch alone.
 - Door 2 (2026-10-29, D62; GATES, the door 2 entry): the full local chain on the patch alone.
 - Door 1 (2026-10-29, D63; GATES, the door 1 entry): the full local chain on the patch alone.
+- The doors' audit fold (2026-10-29, D64; GATES, the fold entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -651,8 +652,12 @@ a class that reaches `Statements` or a JDBC connection around it. The map (the d
   public surface; the service test runner on `PureV1Writer.objects` and the new `result/TdsObjectsWriter`; the twin's
   `Program` on `Lean.Capturing`. Every door in the map is closed (a body's every statement the plan runner's;
   nothing materialized past a public entry); the independent audit of the doors named three raw sends that remain
-  inside the chartered seams (the plan path's seeds, the server's fill, the MariaDB connector) and twelve findings,
-  folded as D64; the decisions post follows.
+  inside the chartered seams (the plan path's seeds, the server's fill, the MariaDB connector) and twelve findings.
+- **The audit folded 2026-10-29** (the decisions log D64; GATES, the fold entry): the records corrected with door 1;
+  an effect statement that ends the body answered after its script; every temp dropped; the dead arms deleted
+  (`PrepTrace`'s timed prepare/execute, `SqlTypeCensus`'s wire arm, `TypedSide`'s accessors, `Lean.ofCollectedSide`),
+  both files off the JDBC census; the stale sentences. Two of the service test runner's readings and the routing of
+  the plan path's seeds and the server's fill are posted to the user (D64), not built.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

@@ -295,7 +295,10 @@ public final class BodyCompiler {
             TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
             BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
                     stmt, bare, letPrefix, execFrames, specs, sinkEnv);
-            last = run(pv, i == stmts.size() - 1);
+            // collected, never answered here: its statements sit in the sink until the segment closes, so an
+            // effect that ends the body answers as host rows at the body's end, after its script has run (the
+            // doors' audit, 2026-10-29, finding 5: answered here, its value was written before the script ran)
+            last = run(pv, false);
             lastIsValue = true;
         }
 

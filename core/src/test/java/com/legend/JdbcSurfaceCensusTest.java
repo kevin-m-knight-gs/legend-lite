@@ -157,7 +157,8 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/PlanRunner.java",
             "core/src/main/java/com/legend/exec/PlanSessions.java",
             "core/src/main/java/com/legend/exec/BulkLoads.java",
-            "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
+            // 2026-10-29 (the doors' audit, D64): PrepTrace.java LEFT this register -- its timed prepare/execute arms,
+            // callerless since the plan runner prepares every statement, deleted; the branch-size trace remains, no JDBC
             // 2026-10-29 (track B's B1b): VerdictBatch.java and BodyDriver.java LEFT this register -- the
             // body driver holds a session (Sessions.Session) and the deferred verdicts run on it through the plan
             // runner; neither spells java.sql or a statement method
@@ -187,11 +188,9 @@ class JdbcSurfaceCensusTest {
             // the provenance seam at Executor's own funnel; it opens no
             // connection and executes nothing
             "core/src/main/java/com/legend/exec/RaisedErrors.java",
-            // contract program: the wire census READS ResultSetMetaData
-            // of results the Executor already fetched — measurement of
-            // the wire's self-description, zero queries, zero decode;
-            // the CanonicalDivergence pattern with a java.sql import
-            "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
+            // 2026-10-29 (the doors' audit, D64): SqlTypeCensus.java LEFT this register -- its wire arm (probeWire, the
+            // D1 watch, the slack settle: a ResultSet's own metadata read beside the executor's fetch), callerless since
+            // the plan runner took over every read, deleted; the label census stays, no JDBC
             // 2026-10-29 (track B's B1a): ColumnProbe.java (PctProbe until 2026-10-17) LEFT this register -- its
             // LIMIT-0 metadata read goes through the session seam (Statements.columns)
             // leg 3.3: the wire-decided kinds read from the prepared statement's metadata

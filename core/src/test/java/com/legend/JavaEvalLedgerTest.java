@@ -1200,9 +1200,9 @@ class JavaEvalLedgerTest {
                     // decided kind) and sent as ONE script; no value is produced,
                     // nothing is compared
                     "EffectSink.java",
-                    // lean ladder (2026-09-20): the TIMED prepare/execute seam —
-                    // env-switched diagnostics (LEGEND_LITE_PREP_TRACE) writing
-                    // one line per statement; no value a verdict reads is produced
+                    // lean ladder (2026-09-20): env-switched diagnostics (LEGEND_LITE_PREP_TRACE) writing the
+                    // verdict batch's branch sizes; no value a verdict reads is produced (its timed prepare/execute
+                    // arms deleted 2026-10-29, the doors' audit D64: callerless since the plan runner)
                     "PrepTrace.java",
                     // THE SYSTEM DATABASE (user ruling 2026-09-02): the
                     // graph's metamodel rows in a database of their own,
@@ -1313,6 +1313,8 @@ class JavaEvalLedgerTest {
                     // executed plan. Pure measurement beside
                     // CanonicalDivergence (probes consume a finished
                     // plan and count; nothing here produces a result).
+                    // Its wire arm (a ResultSet's metadata against the labels) deleted 2026-10-29 (the doors'
+                    // audit D64: callerless since the plan runner), with its counters and the pins on them
                     "SqlTypeCensus.java",
                     // the PRIMITIVE CENSUS (2026-10-12, the coverage map, docs/PRIMITIVE_COVERAGE_2026_10_12.md):
                     // reads each executed plan's MIR primitives and counts them by the statement's outcome, under

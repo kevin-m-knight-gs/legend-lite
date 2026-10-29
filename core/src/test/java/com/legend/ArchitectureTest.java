@@ -1362,11 +1362,8 @@ final class ArchitectureTest {
                 // legitimate static-census shape)
                 "com.legend.exec.SqlTypeCensus.NUL_CLASSES",
                 "com.legend.exec.SqlTypeCensus.NUL_SAMPLES",
-                // §E3 slack census (the breach converse — precision
-                // instrument): classified counters + bounded
-                // witnesses; measurement only, deliberately unpinned
-                "com.legend.exec.SqlTypeCensus.SLACK_CLASSES",
-                "com.legend.exec.SqlTypeCensus.SLACK_SAMPLES",
+                // (the §E3 slack census's SLACK_CLASSES and SLACK_SAMPLES LEFT this allowlist 2026-10-29: deleted
+                // with the wire census's arm by the doors' audit, D64 -- callerless since the plan runner)
                 // the primitive census (2026-10-12, the coverage map, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20): a
                 // tally per MIR primitive by outcome, bounded by the MIR's vocabulary; written only under
                 // -Dlegend.diagnostics=primitives; measurement only, never verdict-affecting (the SqlTypeCensus

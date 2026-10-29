@@ -115,9 +115,6 @@ public final class PlanSessions {
         return borrowed(connection);
     }
 
-    /** The statements of a caller's own connection, for a reader that holds no plan -- the system database's seeding,
-     *  the front door's session setup, the tests (track B's B1a, 2026-10-29): what
-     *  {@link Sessions.Session#statements(ExecutionTrace)} gives for the connection's session (B1b). */
     /** A caller's own FRESH connection with {@code target}'s setup run on it now (a test's new database): the source
      *  of {@link #given} it, never closed here. */
     public static Source setUp(Connection connection, ExecutionPlan.Target target) {
