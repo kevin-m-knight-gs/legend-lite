@@ -15263,7 +15263,7 @@ in its order: item 2, then 1, then 3, then 4. No output spelling moves but the o
    question in this entry's report.
 3. **Item 3, the guards (approved 2026-10-28, "yes add this to the plan"):**
    - `ArchitectureTest.writersAreCarriageOnly`: no class of `com.legend.result` depends on a `com.legend` class outside
-     `result`, `executionplan`, `values`, `json`, `base` and `error` (so never the compiler, the lowering, the SQL tree
+     `result`, `executionplan`, `values`, `json`, `base` and `error` (so never, directly, the compiler, the lowering, the SQL tree
      or a dialect, `exec`, the resolver, the setup, the plan side, the server); true when written, as the Bazel
      target's deps already said.
    - `WriterCarriageGuardTest`: the result package's sources, comments and strings stripped, scanned for the vocabulary
@@ -15344,8 +15344,10 @@ mostly copied what tests expect". Checked from the pinned sources; the decisions
    `//pct:pct_discipline`: 28 of 28 pass; the PCT on DuckDB, SQLite and MongoDB (five suites each) and
    `//pct:pct_discipline`: 16 of 16 pass, every relation crossing through the engine JSON (`[LegendLite PCT] engine
    JSON:` 524 DuckDB, 523 SQLite, 523 MongoDB; the relation suite 460, 459, 459); `//datacube:python_execute_test`
-   passes. The Postgres targets and the rest of `//gates:local` ran at S1.4's first landing (the entry above) and
-   run again with S1.5's commit. The lanes are not reachable from this session (the S1.4 entry, item 5).
+   passes. The local gate (`//gates:local`, the Postgres targets unprivileged) has NOT run on any S1.4 commit: it
+   last ran at S1.0's merge commit (the S1.0 entry); it runs with S1.5's code commit (the S1.5 entry below; a
+   sentence here claimed otherwise until the S1.4 audit of 2026-10-29 caught it). The lanes are not reachable from
+   this session (the S1.4 entry, item 5).
 
 ## 2026-10-29 — the result boundary program's phases 1 to 4, recorded (S1.5: the entries 2026-10-27's commits never got)
 
@@ -15401,3 +15403,40 @@ item 3.
    targets unprivileged; datacube `duckdb`, `typed_values` (x3), `values`, `typecheck`, `lite_planner(_node)`,
    `python_execute`, `wasm_differential`; engine-client `node_duckdb`; python `engine`, `host_sql`; wasm
    `differential`. The server lanes' NaN and abs pins measured on their lanes at phase 5 (the entry above).
+
+## 2026-10-29 — the result boundary program's S1.5: two moves toward upstream (an hour-only date's zone, a LEGACY NaN cell), the fact-assignment test, the S1.4 audit's findings fixed
+
+S1.5's code commit, after its records commit `3e9e739a` (the 51 writer differences classified by upstream's answer:
+`docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`; the decisions log D12 to D27).
+
+1. **An hour-only date in lite's own outputs has no zone** (D13; G5 of the classification): legend-pure's
+   `DateFormat.append` writes `+0000` inside its minute branch (`TestDateFormat`: `2014-03-10T16` against
+   `2014-03-10T16:12+0000`), legend-engine's `PureDateSerializer` writes `toString()`. `CellText.pureDate`'s WRITTEN
+   arm and its nested arm take the zone from a minute on (`CellText.zoned`); `PureDateLiteral.DateWithHour.toString()`
+   the same (its "H1 toString spec" named no upstream). `1973->date(11, 13, 23)` writes `1973-11-13T23` in LEAN JSON
+   and CSV (it wrote `1973-11-13T23+0000`; the old wire wrote `1973-11-13T23`); the minute form keeps its zone.
+   Pinned: `ResultWritersTest` (the hour and the minute forms), `PureDateLiteralTest.toString_zoneFromAMinuteOn`,
+   `TypeInferenceIntegrationTest.testDateFromHourPrecision` (its pin moved from lite's text to legend-pure's).
+2. **A LEGACY TDS cell holding a NaN or infinite Float is `null`** (D14; G7): legend-engine's relational JSON runs a
+   Float column's transformer (the identity, `SetImplTransformers.buildTransformer`) then
+   `ExecutionResultObjectMapperFactory.convertPurePrimitiveToJson`, which writes `null` for `isNaN` or `isInfinite`;
+   phase 2 wrote the name in a string, naming the engine without reading it. `CellText.engineCell`; a nested double
+   keeps the quoted name (the JSON library's form, unmeasured; the engine-runner probe queued, D27). LEAN's NaN is the
+   user's (register S119, pending; recommended: refuse as legend-pure does). Pinned: `ResultWritersTest.engineTokens`.
+3. **The precision fact's assignment pinned**: `ColumnFactsTest`, a table over (type, slot, shape) -- the S1.4 audit's
+   finding 12 (the five spellings were pinned, the rule that picks them was not).
+4. **The S1.4 audit** (an independent agent, read-only, 16 findings; the decisions log D23): its two divergences are
+   items 1 and 2; its record inconsistencies fixed here (the GATES sentence of 2026-10-29 that claimed the local gate
+   ran on an S1.4 commit -- it had last run at S1.0's merge commit; the start page's §0, §2, §3, §12 and S1.6; IN_FLIGHT;
+   D4's `over.pure`; the README's three-digit count; register S118's example; the "never the SQL tree" claim of the
+   2026-10-28 entry, now "directly"); two writer choices written into `CellText.pureDate`'s javadoc (D26); the year
+   spelling `yyyy` against lite's `%d` recorded as an open finding (D24, track F); `PlanColumns`' dangling javadoc merged.
+   What it found sound: the writers read one typed fact and no slot spelling; the scan register matches the code
+   exactly; every guard pin moved with a dated note; D4 and D5 hold against the pinned sources.
+5. **Measured locally** (as root; the Postgres targets as the unprivileged user, `tools/postgres/as_unprivileged.sh`,
+   standalone): `//core:guardrails` green at this commit; the local gate (`--lockfile_mode=error //gates:local`), the
+   nine Postgres targets, PCT channel A on DuckDB, SQLite and MongoDB and `//datacube:python_execute_test` were
+   running when this commit was made (the stop hook asks for a commit at every pause): their results are the entry
+   that follows this one, before the draft PR opens.
+6. **Not measured:** the lanes (not reachable from this session: the S1.4 entry, item 5). The next lane measurement is
+   the draft PR's CI (S1.6) and track B's per-lane channel B.

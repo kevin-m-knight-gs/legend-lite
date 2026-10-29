@@ -472,12 +472,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testDateFromHourPrecision() throws SQLException {
                 // PCT: date(1973, 11, 13, 23) → %1973-11-13T23 (hour precision, not full
-                // timestamp)
+                // timestamp); legend-pure prints an hour-only date without a zone (DateFormat.append:
+                // +0000 from a minute on; S1.5, 2026-10-29)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|1973->date(11, 13, 23)",
                                 "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23+0000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23", result.rows().get(0).get(0).toString());
         }
 
         @Test

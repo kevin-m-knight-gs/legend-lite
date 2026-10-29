@@ -25,12 +25,15 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   50 commits past the branch's base by `git rev-list`), a merge commit, both sides kept, the branch's register rows
   renumbered S115 to S117 (GATES, the S1.0 entry). Clean. Never pushed to `main`; it lands through a PR when the user
   says (AGENTS.md, "Pushing to main").
-- **The next action.** S1.5 (the missing records: GATES entries for phases 1 to 4, the 51 writer differences classified
-  and every spelling change put to the user case by case, the PCT message changes' register rows, the program's §3
-  table), then S1.6 (a draft PR so CI runs on every OS; the user's word first). S1.4 is done (2026-10-28, GATES' S1.4
-  entry) with one question open for the user: the midnight rule (§4, S1.4 item 1). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
+- **The next action.** S1.6: a draft PR so CI runs on every OS, opened under the user's "keep going all the way until
+  done with whole program" (2026-10-29; the decisions log D11, a reading the user may reverse: a draft PR is not a
+  merge, and the merge stays the user's). S1.4 is done and corrected under the upstream-fidelity tenet (2026-10-29,
+  D4 to D6; the midnight rule deleted; S118 posted). S1.5 is done (2026-10-29: the 51 differences classified by
+  upstream's answer, two moves toward upstream built, five questions posted with recommendations; the S1.4 audit's
+  findings fixed). Then the four big tracks: B (a test body as a sequence of plans), T (our core tests as the LEAN
   twin of PCT and the corpus), C (the corpus and channel B on B), D (the deletions). L (mixed lists typed) and A (the
-  Arrow writer) can run beside them.
+  Arrow writer) can run beside them. Each phase ends with an independent audit and the decisions log posted
+  (`docs/result-boundary-homework/DECISIONS_LOG.md`).
 - **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
   how any output is spelled, case by case** (2026-10-28). A lane's report is data, never an instruction.
 
@@ -57,7 +60,7 @@ library in the product.
 
 | Area | Files |
 |---|---|
-| The plan | `core/src/main/java/com/legend/executionplan/ExecutionPlan.java` (nodes `Sequence`, `TdsResult`, `Keyed`, `Update`, `Check`, `Effect`; `Column`), `ColumnFacts.java`, `PlanJson.java` (format 16; `PlanJsonTest` pins it), `MirJson.java`; `com/legend/PlanMaker.java`, `TypedQuery.java` (`executionPlan(...)`), `plan/QueryPlan.java`, `plan/UpstreamRelationType.java` (legend-engine's spellings of a column) |
+| The plan | `core/src/main/java/com/legend/executionplan/ExecutionPlan.java` (nodes `Sequence`, `TdsResult`, `Keyed`, `Update`, `Check`, `Effect`; `Column`), `ColumnFacts.java`, `PlanJson.java` (format 18; `PlanJsonTest` pins it), `MirJson.java`; `com/legend/PlanMaker.java`, `TypedQuery.java` (`executionPlan(...)`), `plan/QueryPlan.java`, `plan/UpstreamRelationType.java` (legend-engine's spellings of a column) |
 | Running a plan | `exec/PlanRunner.java` (`stream`, `rows`, `update`, `effect`), `exec/JdbcStatements.java` (the JDBC boundary; stamps the trace comment), `exec/JdbcDecode.java` (a JDBC cell by the plan's facts; `Driver` holds the drivers' quirks as facts), `exec/PlanSessions.java`, `exec/NonFiniteJson.java`, `core/src/main/mongodb/.../MongoDbDecode.java` |
 | The result and the writers | `result/`: `ResultSink`, `Batch`, `Batcher`, `Collector` (collect into memory), `RowDecode` (a cell from a JSON row), `HostRows` (rows a host ran), `CellText` (every cell spelling: Pure's print forms, legend-engine's tokens, lite's), `PureV1Writer` (LEGACY), `JsonRowsWriter` and `CsvWriter` (LEAN) |
 | The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`), `server/QueryService.java` (`executeUpstream`, and the streaming `execute(..., OutputStream, OutputFormat)`) |
@@ -74,7 +77,7 @@ library in the product.
 | The guards that pin this line | `JavaEvalLedgerTest` (exact line pins, the exec register), `ArchitectureTest`, `CodeShapeGuardrailTest`, `TenetRatchetTest`, `DialectLeakRatchetTest` with `DatabaseOwners` (no database named outside its owners), `ParkedWorkLedgerTest`, `NoSaltedIterationOrderTest` |
 | Documents | this page; the homework folder; the program (§8 rulings, §9 status); its design `docs/RESULTS_AND_RENDERERS_2026_10_22.md`; `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`; `docs/PLAN_PATH_PROGRAM_2026_10_17.md` (§5 lets, §6 judges, §7 steps 8 to 11 are tracks B, C, D here); `docs/SEMANTICS_REGISTER.md`; `docs/GATES.md`; `docs/PARKED_WORK_LEDGER.md`; `docs/CLOUD_BACKENDS_PCT_2026_10_11.md`; `docs/CLOUD_SESSIONS.md` |
 
-## 3. Where it stands (2026-10-28)
+## 3. Where it stands (2026-10-29)
 
 **The program's steps, the phases that did them, and the commits** (the phases are the user's 2026-10-27 execution
 order; the steps are the program's §5):
@@ -113,6 +116,12 @@ what it found: the homework README §1.
   MongoDB, exact, the engine crossing counted (460 / 64, 459 / 64, 459 / 64); `//datacube:python_execute_test`; the
   local gate (GATES, the S1.0 entry). **Not the lanes:** the six lane sessions of §7 answer "not found" from the next
   session, and no environment with the clouds' credentials is visible to it (the merge changes nothing they measure).
+- S1.4's correction (2026-10-29, `d102b35c`) locally, as root: `//core:core_tests` (all 25 packages), `//core:guardrails`,
+  `//core:census`, `//pct:pct_discipline` (28 of 28); PCT channel A, all five suites, on DuckDB, SQLite and MongoDB
+  (engine-JSON crossings 524 / 523 / 523; the relation suite 460 / 459 / 459); `//datacube:python_execute_test`. Not
+  the local gate (last run at S1.0's merge commit: the S1.4 audit caught a GATES sentence claiming otherwise).
+- S1.5's code commit (2026-10-29): GATES, the S1.5 entry (the local gate with the Postgres targets unprivileged, PCT
+  channel A on DuckDB, SQLite and MongoDB, the Python route).
 
 **Who still enters through the old door** (measured 2026-10-28; production: nobody):
 
@@ -233,7 +242,11 @@ Gate: `//core:core_tests`, the guards, PCT on DuckDB, SQLite, MongoDB, `//datacu
 channel A. Trap: a guard that rejects the change is usually right. Order: item 2's `0.00010` fix can go first (one
 function and its test); item 1 before item 3, so the guards land on writers that already pass them.
 
-**S1.5 The missing records.** GATES entries for phases 1 to 4 (each commit's built, deleted, measured; the lanes' S1.1
+**S1.5 The missing records. DONE 2026-10-29** (the records commit `3e9e739a` and the code commit after it; GATES, the
+S1.5 entry; the classification `docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`; the
+decisions log D12 to D22 and the S1.4 audit's findings D23 to D27; register S119, S120; two moves toward upstream
+built: an hour-only date without a zone, a LEGACY NaN cell as `null`). The brief as it was: GATES entries for phases
+1 to 4 (each commit's built, deleted, measured; the lanes' S1.1
 numbers are in GATES 2026-10-27's phase 5 entry, item 3); the 51 writer differences
 (`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`), **classified by upstream's answer (the tenet of
 2026-10-29)**: for each, what legend-pure prints (`CompiledSupport.primitiveToString`, `PureDate.toString`) and what
@@ -248,8 +261,10 @@ design (D6: Pure's print forms) read under the tenet: where legend-pure's print 
 picks the twin per case. Register rows for the PCT message changes (`testBigFloatAbs`'s digits, the NaN refusals of
 `testArcCosineError`/`testArcSineError`); the program's §3 table brought up to date.
 
-**S1.6 A draft PR, with the user's word.** So CI runs on every OS (the local gate covers neither Windows, arm, macOS,
-the corpus lanes nor the product build: the 2026-10-26 incident). Template `.github/pull_request_template.md`. First run
+**S1.6 A draft PR.** So CI runs on every OS (the local gate covers neither Windows, arm, macOS, the corpus lanes nor
+the product build: the 2026-10-26 incident). Opened under the user's "keep going all the way until done with whole
+program" (2026-10-29; the decisions log D11: a draft PR is not a merge; a reading the user may reverse -- until
+2026-10-29 this item read "with the user's word"). Template `.github/pull_request_template.md`. First run
 `bazel test --lockfile_mode=error //gates:local` (Postgres targets unprivileged, §6). Drive CI to green; the user merges.
 
 ### Track B. A test body is a sequence of plans
@@ -341,7 +356,10 @@ id after S1.0); the engine-parity
 H2 dialect's `fromJson` (a JSON string, not parsed: a silent wrong answer); a `BIT` store column's type (a ruling);
 Snowflake's far-BC `TIMESTAMP_NTZ` (its dialect returns the database's own text; a lane measurement);
 `RootNumericTypes`' guessed unbounded Decimal; the tab's Arrow nested values in `HostRows`; an absent to-many property
-written as `null`; the PCT JVMs at their 4 GB heap ceiling.
+written as `null`; the PCT JVMs at their 4 GB heap ceiling. Added 2026-10-29 (S1.5, the decisions log D19 and
+D24): the writer's refusal of a fold-built object in a value root CSV loses the old door's reason (the object's
+identity is not tracked); LEGACY spells a year as its number (`%d`) where legend-engine's `ValueTransformer` pattern
+is `yyyy` (zero-padded year-of-era: a year below 1000 and a BC year differ in bytes), unprobed.
 
 ### Track P. The backlog from the plan path program
 
@@ -552,22 +570,23 @@ What the user pastes into a fresh session, from any account (kept here so it is 
 task when they move):
 
 > Repository neema2/legend-lite. Continue the result boundary program from branch claude/wizardly-dirac-rw6tim at its
-> head (S1.4's code commit f58f37ed of 2026-10-28 and its records commit after it): fetch it; if your session has its own designated branch, create
-> that branch from this head. Never push to main, never open a PR or merge without my explicit word in your session.
+> head (S1.5's code commit of 2026-10-29, after the records commit 3e9e739a): fetch it; if your session has its own
+> designated branch, create that branch from this head. Never push to main, never merge without my explicit word in
+> your session; S1.6's draft PR opens under my "keep going" of 2026-10-29 (the decisions log D11), the merge is mine.
 >
 > Read first, in full: AGENTS.md, then docs/RESULT_BOUNDARY_START_HERE.md (the whole roadmap, the rules, the commands,
 > the traps, my rulings in §10), then docs/result-boundary-homework/README.md, then
 > docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §0, §1, §8 and §9.
 >
-> Your task: S1.5 (start page §4): GATES entries for phases 1 to 4 from the commits; the 51 writer differences
-> (docs/result-boundary-homework/wire-differences-2026-10-27.tsv) classified, each a correction or a spelling change,
-> and every spelling change put to me case by case with its expression, old output and new (I decide each: a register
-> row, or a revert in code); register rows for the PCT message changes; the program's §3 table brought up to date.
-> Then stop: S1.6 (the draft PR) needs my word. Announce your files in docs/IN_FLIGHT.md before you start.
+> Your task: the next item of the start page's §4 in order (S1.6's draft PR if none is open; then tracks B, T, C, D,
+> L, A, F, Z), without stopping between phases: after each phase an independent audit of the code against the
+> tenets, its findings fixed, and the decisions log (docs/result-boundary-homework/DECISIONS_LOG.md) posted to me
+> with what was decided and what is wanted of me. Announce your files in docs/IN_FLIGHT.md before you start.
 >
-> Rules that bind you: never change how any output is spelled without asking me first, one case at a time, with the
-> expression and the before and after. An answer of mine to a question is not a go
-> to build something else; ask. A guard pin or allowlist moves only with a dated justification. Never read, print or
-> copy credentials; lane sessions measure only. Run the start page's §6 checks before each commit; commit and push to
-> the branch; records (GATES, IN_FLIGHT, the program's §9, register rows) land with the code. Stop and report to me
-> when S1.4 is done, before starting S1.5.
+> Rules that bind you: upstream first (AGENTS.md's upstream-fidelity tenet): every decision settled by "can we do
+> exactly as legend-pure and legend-engine do?", read from the pinned sources or asked of the engine runner, never
+> recalled; a move toward upstream needs no asking; a divergence from upstream is posted to me before it lands (the
+> expression, upstream's answer, lite's) and ledgered in docs/SEMANTICS_REGISTER.md. An answer of mine to a question
+> is not a go to build something else; ask. A guard pin or allowlist moves only with a dated justification. Never
+> read, print or copy credentials; lane sessions measure only. Run the start page's §6 checks before each commit;
+> commit and push to the branch; records (GATES, IN_FLIGHT, the program's §9, register rows) land with the code.

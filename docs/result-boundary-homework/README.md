@@ -247,8 +247,8 @@ upstream-fidelity tenet):**
   cell through the column's transformer and `ValueTransformer`'s two date spellings. The other formats:
   `PURE_TDSOBJECT`, `PURE`, `RAW`, `ARROW_IPC`.
 - The PCT relation suite (legend-engine's `core_functions_relation`, the RelationFunctions tests) asserts TDS text
-  with THREE fraction digits in 950 places (`over.pure` and `reduce.pure` 416 each, `asofjoin.pure` 82,
-  `composition.pure` 28) and nine in 848 (their input literals): the harness's own spelling, not a product's --
+  with THREE fraction digits in about 950 places (the four largest files 942: `over.pure` and `reduce.pure` 416 each,
+  `asofjoin.pure` 82, `composition.pure` 28; the count corrected by the S1.4 audit, 2026-10-29) and nine in 848 (their input literals): the harness's own spelling, not a product's --
   `TestTDS.java:209` (`legend-engine-pure-runtime-java-extension-shared-functions-relation`) holds a Date column as
   millisecond `java.util.Date`s (`DateFunctions.fromDate(new Date(value / 1000000))`), so `toString` prints `.SSS`
   whatever digits the adapter sends; `assertTdsEquivalent` compares values. Lite's deleted `PureTdsText` had copied the

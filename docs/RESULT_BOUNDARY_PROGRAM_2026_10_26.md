@@ -502,6 +502,17 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, S1.5 done: the 51 writer differences classified by upstream's answer; two moves toward upstream;
+  the S1.4 audit's findings fixed** (the records commit `3e9e739a`, the code commit after it; GATES, the S1.5
+  entry). Eleven groups, each read from the pinned sources
+  (`docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`): 30 corrections, 4 old defects
+  fixed, 2 ruled, 5 random, 3 findings; built: an hour-only date without a zone (legend-pure's `DateFormat.append`
+  writes `+0000` from a minute on), a LEGACY NaN cell as `null` (the engine's `convertPurePrimitiveToJson`);
+  wanted of the user, each with a recommendation: LEAN's NaN (S119), an instance's text (`@_id` against
+  `Anonymous_StripedId`), a metamodel element's name against its path, a Float with an exponent (D10), nested dates
+  (D9). Register S119, S120; the §3 table rewritten by step; GATES entries for phases 1 to 4. The S1.4 audit (an
+  independent agent, 16 findings) found the writers sound and the records stale in seven places, fixed. The
+  decisions log D12 to D27. Next: S1.6, a draft PR under the user's "keep going" (D11), then track B.
 - **2026-10-29, S1.4 corrected under the tenet; the decisions log opened; the program continues without stopping**
   (the user: "no need to stop, just keep going all the way until done with whole program and all old ways to execute
   are deleted - do a deep audit after every phase and keep a log of decisions"). A relation's TIMESTAMP cell in

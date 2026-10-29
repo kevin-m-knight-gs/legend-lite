@@ -46,8 +46,8 @@ public final class PlanColumns {
         return new ExecutionPlan.Multiplicity(b.lower(), b.upper());
     }
 
-    /** {@link #of} for a schema the planner already has ({@link Type.RelationType}). */
-    /** {@code schema}'s columns over {@code lowered}, in a result of {@code shape}. */
+    /** {@link #of(ExprType, SqlQuery)} for a schema the planner already has ({@link Type.RelationType}):
+     *  {@code schema}'s columns over {@code lowered}, in a result of {@code shape}. */
     public static List<ExecutionPlan.Column> of(Type.RelationType schema, SqlQuery lowered,
             ExecutionPlan.TdsResult.Shape shape) {
         return ColumnFacts.columns(schema.columns().stream()

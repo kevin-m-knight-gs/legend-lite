@@ -145,6 +145,11 @@ class ResultWritersTest {
         // the fact by the result's shape)
         assertEquals("2024-01-02T10:30+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
+        // an hour-only date has no zone: legend-pure's DateFormat.append writes +0000 from a minute on (S1.5, G5)
+        assertEquals("2024-01-02T10", CellText.pure(PureDateLiteral.parse("2024-01-02T10"),
+                col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
+        assertEquals("\"2024-01-02T10\"", Json.toCompact(CellText.pureJson(PureDateLiteral.parse("2024-01-02T10"),
+                col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN))));
         assertEquals("2024-01-02T10:30:00.000000000+0000", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.INSTANT)));
         // a DateTime written as a day in a DATE slot is a day: the fact, not the slot's word
@@ -190,7 +195,10 @@ class ResultWritersTest {
     @Test
     void engineTokens() {
         assertEquals("1.0E15", Json.toCompact(CellText.engine(1.0e15, col("f", "Float", "DOUBLE"))));
-        assertEquals("\"NaN\"", Json.toCompact(CellText.engine(Double.NaN, col("f", "Float", "DOUBLE"))));
+        // a NaN or infinite Float cell is null: the engine's relational JSON (convertPurePrimitiveToJson), read
+        // 2026-10-29 (S1.5); phase 2 had pinned the name as a string
+        assertEquals("null", Json.toCompact(CellText.engine(Double.NaN, col("f", "Float", "DOUBLE"))));
+        assertEquals("null", Json.toCompact(CellText.engine(Double.POSITIVE_INFINITY, col("f", "Float", "DOUBLE"))));
         assertEquals("1.50", Json.toCompact(CellText.engine(new BigDecimal("1.50"), col("d", "Decimal", "DECIMAL"))));
         // a whole number past a long is written by its digits, never wrapped
         assertEquals("18446744073709551614", Json.toCompact(

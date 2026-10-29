@@ -83,9 +83,12 @@ class WriterCarriageGuardTest {
                     // token (1), and the Num's double field (1): the declared kind's own value, no other kind
                     Map.entry("doubleValue", 2),
                     // NaN and the infinities have no JSON number token: written as their names in a string
-                    Map.entry("Double.isFinite", 3),
-                    // a date's own precision, carried in the value (a day or less; from an hour on): Pure's print form
-                    // and legend-engine's day rule read it, never a clock
+                    // (3 -> 4, 2026-10-29, S1.5's D14: a relation's non-finite Float cell is null in LEGACY, as
+                    // legend-engine's convertPurePrimitiveToJson writes it -- CellText.engineCell reads the finiteness
+                    // the value carries, the engine's own test)
+                    Map.entry("Double.isFinite", 4),
+                    // a date's own precision, carried in the value (a day or less; from a minute on, legend-pure's zone
+                    // rule, 2026-10-29): Pure's print form and legend-engine's day rule read it, never a clock
                     Map.entry("atLeast", 5),
                     // a value root's instant, and a nested value's, without the fraction's trailing zeros: the value
                     // lane's canon (register S118); a relation's cell keeps its nine digits, untrimmed

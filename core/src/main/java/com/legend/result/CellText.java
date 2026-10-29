@@ -140,7 +140,8 @@ public final class CellText {
     }
 
     /** legend-engine's JSON token of a cell of column {@code c} ({@code pure/v1} execute, measured 4.145.0): null as
-     *  {@code null}; an Integer's digits; a Float as Java's {@code Double.toString} writes the double; a Decimal at its
+     *  {@code null}; an Integer's digits; a Float as Java's {@code Double.toString} writes the double, and a NaN or an
+     *  infinite one {@code null} ({@link #engineCell}); a Decimal at its
      *  own scale (register S104); a boolean; a text as a string; a StrictDate's day, and a DateTime's nine fraction
      *  digits with {@code +0000}, as strings; a Variant as a string holding its JSON (measured, 4.145.0, 2026-10-28:
      *  PARK-34's probe; the engine re-spells the JSON's numbers through its JSON library, lite keeps the database's
@@ -152,8 +153,8 @@ public final class CellText {
         return switch (cell) {
             case Long l -> Json.num(l);
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
-            case Double d -> engineFloat(d);
-            case BigDecimal d -> isFloat(c) ? engineFloat(d.doubleValue()) : token(d.toPlainString(), d);
+            case Double d -> engineCell(d);
+            case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(engineDay(d, c) ? day(d) : d.toEngineJson());
@@ -185,8 +186,8 @@ public final class CellText {
             case BigDecimal d -> token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(!d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString()
-                    : pure ? d.trimmed().toEngineString() + "+0000" : d.toEngineJson());
+            case PureDateLiteral d -> Json.str(pure ? zoned(d.trimmed())
+                    : !d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString() : d.toEngineJson());
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             default -> throw refused(v, c, pure ? "Pure's JSON token" : "legend-engine's JSON token");
         };
@@ -242,9 +243,21 @@ public final class CellText {
     }
 
     /** legend-engine's token of a double: Java's {@code Double.toString}; a non-finite double, which JSON has no token
-     *  for, as its name in a string (the engine's serializer writes it so). */
+     *  for, as its name in a string -- the form its JSON library gives a NESTED value (Jackson's
+     *  {@code QUOTE_NON_NUMERIC_NUMBERS}; not measured). A relation's cell is {@link #engineCell}'s. */
     private static Json.Node engineFloat(double d) {
         return Double.isFinite(d) ? token(Double.toString(d), BigDecimal.valueOf(d)) : Json.str(Double.toString(d));
+    }
+
+    /** legend-engine's JSON of a relation's Float CELL: the double's text ({@link #engineFloat}), and a NaN or an
+     *  infinity {@code null}. Read from its source 2026-10-29 (S1.5, the upstream-fidelity tenet): its relational
+     *  serializer ({@code RelationalResultToJsonDefaultSerializer.processRow}) runs a Float column's transformer, the
+     *  identity ({@code SetImplTransformers.buildTransformer}), then
+     *  {@code ExecutionResultObjectMapperFactory.convertPurePrimitiveToJson}, which writes {@code null} for
+     *  {@code isNaN} or {@code isInfinite}. Phase 2 wrote the name in a string here, naming the engine without reading
+     *  it. */
+    private static Json.Node engineCell(double d) {
+        return Double.isFinite(d) ? engineFloat(d) : Json.nil();
     }
 
     private static boolean isFloat(ExecutionPlan.Column c) {
@@ -256,19 +269,23 @@ public final class CellText {
     /** Pure's text of a date, by the column's written-precision fact ({@link ExecutionPlan.Precision}, the plan's;
      *  until 2026-10-28 the writer matched the slot's spelling for it, the start page's S1.4 item 1; the spellings
      *  read from upstream 2026-10-29, the upstream-fidelity tenet): a value carried at the precision it was written
-     *  (WRITTEN: a year, a month, a day, an hour ... a fraction) as it is, {@code +0000} from an hour on; a day (DAY,
+     *  (WRITTEN: a year, a month, a day, an hour ... a fraction) as it is, {@code +0000} from a minute on ({@link #zoned});
+     *  a day (DAY,
      *  a StrictDate, a value with no time of day) as its day; a relation's cell (INSTANT) as legend-engine's TDS
      *  spells a time-bearing date, nine fraction digits whatever the carrier ({@link PureDateLiteral#toEngineJson}:
      *  its {@code ValueTransformer}; legend-pure's {@code fromSQLTimestamp} reads the same nine), never as a day (the
      *  midnight rule of 12b89c7d, a Date's midnight as its day, went 2026-10-29: no upstream prints a DateTime so);
      *  a value root's instant (MINIMAL), a nested value and a mixed column's winner at the precision its digits
-     *  show, the fraction's trailing zeros dropped (register S118). */
+     *  show, the fraction's trailing zeros dropped (register S118). Two choices the S1.4 audit asked to be written
+     *  down (2026-10-29): WRITTEN applies to a nested element too (a LITERAL carrier holds its list's written text,
+     *  each element a written value), where DAY and INSTANT are the column's own cell's facts ({@code own}); and
+     *  MINIMAL and a null fact (a column with no temporal of its own: a mixed column's winner, a derived column) spell
+     *  the same text, the digits shown -- S118 covers both, and a Date cell under a null fact is a value root's. */
     private static String pureDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
         boolean own = type.equals(c.type());
         ExecutionPlan.Precision p = c.precision();
         if (p == ExecutionPlan.Precision.WRITTEN) {
-            return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString() + "+0000"
-                    : d.toEngineString();
+            return zoned(d);
         }
         if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR) || type.equals("StrictDate")
                 || (own && p == ExecutionPlan.Precision.DAY)) {
@@ -277,7 +294,17 @@ public final class CellText {
         if (own && p == ExecutionPlan.Precision.INSTANT) {
             return d.toEngineJson();
         }
-        return d.trimmed().toEngineString() + "+0000";
+        return zoned(d.trimmed());
+    }
+
+    /** A date at its own precision as legend-pure prints it: its text, and {@code +0000} from a MINUTE on --
+     *  {@code DateFormat.append} (legend-pure m4) writes the zone inside its minute branch, so an hour-only date prints
+     *  {@code 2014-03-10T16} (its {@code TestDateFormat}) and a minute {@code ...T16:12+0000}; legend-engine's
+     *  {@code PureDateSerializer} writes the same text. Until 2026-10-29 the writer wrote the zone from an hour on
+     *  (S1.5's classification, G5: a move to upstream's text). */
+    private static String zoned(PureDateLiteral d) {
+        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "+0000"
+                : d.toEngineString();
     }
 
     /** Whether legend-engine writes a date as its day: by what the database answered, never by the time of day --
