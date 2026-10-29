@@ -219,10 +219,11 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/test/ServiceTestRunner.java",
             "core/src/main/java/com/legend/test/TestObserver.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
-            "core/src/main/java/com/legend/server/QueryService.java",
             // 2026-10-29 (track B's B1b): TestDataGenerationNatives.java LEFT this register -- it hands the body's
-            // session to the generator and holds no JDBC; the generator's own java.sql stops at its door
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java"
+            // session to the generator and holds no JDBC; 2026-10-29 (the doors): TestDataGenerator.java LEFT it
+            // too -- every statement of a run is the plan runner's (effects, described typed rows, reported
+            // columns); the generator holds no JDBC
+            "core/src/main/java/com/legend/server/QueryService.java"
     ));
 
 

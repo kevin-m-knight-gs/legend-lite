@@ -1596,7 +1596,8 @@ class JavaEvalLedgerTest {
     }
 
     /** The files that hold a SESSION and never its connection (the result boundary program's track B, B1b,
-     *  2026-10-29): the body driver, the judges and their arms, the seed and error natives, the generator's natives.
+     *  2026-10-29): the body driver, the judges and their arms, the seed and error natives, the generator and its
+     *  natives.
      *  {@code ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc} pins their bytecode to no {@code java.sql}; an
      *  ArchUnit dependency rule cannot see a {@code .connection()} call chained into a {@code com.legend} callee
      *  (the B1b audit's finding 2), so the SPELLING is pinned at zero here, in comment-stripped source. */
@@ -1613,7 +1614,9 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/CsvLoad.java",
             "core/src/main/java/com/legend/SeedSqlForms.java",
             "core/src/main/java/com/legend/AssertErrorNative.java",
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java");
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java",
+            // 2026-10-29 (the doors): the generator itself -- every statement the plan runner's
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java");
 
     private static final Pattern CONNECTION_SPELLING = Pattern.compile("\\.connection\\(\\)|java\\.sql\\.");
 

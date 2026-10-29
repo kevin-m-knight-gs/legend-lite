@@ -663,7 +663,9 @@ final class ArchitectureTest {
     void javaSqlIsFunnelledToTheCharteredSeam() {
         noClasses()
             .that().resideOutsideOfPackages("com.legend.exec",
-                    "com.legend.server..", "com.legend.testdatagen",
+                    // com.legend.testdatagen left this list 2026-10-29 (the doors): the generator runs every
+                    // statement through the plan runner and holds no JDBC
+                    "com.legend.server..",
                     // the product's test runner (batch 7a): a driver like the
                     // root's — it opens package sessions and hands the
                     // connection to the executor, never a statement of its own
@@ -676,7 +678,7 @@ final class ArchitectureTest {
             // framed the boundary as java.sql only)
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("F1.3: java.sql AND the driver-native APIs are funnelled"
-                    + " to {exec, server, root, testdatagen} — Charter"
+                    + " to {exec, server, root} — Charter"
                     + " clauses C1/C2")
             .check(CORE_PROD_CLASSES);
     }
@@ -1081,20 +1083,20 @@ final class ArchitectureTest {
      * ({@code BodyDriver}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
      * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
      * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
-     * on {@code java.sql} or a driver's own API. The funnel above licenses root and {@code testdatagen} as packages;
-     * this rule names the classes the funnel would let through. The generator itself ({@code TestDataGenerator})
-     * still runs JDBC on the session it is handed: the fold's residue, named (the decisions log D30), not licensed
-     * here.
+     * on {@code java.sql} or a driver's own API. The funnel above licenses root as a package; this rule names the
+     * classes the funnel would let through. The generator itself ({@code TestDataGenerator}) joined 2026-10-29 (the
+     * doors): it runs every statement through the plan runner and holds no JDBC (D30's residue closed).
      */
     @Test
     void theBodyDriverAndTheJudgesHoldNoJdbc() {
         noClasses()
             .that().haveNameMatching("com\\.legend\\.(BodyDriver|BodyCompiler|HostJudge|DatabaseJudge"
                     + "|JudgePlans|AssertVerdicts|SqlTextVerdicts|AgreementArm|VerdictArm|CsvLoad|SeedSqlForms"
-                    + "|AssertErrorNative|testdatagen\\.TestDataGenerationNatives)(\\$.*)?")
+                    + "|AssertErrorNative|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
+                    + "(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAnyPackage(JDBC_AND_DRIVERS)
-            .as("B1b: the body driver, the judges and the generator's natives hold a session and no JDBC")
+            .as("B1b: the body driver, the judges, the generator and its natives hold a session and no JDBC")
             .check(CORE_PROD_CLASSES);
     }
 

@@ -91,7 +91,10 @@ resolver	base builtin compiler compiler_element_type error lowering model plan p
 setup	base cache compiler execution_plan model protocol sql sql_dialect
 exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform result setup sql sql_dialect values
 probe	base builtin lowering model platform
-testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
+# 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
+# `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
+# read-backs typed rows of plan columns.
+testdatagen	base builtin compiler compiler_element_type error exec execution_plan lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values

@@ -502,6 +502,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the doors, 2** (the decisions log D62; GATES, the door 2 entry): the test-data generator on plans --
+  its temps and drops as effects, its read-backs as typed rows of the columns the database describes, the CSV's
+  text columns as reported columns; `testdatagen` holds no JDBC (the funnel tightened, the census shrunk). Next:
+  door 1 (the last statement streamed, `ProgramReport` deleted), the audit, the post.
 - **2026-10-29, the doors, 3-5** (the decisions log, "The doors", D61; GATES, the doors 3-5 entry): the user's ask
   after Z ("close all the doors here as part of this PR so we know that it can be done"). The probes and the pivot's
   key type as plan statements the runner runs (`PlanRunner.columns`, `describe`); the seeds, a program's session

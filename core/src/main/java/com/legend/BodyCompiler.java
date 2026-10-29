@@ -67,7 +67,8 @@ public final class BodyCompiler {
             // TDG lane S1: the checker's census CARRIER folds to instance literals
             // before the statement is planned (orchestration owns testdatagen)
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(
-                    stmts.get(i), seg.env().ctx(), seg.env().session(), seg.env().dialect(), letPrefix,
+                    stmts.get(i), seg.env().ctx(), seg.env().planSessions(), seg.env().target(), seg.env().dialect(),
+                    letPrefix,
                     BodyDriver.ENGINE_TEXT,
                     BodyDriver.viewSqlRenderer(specs, seg.env()));
             BodyDriver.establishContexts(stmt, seg.env());

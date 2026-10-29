@@ -16203,3 +16203,38 @@ can be done". The map and the design: the decisions log, "The doors" (D61); the 
    none failed (the PR subscription's events, 17:04Z and 18:20Z: DuckDB 1.5.6.0 fetched and green on every OS);
    this push runs every OS in turn.
 4. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The doors, 2: the test-data generator on plans -- its temps and drops as effects, its read-backs as typed rows of the columns the database describes, the CSV's text columns as reported columns; no JDBC in testdatagen
+
+Door 2 of the doors (the decisions log D62; the start page §4, "The doors"): the one place that still ran JDBC of its
+own on the body's session, the fold's residue D30 named.
+
+1. **Built:** `testdatagen/TestDataGenerator`: its `Session` the plan sessions, the target and the dialect; a temp
+   and its drop as effects (`PlanRunner.effect`); a read-back (the transcript rows, the view rows, the seed-string
+   rows) the statement described by the database (`PlanRunner.describe`) then run as a relation of the reported
+   columns, each cell by its reported kind's slot (`PlanRunner.rows`); the CSV's text columns as reported columns
+   (`PlanRunner.columns`), its lines a VALUE plan of one VARCHAR column; the whole run under the TDG origin (the
+   runner's `sent` counts what `count(TDG)` counted by hand, once; a describe is not a statement sent); `pureRepr` on
+   the typed read's carriers (its four JDBC-temporal arms gone); a drop that fails after a successful run is the
+   error, after a failed one suppressed onto it. The natives and their callers (`BodyCompiler`, `SqlTextVerdicts`)
+   hand the plan sessions and the target; `ReservedNamesGenerationTest` a platform target; `PureReprTest`'s day
+   case on the carrier. Guards, dated: `javaSqlIsFunnelledToTheCharteredSeam` loses `com.legend.testdatagen`;
+   `theBodyDriverAndTheJudgesHoldNoJdbc` and the no-connection spelling pin gain `TestDataGenerator`; the JDBC
+   census loses it; `:testdatagen` and the layer map gain `execution_plan`. The corpus outside-body registers' `tdg=`
+   texts refreshed from the run (the registers compare names; the counts moved for the accounting change above:
+   the CSV lines' statement counted once where it was counted twice, the LIMIT-0 metadata read and the describes
+   not counted -- `tdg=29` to `21`, `tdg=12` to `8` and so on, 33 rows on DuckDB and 32 on H2); two H2 rows whose
+   texts had drifted before this step (`testGenerateNecessaryTableColumnsForSingleTable` `fallback=2` to `1`;
+   `testUnionToUnionMultipleLevelsWithStringHashing` `tdg=72` to `statement=1 tdg=72`, both as the run at
+   `7b060530` already printed them) refreshed with them.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters unmoved; the outside-body registers' names unmoved, their `tdg=` texts refreshed); the 21
+   PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the
+   container's segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`;
+   the product job's unlaned-tests guard empty.
+3. **CI:** PR #80 runs every OS on the push.
+4. **Not measured:** the MariaDB lane (CI alone).
