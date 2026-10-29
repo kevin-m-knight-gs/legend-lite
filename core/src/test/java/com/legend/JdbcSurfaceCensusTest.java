@@ -108,7 +108,7 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
-            // origin; a Connection in, the database executes (moved from StatementExecutor)
+            // origin; a Connection in, the database executes (moved from BodyDriver)
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
             // holds no JDBC
@@ -157,7 +157,7 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/PlanSessions.java",
             "core/src/main/java/com/legend/exec/BulkLoads.java",
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
-            // 2026-10-29 (track B's B1b): VerdictBatch.java and StatementExecutor.java LEFT this register -- the
+            // 2026-10-29 (track B's B1b): VerdictBatch.java and BodyDriver.java LEFT this register -- the
             // body driver holds a session (Sessions.Session) and the deferred verdicts run on it through the plan
             // runner; neither spells java.sql or a statement method
             // 2026-10-29 (track B's B1a): DynamicPivot.java LEFT this register -- the keys read as typed rows through

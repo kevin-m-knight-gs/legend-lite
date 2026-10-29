@@ -463,6 +463,15 @@ and after: `python3 -I docs/result-boundary-homework/probes/oldpath_census.py.tx
 symbols. Guards shrink with dated notes: `JavaEvalLedgerTest`'s exec register and pins, `TenetRatchetTest`'s JDBC
 accessor pin, `ArchitectureTest`'s pins. The plan path program's step 11.
 
+**Built 2026-10-29** (GATES, the track D entry; the decisions log D48): the old door's entries deleted
+(`Execution.execute*`, `executeResolved`, the query service's materialized `execute`); `exec/ExecutionResult` renamed
+`exec/TypedSide`, the judges' collected side; `StatementExecutor` renamed `BodyDriver`; the guards' entries moved
+with dated notes; AGENTS.md and core/README.md corrected; `probes/oldpath_census.py.txt` reads zero for every step-7
+symbol. Open: the plan path program's step 11 in its 2026-10-17 wording (the body driver itself deleted) is
+superseded by track B -- the body driver stays, named for what it is, every statement through its plan -- and its
+closure waits on step 9's residue (S81, S82) for the user's rulings; the integration base's JDBC `connection` stays
+for its seeds (the MongoDB lane, D47).
+
 ### Track L. Mixed lists as typed values (the program's step 6)
 
 A list of tagged values (one tag, one typed slot per kind), as the ratified selection design

@@ -5,26 +5,25 @@ package com.legend;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.setup.Ddl;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 
 /**
- * The K-PHASE STATEMENT EXECUTOR — the orchestration layer extracted from
- * the driver (audit 17): statement sequencing over effectful bodies, call
- * frames, effect analysis, and the K-native dispatch arms (executeInDb,
- * dropAndCreateTableInDb/Schema, print). {@link com.legend.Compiler} stays
- * the ONE driver seam and delegates here; nothing in this class decides
- * pipeline ORDER — it executes already-resolved statements.
+ * THE BODY DRIVER (named for what it is 2026-10-29, the result boundary program's track D; the K-phase
+ * {@code StatementExecutor} since audit 17): the orchestration of a TEST BODY -- statement sequencing over effectful
+ * bodies, call frames, effect analysis, the judges and their arms, and the K-native dispatch arms (executeInDb,
+ * dropAndCreateTableInDb/Schema, print). {@link Execution#runProgram} is the one entry and delegates here; nothing in
+ * this class decides pipeline ORDER -- it runs already-typed statements, each through its plan.
  *
  * <p>The execution environment is ONE ambient session ({@link com.legend.exec.Sessions.Session}: the driver holds
  * no JDBC connection since track B's B1b, 2026-10-29, and reaches the database only through the
  * session's statements), one dialect, one optional raw-SQL failure sink ({@link ExecEnv}) — connection-valued
  * expressions are never evaluated.
  */
-final class StatementExecutor {
+final class BodyDriver {
 
-    private StatementExecutor() {
+    private BodyDriver() {
     }
 
     /** The G½→H→I→J→K back half over a query TYPED ONCE ({@link TypedQuery}: its statements typed as a query body,
@@ -34,7 +33,7 @@ final class StatementExecutor {
      * verdict (the runner's scoring seam — judging stays here, in one place); {@code replayReferee} is the registered
      * SQL-replay referee (SQLTEXT charter §2 — same registration seam, same nullable carriage; production passes
      * neither); the execute OPTIONS ride the environment and the result — no static slot. */
-    static @com.legend.base.Nullable ExecutionResult execute(TypedQuery typed,
+    static @com.legend.base.Nullable TypedSide execute(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             com.legend.exec.Sessions.Session session,
@@ -268,7 +267,7 @@ final class StatementExecutor {
      * bodies make frames capture-proof — no &alpha;-renaming needed). Value
      * evaluation still ALWAYS lowers to SQL; only the sequencing lives host-side.
      */
-    static @com.legend.base.Nullable ExecutionResult executeStatements(
+    static @com.legend.base.Nullable TypedSide executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
             SpecCompiler specs, ExecEnv env0) {
         // THE BLOCK COMPILER (stages 1–4, 2026-09-22): every body is walked ONCE by the
@@ -297,14 +296,14 @@ final class StatementExecutor {
      * resolved {@code body} decides the run. */
     record PreparedValue(java.util.List<TypedSpec> body, ExecEnv env,
             java.util.List<TypedSpec> lets,
-            @com.legend.base.Nullable ExecutionResult verdict,
+            @com.legend.base.Nullable TypedSide verdict,
             com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
             com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame,
             /** the session's temporary table a staged let's rows are computed into (Pure.Lite.STAGE), null for
              *  any other value */
             @com.legend.base.Nullable String stagedInto) {
         PreparedValue(java.util.List<TypedSpec> body, ExecEnv env, java.util.List<TypedSpec> lets,
-                @com.legend.base.Nullable ExecutionResult verdict,
+                @com.legend.base.Nullable TypedSide verdict,
                 com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
                 com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
             this(body, env, lets, verdict, contextOwner, forcedFrame, null);
@@ -358,7 +357,7 @@ final class StatementExecutor {
                 && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
                 && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
                         || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot))) {
-            ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
+            TypedSide inlinedVerdict = AssertVerdicts.tryAdjudicate(
                     preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
                     spliceHook(execFrames, letPrefix, specs, env));
             if (inlinedVerdict != null) {
@@ -397,12 +396,12 @@ final class StatementExecutor {
     }
 
     /** Run a prepared value statement: the run phase only. */
-    static @com.legend.base.Nullable ExecutionResult runValue(PreparedValue pv, SpecCompiler specs,
+    static @com.legend.base.Nullable TypedSide runValue(PreparedValue pv, SpecCompiler specs,
             java.util.Deque<String> frames) {
         if (pv.stagedInto() != null) {
             return stageRows(pv.body(), java.util.Objects.requireNonNull(pv.stagedInto()), pv.env());
         }
-        ExecutionResult verdict = pv.verdict();
+        TypedSide verdict = pv.verdict();
         if (verdict != null) {
             return verdict;
         }
@@ -466,7 +465,7 @@ final class StatementExecutor {
      * the engine-style dialect. H2 only — other DatabaseTypes throw until
      * their renderers exist. Never lowers, never touches the connection.
      */
-    private static @com.legend.base.Nullable ExecutionResult toSqlString(
+    private static @com.legend.base.Nullable TypedSide toSqlString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
@@ -528,7 +527,7 @@ final class StatementExecutor {
         if (com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn().equals(call.fqn())) {
             post = com.legend.lowering.SqlPostProcessors.nonExecutable(post);
         }
-        return new ExecutionResult.Scalar(post == es.plan() ? es.sql()
+        return new TypedSide.Scalar(post == es.plan() ? es.sql()
                         : renderer.render(post),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
@@ -647,16 +646,16 @@ final class StatementExecutor {
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         com.legend.compiler.spec.NativeDispatch.Routine text =
                 (call, letPrefix) -> {
-                    ExecutionResult r = planToString(call, letPrefix,
+                    TypedSide r = planToString(call, letPrefix,
                             specs, env);
-                    return String.valueOf(((ExecutionResult.Scalar)
+                    return String.valueOf(((TypedSide.Scalar)
                             java.util.Objects.requireNonNull(r,
                                     "plan text")).value());
                 };
         com.legend.compiler.spec.NativeDispatch.Routine sqlText =
                 (call, letPrefix) -> {
-                    ExecutionResult r = toSqlString(call, letPrefix, specs, env);
-                    return String.valueOf(((ExecutionResult.Scalar)
+                    TypedSide r = toSqlString(call, letPrefix, specs, env);
+                    return String.valueOf(((TypedSide.Scalar)
                             java.util.Objects.requireNonNull(r,
                                     "sql text")).value());
                 };
@@ -670,13 +669,13 @@ final class StatementExecutor {
                 com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(), sqlText);
     }
 
-    private static @com.legend.base.Nullable ExecutionResult planToString(
+    private static @com.legend.base.Nullable TypedSide planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return planToString(call, java.util.List.of(), specs, env);
     }
 
-    private static @com.legend.base.Nullable ExecutionResult planToString(
+    private static @com.legend.base.Nullable TypedSide planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
@@ -810,7 +809,7 @@ final class StatementExecutor {
             }
             EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, EngineText.enginePlanText(dbType, quote, tz),
                     java.util.Map.of(), java.util.function.UnaryOperator.identity(), java.util.List.of());
-            return new ExecutionResult.Scalar(com.legend.plan.PlanText.singleRelationRoot(env.ctx(), tr.store(),
+            return new TypedSide.Scalar(com.legend.plan.PlanText.singleRelationRoot(env.ctx(), tr.store(),
                     tr.accessor(), tes.plan(), tes.sql(), lam.body(), connName),
                     com.legend.compiler.element.type.Type.Primitive.STRING);
         }
@@ -818,7 +817,7 @@ final class StatementExecutor {
                 pc != null ? pc.chainMappings() : java.util.List.of());
         queryChain.stream().filter(m2 -> !chainMaps.contains(m2))
                 .forEach(chainMaps::add);
-        ExecutionResult crossDb = crossDbTdsPlan(lam, mappingFqn, specs,
+        TypedSide crossDb = crossDbTdsPlan(lam, mappingFqn, specs,
                 env, quote, tz, connName, dbType, rootClass, chainMaps);
         if (crossDb != null) {
             return crossDb;
@@ -826,7 +825,7 @@ final class StatementExecutor {
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
                 EngineText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
-        return new ExecutionResult.Scalar(
+        return new TypedSide.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
                         mappingFqn, es.plan(), es.sql(),
                         // PRE-resolution body: the TDS-vs-Class shape and
@@ -846,7 +845,7 @@ final class StatementExecutor {
      * continues). Type and resultColumns for the terminal resolve over
      * the ORIGINAL (pre-splice) plan — physical typing needs the real
      * from tree; only the SQL TEXT renders the placeholder form. */
-    private static @com.legend.base.Nullable ExecutionResult crossDbTdsPlan(
+    private static @com.legend.base.Nullable TypedSide crossDbTdsPlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, @com.legend.base.Nullable String tz,
@@ -960,7 +959,7 @@ final class StatementExecutor {
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
         children.add(terminal);
-        return new ExecutionResult.Scalar(
+        return new TypedSide.Scalar(
                 com.legend.plan.PlanText.sequence(
                         com.legend.plan.PlanText.typeBlock(env.ctx(),
                                 rootClass, impl, fullEs.plan(),
@@ -1009,7 +1008,7 @@ final class StatementExecutor {
      * (literal values = Constant nodes), and the terminal Relational
      * lowers with every open variable as a {@code ${name}} plan-template
      * parameter. */
-    private static @com.legend.base.Nullable ExecutionResult sequencePlan(
+    private static @com.legend.base.Nullable TypedSide sequencePlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, @com.legend.base.Nullable String timeZone,
@@ -1061,7 +1060,7 @@ final class StatementExecutor {
                         "plan: trailing let in a multi-node sequence"
                         + " (envelope type block from the let pending)");
             }
-            return new ExecutionResult.Scalar(children.get(0),
+            return new TypedSide.Scalar(children.get(0),
                     com.legend.compiler.element.type.Type.Primitive.STRING);
         }
         String rootClass = com.legend.plan.PlanText.rootGetAllClass(java.util.List.of(term));
@@ -1295,7 +1294,7 @@ final class StatementExecutor {
      * {@code Result.values} for a TDS query holds ONE TDS; for a class or
      * scalar root, values IS the collection), and the eager run's result. */
     record ExecFrame(TypedSpec chain, boolean relationRooted,
-            @com.legend.base.Nullable ExecutionResult result,
+            @com.legend.base.Nullable TypedSide result,
             java.util.Map<String, String> tableReplace,
             @com.legend.base.Nullable com.legend.compiler.spec.typed
                     .TypedNativeCall sourceExec,
@@ -1304,13 +1303,13 @@ final class StatementExecutor {
             com.legend.sql.@com.legend.base.Nullable SqlSelect extentRows) {
         /** Pre-activity-model constructor (alias frames keep it). */
         ExecFrame(TypedSpec chain, boolean relationRooted,
-                @com.legend.base.Nullable ExecutionResult result,
+                @com.legend.base.Nullable TypedSide result,
                 java.util.Map<String, String> tableReplace) {
             this(chain, relationRooted, result, tableReplace, null, null, null, null);
         }
 
         ExecFrame(TypedSpec chain, boolean relationRooted,
-                @com.legend.base.Nullable ExecutionResult result,
+                @com.legend.base.Nullable TypedSide result,
                 java.util.Map<String, String> tableReplace,
                 @com.legend.base.Nullable com.legend.compiler.spec.typed
                         .TypedNativeCall sourceExec) {
@@ -1343,7 +1342,7 @@ final class StatementExecutor {
      * at its let; under a verdict batch, the comment RESERVED for the body's
      * fused statement — the statement that will run the frame. */
     private static @com.legend.base.Nullable String activityComment(
-            @com.legend.base.Nullable ExecutionResult run, ExecEnv env) {
+            @com.legend.base.Nullable TypedSide run, ExecEnv env) {
         if (run != null) {
             return env.trace().lastComment();
         }
@@ -1433,7 +1432,7 @@ final class StatementExecutor {
             }
             TypedSpec envelope = com.legend.compiler.spec.ExecuteChainAssembly
                     .legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
-            ExecutionResult lqRun = null;
+            TypedSide lqRun = null;
             if (eager && (env.verdictBatch() == null || resultNeeded)) {
                 com.legend.resolver.StoreResolver lqResolver =
                         resolver(specs, env);
@@ -1477,7 +1476,7 @@ final class StatementExecutor {
         var assembled = com.legend.compiler.spec.ExecuteChainAssembly
                 .chain(prepared, ec, letPrefix, specs, env.runtimeFqn(),
                         env.queryLets());
-        ExecutionResult run = null;
+        TypedSide run = null;
         // ONE STATEMENT PER BODY (lean ladder, 2026-09-20): under a verdict
         // batch a let's frame is never RUN at the let — its readers derive
         // from it inside the body's one statement (a CTE for a planned
@@ -1729,7 +1728,7 @@ final class StatementExecutor {
      * test pinning registry == catalog. */
     @FunctionalInterface
     private interface EffectRoutine {
-        ExecutionResult run(java.util.List<TypedSpec> body,
+        TypedSide run(java.util.List<TypedSpec> body,
                 com.legend.compiler.spec.typed.TypedNativeCall nc,
                 ExecEnv env);
     }
@@ -1738,24 +1737,24 @@ final class StatementExecutor {
 
     private static java.util.Map<String, EffectRoutine> effectArms() {
         java.util.Map<String, EffectRoutine> m = new java.util.LinkedHashMap<>();
-        m.put(com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn(), StatementExecutor::executeInDb);
-        m.put(com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(), StatementExecutor::dropAndCreateTableInDb);
-        m.put(com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(), StatementExecutor::dropAndCreateSchemaInDb);
-        m.put(com.legend.builtin.NativeFn.Effect.CREATE_TEMP_TABLE.fqn(), StatementExecutor::createTempTable);
-        m.put(com.legend.builtin.NativeFn.Effect.DROP_TEMP_TABLE.fqn(), StatementExecutor::dropTempTable);
+        m.put(com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn(), BodyDriver::executeInDb);
+        m.put(com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(), BodyDriver::dropAndCreateTableInDb);
+        m.put(com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(), BodyDriver::dropAndCreateSchemaInDb);
+        m.put(com.legend.builtin.NativeFn.Effect.CREATE_TEMP_TABLE.fqn(), BodyDriver::createTempTable);
+        m.put(com.legend.builtin.NativeFn.Effect.DROP_TEMP_TABLE.fqn(), BodyDriver::dropTempTable);
         m.put(com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE.fqn(), CsvLoad::loadCsvToDbTable);
         m.put(com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(), SeedSqlForms::assertForm);
         m.put(com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2, SeedSqlForms::assertForm);
         m.put(com.legend.builtin.NativeFn.Effect.PRINT.fqn(),
-                (body, nc, env) -> new ExecutionResult.Scalar(null,
+                (body, nc, env) -> new TypedSide.Scalar(null,
                         com.legend.compiler.element.type.Type.Primitive.STRING));
         // debug output: a NO-OP — the argument is NEVER evaluated (it may be an
         // unlowerable diagnostic); engine parity is the statement's inertness
         m.put(com.legend.builtin.NativeFn.Effect.PRINTLN.fqn(),
-                (body, nc, env) -> new ExecutionResult.Scalar(null,
+                (body, nc, env) -> new TypedSide.Scalar(null,
                         com.legend.compiler.element.type.Type.Primitive.STRING));
         m.put(com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn(),
-                (body, nc, env) -> new ExecutionResult.Scalar(null, nc.info().type()));
+                (body, nc, env) -> new TypedSide.Scalar(null, nc.info().type()));
         return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
@@ -2084,7 +2083,7 @@ final class StatementExecutor {
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
      *  dialect and run by the executor; its value the database's update count. A frame's post-processors rewrite a
      *  query's text, and no write is designed under them: refused by name. */
-    private static ExecutionResult storeWrite(java.util.List<TypedSpec> body, TypedSpec write, ExecEnv env,
+    private static TypedSide storeWrite(java.util.List<TypedSpec> body, TypedSpec write, ExecEnv env,
             boolean identity) {
         if (!env.tableReplace().isEmpty() || env.postProcessors().extractCtes()
                 || env.postProcessors().nonExecutable()) {
@@ -2099,7 +2098,7 @@ final class StatementExecutor {
         String sql = env.dialect().render(dml);
         record(env, sql, false);
         long count = sendUpdate(env, sql);
-        return new ExecutionResult.Scalar(count, write.info().type());
+        return new TypedSide.Scalar(count, write.info().type());
     }
 
     /** The temporary table of the session a staged let's rows are held in (Pure.Lite.STAGE; StagedRows.table, which
@@ -2111,7 +2110,7 @@ final class StatementExecutor {
     /** A staged let's rows (Pure.Lite.STAGE, docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): computed now, at the let's
      *  turn among the program's statements, into the session's temporary table {@code table}, which every statement
      *  after the let reads ({@link com.legend.resolver.StagedRows}). */
-    private static ExecutionResult stageRows(java.util.List<TypedSpec> body, String table, ExecEnv env) {
+    private static TypedSide stageRows(java.util.List<TypedSpec> body, String table, ExecEnv env) {
         Prelude p = prelude(body, env, null, false);
         if (p.answered() != null) {
             throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement the database does"
@@ -2125,7 +2124,7 @@ final class StatementExecutor {
                 com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
         record(planned, sql, false);
         sendUpdate(planned, sql);
-        return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());
+        return new TypedSide.Scalar(null, p.plannedRoot().info().type());
     }
 
     /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */
@@ -2211,7 +2210,7 @@ final class StatementExecutor {
         return env.dialect().render(b == null ? plan : com.legend.sql.FrameCtes.attach(plan, b.frames()));
     }
 
-    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
+    static @com.legend.base.Nullable TypedSide evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return evalValue(value, letPrefix, specs, env, false, null);
@@ -2224,7 +2223,7 @@ final class StatementExecutor {
      * SAME {@code UserCallInliner} hook ordinary statements get, so an
      * assert side reading an execute() frame compiles the spliced
      * chain (never a raw variable read). */
-    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
+    static @com.legend.base.Nullable TypedSide evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             boolean identity,
@@ -2235,7 +2234,7 @@ final class StatementExecutor {
         // 168 sides, 2026-09-22) is a compile-time constant: the compiler folds it, nothing
         // is sent; everything else executes as before (Literals never guesses)
         java.util.List<TypedSpec> inlined = inlinedSide(value, letPrefix, specs, env, hook);
-        ExecutionResult constant = foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1));
+        TypedSide constant = foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1));
         if (constant != null) {
             return constant;
         }
@@ -2245,13 +2244,13 @@ final class StatementExecutor {
     }
 
     /** The folded constant as the result the wire would have produced, or null. */
-    private static @com.legend.base.Nullable ExecutionResult foldedSide(TypedSpec value,
+    private static @com.legend.base.Nullable TypedSide foldedSide(TypedSpec value,
             java.util.List<TypedSpec> lets) {
         Object v = com.legend.compiler.spec.typed.Literals.fold(value, lets);
         return switch (v) {
             case null -> null;
-            case java.util.List<?> l -> new ExecutionResult.Collection(new java.util.ArrayList<>(l), value.info().type());
-            default -> new ExecutionResult.Scalar(v, value.info().type());
+            case java.util.List<?> l -> new TypedSide.Collection(new java.util.ArrayList<>(l), value.info().type());
+            default -> new TypedSide.Scalar(v, value.info().type());
         };
     }
 
@@ -2307,7 +2306,7 @@ final class StatementExecutor {
         return resolved;
     }
 
-    static ExecutionResult executeTyped(
+    static TypedSide executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env) {
         return executeTyped(body, env, false);
     }
@@ -2318,11 +2317,11 @@ final class StatementExecutor {
      * root and environment the plan is lowered from. {@link #executeTyped}
      * and {@link #planValue} share it, so a side is planned exactly as it
      * would execute. */
-    record Prelude(@com.legend.base.Nullable ExecutionResult answered,
+    record Prelude(@com.legend.base.Nullable TypedSide answered,
             java.util.List<TypedSpec> body, @com.legend.base.Nullable TypedSpec root,
             com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
             @com.legend.base.Nullable ExecEnv env) {
-        static Prelude answered(ExecutionResult r) {
+        static Prelude answered(TypedSide r) {
             return new Prelude(r, java.util.List.of(), null, null, null);
         }
         TypedSpec plannedRoot() {
@@ -2397,7 +2396,7 @@ final class StatementExecutor {
         }
         // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1: write, delete, update, merge): the
         // database runs the statement, and its update count is the write's value. It runs in the query's transaction
-        // (StatementExecutor.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
+        // (BodyDriver.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
         if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
             return Prelude.answered(storeWrite(body, root, env, rider != null || identityLane));
         }
@@ -2411,10 +2410,10 @@ final class StatementExecutor {
         // compiled store model (the lowerer has no model access)
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
                 && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
-            return Prelude.answered(new ExecutionResult.Scalar(ddlStatementString(ds, env),
+            return Prelude.answered(new TypedSide.Scalar(ddlStatementString(ds, env),
                     ds.info().type()));
         }
-        ExecutionResult handle = orchestrationHandleArm(root, env);
+        TypedSide handle = orchestrationHandleArm(root, env);
         if (handle != null) {
             return Prelude.answered(handle);
         }
@@ -2438,7 +2437,7 @@ final class StatementExecutor {
                             + e.getClass().getSimpleName());
                 }
             }
-            return Prelude.answered(new ExecutionResult.Collection(strs,
+            return Prelude.answered(new TypedSide.Collection(strs,
                     com.legend.compiler.element.type.Type.Primitive.STRING));
         }
         // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
@@ -2450,18 +2449,18 @@ final class StatementExecutor {
             java.util.List<TypedSpec> src = new java.util.ArrayList<>(
                     body.subList(0, body.size() - 1));
             src.add(tm.source());
-            ExecutionResult seedForm = SeedSqlForms.mappedExecutionForm(body, tm, env);
-            ExecutionResult values = seedForm != null ? seedForm
+            TypedSide seedForm = SeedSqlForms.mappedExecutionForm(body, tm, env);
+            TypedSide values = seedForm != null ? seedForm
                     : executeTyped(src, env);
             java.util.List<Object> vals = switch (values) {
-                case ExecutionResult.Collection c -> c.values();
-                case ExecutionResult.Scalar sc2 -> sc2.value() == null
+                case TypedSide.Collection c -> c.values();
+                case TypedSide.Scalar sc2 -> sc2.value() == null
                         ? java.util.List.of() : java.util.List.of(sc2.value());
                 default -> throw new IllegalStateException(
                         "effectful map over a non-collection source");
             };
             String param = tm.mapper().parameters().get(0);
-            ExecutionResult last = new ExecutionResult.Scalar(null,
+            TypedSide last = new TypedSide.Scalar(null,
                     tm.info().type());
             for (Object v : vals) {
                 if (!(v instanceof String sv)) {
@@ -2485,7 +2484,7 @@ final class StatementExecutor {
      *  run by the plan runner on the env's session ({@link JudgePlans#statementResult}: the typed rows shaped as the
      *  statement's shape; docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5 -- the body driver sends nothing
      *  itself). F13c: {@code identityLane} joins the identity lane (assert-condition sides). */
-    static ExecutionResult executeTyped(
+    static TypedSide executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env, boolean identityLane) {
         ModelContext ctx = env.ctx();
         Prelude p = prelude(body, env, null, identityLane);
@@ -2496,7 +2495,7 @@ final class StatementExecutor {
         env = p.plannedEnv();
         TypedSpec root = p.plannedRoot();
         com.legend.compiler.element.type.ExprType declaredInfo = p.declaredInfo();
-        com.legend.exec.ExecutionResult folded = LiteralFold.fold(root);
+        com.legend.exec.TypedSide folded = LiteralFold.fold(root);
         if (folded != null) {
             return folded;
         }
@@ -2516,7 +2515,7 @@ final class StatementExecutor {
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
-        ExecutionResult res = JudgePlans.statementResult(wrapSide(plan, root,
+        TypedSide res = JudgePlans.statementResult(wrapSide(plan, root,
                 collectionDeclared ? declaredInfo : null, null, env), env);
         enforceToOneReader(root, res);
         return res;
@@ -2525,14 +2524,14 @@ final class StatementExecutor {
     /** ORCHESTRATION-HANDLE arms of {@link #executeTyped} (extracted at
      * the file guard, V11): connection/runtime values never lower.
      * Null = not a handle (the caller continues). */
-    private static @com.legend.base.Nullable ExecutionResult orchestrationHandleArm(
+    private static @com.legend.base.Nullable TypedSide orchestrationHandleArm(
             TypedSpec root, ExecEnv env) {
         if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
                 && castC.source()
                         instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
                 && com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn()
                         .equals(cbe2.callee().qualifiedName())) {
-            return new ExecutionResult.Scalar(null, castC.info().type());
+            return new TypedSide.Scalar(null, castC.info().type());
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
                 && ("meta::core::runtime::Runtime".equals(rni.classFqn())
@@ -2545,7 +2544,7 @@ final class StatementExecutor {
                         + " executeInDb-family effect; the orchestration-"
                         + "handle arm never evaluates arguments");
             }
-            return new ExecutionResult.Scalar(null, rni.info().type());
+            return new TypedSide.Scalar(null, rni.info().type());
         }
         // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
         // typed VALUE is an orchestration handle regardless of expression
@@ -2570,7 +2569,7 @@ final class StatementExecutor {
                         + " expression carries an executeInDb-family effect;"
                         + " the orchestration-handle arm never evaluates it");
             }
-            return new ExecutionResult.Scalar(null, root.info().type());
+            return new TypedSide.Scalar(null, root.info().type());
         }
         return null;
     }
@@ -2592,7 +2591,7 @@ final class StatementExecutor {
      * pipeline ANSWERED without a plan (a host constant — database mode
      * binds a primitive one as a literal side). */
     record PlannedValue(@com.legend.base.Nullable WrappedSide side,
-            @com.legend.base.Nullable ExecutionResult answered,
+            @com.legend.base.Nullable TypedSide answered,
             @com.legend.base.Nullable TypedSpec root) {
         /** The planned root, for a planned side (the to-one reader's check reads it). */
     }
@@ -2623,7 +2622,7 @@ final class StatementExecutor {
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> inlined = inlinedSide(value, letPrefix, specs, env, hook);
-        ExecutionResult constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
+        TypedSide constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
                 inlined.subList(0, inlined.size() - 1)) : null;
         if (constant != null) {
             return new PlannedValue(null, constant, null);
@@ -2634,7 +2633,7 @@ final class StatementExecutor {
         }
         if (fold && b.answered() == null) {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
-            ExecutionResult folded = LiteralFold.fold(b.root());
+            TypedSide folded = LiteralFold.fold(b.root());
             if (folded != null) {
                 return new PlannedValue(null, folded, null);
             }
@@ -2681,7 +2680,7 @@ final class StatementExecutor {
         };
     }
 
-    record BarePlan(@com.legend.base.Nullable ExecutionResult answered,
+    record BarePlan(@com.legend.base.Nullable TypedSide answered,
             com.legend.sql.SqlQuery plan, TypedSpec root,
             com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
             ExecEnv env, boolean storeFree) {
@@ -2801,13 +2800,13 @@ final class StatementExecutor {
      * TABULAR-consumed toOne root; the scalar arm's second-row guard
      * covers scalar reads, this covers whole-TDS consumption and the
      * ZERO-row lower bound. */
-    private static void enforceToOneReader(TypedSpec root, ExecutionResult res) {
+    private static void enforceToOneReader(TypedSpec root, TypedSide res) {
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
                 && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
                 && !tw.args().isEmpty()
                 && com.legend.compiler.element.type.Type
                         .isRelation(tw.args().get(0).info().type())
-                && res instanceof ExecutionResult.Tabular tab
+                && res instanceof TypedSide.Tabular tab
                 && tab.rows().size() != 1) {
             throw new IllegalStateException("toOne() over a relation returned "
                     + tab.rows().size() + " row(s) — the exactly-one contract"
@@ -2895,7 +2894,7 @@ final class StatementExecutor {
         }
     }
 
-    static ExecutionResult executeInDb(
+    static TypedSide executeInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String raw = evalStringArg(body, call.args().get(0), env);
@@ -2914,7 +2913,7 @@ final class StatementExecutor {
         }
         // an opaque ResultSet handle: setup statements ignore it; a test
         // that READS it will surface loudly here when that day comes
-        return new ExecutionResult.Scalar(null, call.info().type());
+        return new TypedSide.Scalar(null, call.info().type());
     }
 
     /** The K-native {@code dropAndCreateSchemaInDb}: the engine DROPS +
@@ -2935,14 +2934,14 @@ final class StatementExecutor {
      * the session's dialect spells the executed copy, H2 the recorded one
      * (the dialect program's Phase 3, 2026-10-16: until then the text was
      * written here, so a database with no schemas, SQLite, refused it). */
-    static ExecutionResult dropAndCreateSchemaInDb(
+    static TypedSide dropAndCreateSchemaInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
         com.legend.sql.SqlDdl schema = new com.legend.sql.SqlDdl.CreateSchema(
                 evalStringArg(body, sc.args().get(0), env), false);
         sendEffect(env, env.dialect().render(schema), REFEREE_DDL.render(schema),
                 com.legend.exec.StatementOrigin.RAW, true);
-        return new ExecutionResult.Scalar(true, sc.info().type());
+        return new TypedSide.Scalar(true, sc.info().type());
     }
 
     /**
@@ -2952,7 +2951,7 @@ final class StatementExecutor {
      * compiled store model ({@link com.legend.setup.Ddl}) and executes over
      * the ambient connection — same connection convention as executeInDb.
      */
-    static ExecutionResult dropAndCreateTableInDb(
+    static TypedSide dropAndCreateTableInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         ModelContext ctx = env.ctx();
@@ -2992,7 +2991,7 @@ final class StatementExecutor {
         // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
         // a record-only ALTER ledger carried them for a metadata replay that
         // no longer exists — deleted with the meta ledger, batch 137)
-        return new ExecutionResult.Scalar(true, call.info().type());
+        return new TypedSide.Scalar(true, call.info().type());
     }
 
     /**
@@ -3010,7 +3009,7 @@ final class StatementExecutor {
      * for every target. Same connection convention and mirror recording as
      * {@link #dropAndCreateTableInDb}.
      */
-    static ExecutionResult createTempTable(
+    static TypedSide createTempTable(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String table = evalStringArg(body, call.args().get(0), env);
@@ -3030,17 +3029,17 @@ final class StatementExecutor {
         }
         var ct = new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE, cols, true);
         sendEffect(env, env.dialect().render(ct), REFEREE_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
-        return new ExecutionResult.Scalar(null, call.info().type());
+        return new TypedSide.Scalar(null, call.info().type());
     }
 
     /** The K-native {@code dropTempTable(name, connection)}: the dialect's own DropTable. */
-    static ExecutionResult dropTempTable(
+    static TypedSide dropTempTable(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String table = evalStringArg(body, call.args().get(0), env);
         com.legend.sql.SqlDdl.DropTable dt = Ddl.dropTable(null, table);
         sendEffect(env, env.dialect().render(dt), REFEREE_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
-        return new ExecutionResult.Scalar(null, call.info().type());
+        return new TypedSide.Scalar(null, call.info().type());
     }
 
     /** A {@code ^meta::relational::metamodel::datatype::<T>(…)} literal as the store
@@ -3171,11 +3170,11 @@ final class StatementExecutor {
             }
         }
         kept.add(arg);
-        ExecutionResult evaluated;
+        TypedSide evaluated;
         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
             evaluated = executeTyped(kept, env);
         }
-        if (!(evaluated instanceof ExecutionResult.Scalar sc)
+        if (!(evaluated instanceof TypedSide.Scalar sc)
                 || !(sc.value() instanceof String str)) {
             throw new IllegalStateException("K-native dispatch: the argument"
                     + " must evaluate to one String, got " + evaluated);

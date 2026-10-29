@@ -30,7 +30,7 @@ import java.util.List;
  * its keys have run), and each cell decoded from the JSON by its column's three type facts with the product's own
  * row decoder ({@link RowDecode}: an Integer a long, a Float a double, a Decimal an exact BigDecimal, a date its
  * {@code PureDateLiteral}, a String its text). A reader of the product's output, never a copy of the old door's
- * {@code ExecutionResult}; it keeps the accessor names the tests use ({@code rows().get(0).get(0)},
+ * {@code TypedSide}; it keeps the accessor names the tests use ({@code rows().get(0).get(0)},
  * {@code columns().get(0).name()}, {@code rowCount()}). Test code only.
  */
 public final class Lean {
@@ -240,19 +240,19 @@ public final class Lean {
     }
 
     /**
-     * The judges' collected side ({@code ExecutionResult}, the body driver's typed side until track D renames it) read
+     * The judges' collected side ({@code TypedSide}, the body driver's typed side until track D renames it) read
      * through the same reader: for a body only the program entry runs (a read of the system metamodel store, which
      * the plan path does not route; a DDL native; a staged let; an assert body) -- {@link Program}. A scalar or a
      * collection is a VALUE answer of one column {@code value}; a relation a RELATION answer; a graph fetch an OBJECTS
      * answer whose text is the objects' JSON array.
      */
-    public static Result of(com.legend.exec.ExecutionResult side) {
+    public static Result of(com.legend.exec.TypedSide side) {
         ExecutionPlan.Multiplicity one = new ExecutionPlan.Multiplicity(1, 1);
         // the driver's Scalar is a to-one value (its null Pure's []), its Collection a to-many one
         ExecutionPlan.Multiplicity optional = new ExecutionPlan.Multiplicity(0, 1);
         ExecutionPlan.Multiplicity many = new ExecutionPlan.Multiplicity(0, null);
         return switch (side) {
-            case com.legend.exec.ExecutionResult.Scalar s -> {
+            case com.legend.exec.TypedSide.Scalar s -> {
                 // the body driver's Scalar(null) is Pure's [] (an empty optional value): zero rows, as the plan path
                 // writes an empty value
                 List<List<Object>> rows = new ArrayList<>(1);
@@ -264,7 +264,7 @@ public final class Lean {
                 yield new Result(ExecutionPlan.TdsResult.Shape.VALUE,
                         List.of(new Column("value", s.returnType().typeName(), optional)), List.copyOf(rows), "");
             }
-            case com.legend.exec.ExecutionResult.Collection c -> {
+            case com.legend.exec.TypedSide.Collection c -> {
                 List<List<Object>> rows = new ArrayList<>(c.values().size());
                 for (Object v : c.values()) {
                     List<Object> row = new ArrayList<>(1);
@@ -274,7 +274,7 @@ public final class Lean {
                 yield new Result(ExecutionPlan.TdsResult.Shape.VALUE,
                         List.of(new Column("value", c.returnType().typeName(), many)), List.copyOf(rows), "");
             }
-            case com.legend.exec.ExecutionResult.Tabular t -> {
+            case com.legend.exec.TypedSide.Tabular t -> {
                 List<Column> columns = new ArrayList<>(t.columns().size());
                 for (com.legend.exec.Column c : t.columns()) {
                     // the side's column carries the typer's multiplicity where the judge had one; one otherwise
@@ -287,7 +287,7 @@ public final class Lean {
                 }
                 yield new Result(ExecutionPlan.TdsResult.Shape.RELATION, List.copyOf(columns), List.copyOf(rows), "");
             }
-            case com.legend.exec.ExecutionResult.Graph g -> {
+            case com.legend.exec.TypedSide.Graph g -> {
                 // one row per object, as the reader reads a graph fetch's JSON rows; json() the array as written
                 Json.Node parsed = Json.parse(g.json());
                 if (!(parsed instanceof Json.Arr items)) {

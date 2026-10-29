@@ -55,7 +55,7 @@ class SqlTextRatchetTest {
 
     private static final Pattern SQL_SHAPE = Pattern.compile(
             "(?i)(\\bselect\\s+\\S.*\\s+from\\b"
-            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let StatementExecutor's
+            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let BodyDriver's
             // dropAndCreateSchemaInDb text through)
             + "|^\"\\s*(select|create table|create schema|insert into|drop table"
             + "|delete from|alter table)\\s+\\S"
@@ -65,12 +65,12 @@ class SqlTextRatchetTest {
     /** The register: file &rarr; exact SQL-text site count, measured
      * 2026-08-18 (audit §8 seeded 33 with a narrower rule; this rule
      * also counts Ddl — the one registered DDL owner — and
-     * StatementExecutor's engine-text sites). */
+     * BodyDriver's engine-text sites). */
     private static final Map<String, Integer> REGISTER =
             new LinkedHashMap<>();
 
     static {
-        // (StatementExecutor.java: its two sites were the record-only PRIMARY KEY
+        // (BodyDriver.java: its two sites were the record-only PRIMARY KEY
         // ALTER strings of a write-only meta ledger — deleted in batch 137)
         // (LineageTreeVerdicts.java: its one site — the tree-print → rows
         // query, DuckDB-only — DELETED in task #14 leg 1, 2026-09-21: the

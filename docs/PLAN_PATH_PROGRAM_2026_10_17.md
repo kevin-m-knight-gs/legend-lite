@@ -279,7 +279,11 @@ could: it drops the one and keeps the other) -- a null is kept, measured by the 
     unless a verdict genuinely changed.
 11. **The deletions**: `StatementExecutor` and what only it called; `JavaEvalLedgerTest`'s pins only go down; the
     `exec` guard reaches zero (the boundary program's §8: `exec` depends only on `//base`, `//json`, the plan records and
-    `java.sql`).
+    `java.sql`). *Status 2026-10-29 (the result boundary program's track D, its decisions log D48): the old door's
+    entries, the materialized result and the query service's materialized `execute` are deleted and the old-path
+    census reads zero for every step-7 symbol; the body driver itself STAYS, renamed `BodyDriver`, as the judges'
+    orchestration (track B: it sends nothing itself, every statement through its plan) -- this step's wording is
+    superseded there; its closure waits on step 9's residue (S81, S82) for the user's rulings.*
 
 **Step 9's named residue, each with its exit (2026-10-19).** A residue pinned by name is loud both ways (the pin fails
 when the test passes or its message moves) but can sit; so each one names the step that resolves it, and step 11

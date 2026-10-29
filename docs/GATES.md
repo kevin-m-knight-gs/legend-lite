@@ -15810,3 +15810,24 @@ decisions log D47; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026
    on the way: `DialectLeakRatchetTest` (a database named by two tests themselves: moved into its owner,
    `TestBackend.sessionSetUp`) and `WriterCarriageGuardTest` (a `Double.parseDouble` in a writer: reverted).
 3. **Not measured:** the lanes.
+
+## 2026-10-29 — Track D: the old door deleted; `ExecutionResult` is `TypedSide`, `StatementExecutor` is `BodyDriver`
+
+The result boundary program's track D (docs/RESULT_BOUNDARY_START_HERE.md, track D; the decisions log D48; the plan
+path program's step 11, its status noted there).
+
+1. **Built:** `Execution.execute` (five overloads), `Execution.executeResolved` (four) and the query service's three
+   materialized `execute` entries deleted; `exec/ExecutionResult` renamed `exec/TypedSide` (the judges' collected side,
+   35 files); `StatementExecutor` renamed `BodyDriver` (36 files, `tools/native-axes.py`, a BUILD comment); the guards'
+   entries moved with dated notes (`JavaEvalLedgerTest`'s carriage register and the body driver's path pin at the same
+   count, 2273; `ArchitectureTest`'s exec register; `ErrorShapeGuardrailTest`); the one materialized-execute call the
+   compiler found (`DuckDBIntegrationTest`, the service's qualified name across a line break) moved to `Lean.run`;
+   AGENTS.md (step K, the entry-point table, the body-driver sentence, the layer table) and core/README.md (step K,
+   the sealed list) corrected. `python3 -I docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero for
+   every step-7 symbol.
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests`, `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test`, the four DuckDB parity lanes 36 of 36; the nine Postgres targets 9 of 9;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12; the 21 PCT lanes 21 of 21;
+   `//datacube:python_execute_test` passes; the product job's unlaned-tests guard empty.
+3. **Not measured:** CI's lanes.

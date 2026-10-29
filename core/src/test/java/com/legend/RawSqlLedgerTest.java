@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>Ledger, with text-origin classification:
  * <ul>
- *   <li>{@code StatementExecutor.adaptRaw} — the executeInDb SQL
+ *   <li>{@code BodyDriver.adaptRaw} — the executeInDb SQL
  *       argument: corpus-AUTHORED test text. LEGITIMATE (origin is
  *       another dialect; adaptation is the boundary's charter).</li>
  *   <li>{@code rcorpus/Runner} seed replay — MIXED: corpus-authored
@@ -54,7 +54,7 @@ class RawSqlLedgerTest {
     // corpus-AUTHORED text crosses the translator, which is the stated
     // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
-            // CsvSeed.adaptRaw: the raw-statement boundary, moved from StatementExecutor
+            // CsvSeed.adaptRaw: the raw-statement boundary, moved from BodyDriver
             // (2026-09-27) with the setup loop it serves (CsvSeed.run); the executor's
             // raw effects call it -- one site still
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening

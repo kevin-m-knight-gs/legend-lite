@@ -516,6 +516,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
   sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
   egress lower bound). Next: T-d, then D.
+- **2026-10-29, track D built: the old door deleted, the judges' side and the body driver named for what they are**
+  (GATES, the track D entry; the decisions log D48): `Execution.execute*`, `executeResolved` and the service's
+  materialized `execute` gone; `ExecutionResult` -> `TypedSide`, `StatementExecutor` -> `BodyDriver`; the old-path
+  census zero on every step-7 symbol; AGENTS.md and core/README.md corrected. Step 11's 2026-10-17 wording superseded
+  by track B (the driver stays); its closure on step 9's residue, the user's rulings. Next: tracks L, A, F, then Z.
 - **2026-10-29, track T, T-d: the twin's lanes** (GATES, the T-d entry; the decisions log D47; the ledger, batch T-d):
   core's integration tests on SQLite (15 on its floor) and H2 (169), each lane a Bazel target in the core gate held to
   its recorded floor (`testing/LaneFloor`); the MongoDB lane deferred to D's session-seam move. Track T built but for

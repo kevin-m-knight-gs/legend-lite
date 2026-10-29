@@ -140,7 +140,7 @@ class ErrorShapeGuardrailTest {
             // its two siblings — a caught failure becomes a counted
             // decline, never a rescue (witness testRepeatStringNoString:
             // the BLOB wire under a STRING stamp).
-            Map.entry("StatementExecutor.java", 3),
+            Map.entry("BodyDriver.java", 3),   // StatementExecutor.java until 2026-10-29 (track D)
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable

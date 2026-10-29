@@ -238,7 +238,7 @@ legend_java_library(
     ],
 )
 
-# the root package's execution side: Execution (the front door), StatementExecutor, the judges
+# the root package's execution side: Execution (the front door), BodyDriver, the judges
 legend_java_library(
     name = "driver",
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),

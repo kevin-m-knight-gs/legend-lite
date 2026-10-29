@@ -126,7 +126,8 @@ text                                                             [FRONTEND]
                                                                  [BACKEND]
   J  sql/dialect/      SqlDialect.render              SqlQuery → SQL string
                                                                  [RUNTIME]
-  K  exec/             Executor.execute               SQL + JDBC → ExecutionResult
+  K  exec/             PlanRunner.run                 a plan + a session → typed rows to a sink
+                       result/                        (the writers spell each cell at the boundary)
 ```
 
 **G½ runs on every execution path** — do not omit it when reasoning about the
@@ -147,16 +148,20 @@ user-visible error carries one of these eight.
 | `Compiler.compileErrors(String)` | A→F, then eager G over all bodies: a whole model | its errors as a list: the first element error alone, else every body's; both `compilation/compile` routes answer from it |
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
-| `Execution.execute(...)` | A→K | STRICT — **the production seam** |
-| `Execution.executeResolved(...)` | G½→K, the one back-half sequence | STRICT |
+| `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
+| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's side (`exec/TypedSide`) | STRICT |
+
+The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
+`ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
+answer is a plan, written at the boundary; `docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero.
 
 `compileModel` and `buildModule` differ by **one argument**:
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`StatementExecutor` is **package-private by design** — reachable only through
-`Execution.executeResolved`. The driver never re-implements a step; the
-executor never decides pipeline order.
+`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is **package-private by design** — reachable
+only through `Execution.runProgram`. The driver never re-implements a step; the body driver never decides pipeline
+order.
 
 ## Layer ownership (the contract)
 
@@ -171,7 +176,7 @@ executor never decides pipeline order.
 | **StoreResolver** | logical `TypedSpec` → physical | re-running type checks |
 | **Lowerer** | `TypedSpec` → `SqlQuery` | naming SQL functions; SQL syntax; importing a dialect; any `String` field encoding a SQL operation |
 | **SqlDialect** | `SqlQuery` → SQL string | inferring types; rewriting HIR; consulting the model |
-| **Executor** | SQL + JDBC → `ExecutionResult` | everything above |
+| **PlanRunner / the writers** | a plan + a session → typed rows; a cell's text at the boundary (`result/`) | everything above; a writer decides nothing (`WriterCarriageGuardTest`) |
 
 ## Invariants
 

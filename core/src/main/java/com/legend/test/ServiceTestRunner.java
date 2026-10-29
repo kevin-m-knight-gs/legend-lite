@@ -7,7 +7,7 @@ import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.PureModelContext;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
@@ -239,7 +239,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 || Compiler.hasStatementEffects(resolved, rt.ctx());
         Connection conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
         try {
-            ExecutionResult result;
+            TypedSide result;
             try {
                 // the one entry for a program (track C, 2026-10-29): the test's body typed once, run on the
                 // session; its last statement's side is what the service would serve, serialized below
@@ -442,11 +442,11 @@ public final class ServiceTestRunner implements AutoCloseable {
     // ---- SERIALIZE + JUDGE ----------------------------------------------------
 
     /** The result as the JSON tree its serialization format produces. */
-    static @com.legend.base.Nullable Object serialize(ExecutionResult result,
+    static @com.legend.base.Nullable Object serialize(TypedSide result,
             @com.legend.base.Nullable String format) {
         String fmt = format == null ? "DEFAULT" : format;
         return switch (result) {
-            case ExecutionResult.Graph g -> {
+            case TypedSide.Graph g -> {
                 Object tree = com.legend.sql.Json.parse(g.json());
                 if (tree instanceof Map<?, ?> m && m.containsKey("builder")) {
                     yield tree;
@@ -456,7 +456,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 env.put("values", tree);
                 yield env;
             }
-            case ExecutionResult.Tabular t -> {
+            case TypedSide.Tabular t -> {
                 if (!fmt.equals("PURE_TDSOBJECT") && !fmt.equals("RAW")) {
                     throw new Skip("serialization format " + fmt
                             + " of a tabular result is not rendered by this runner");
@@ -471,8 +471,8 @@ public final class ServiceTestRunner implements AutoCloseable {
                 }
                 yield rows;
             }
-            case ExecutionResult.Scalar s -> cell(s.value());
-            case ExecutionResult.Collection c -> {
+            case TypedSide.Scalar s -> cell(s.value());
+            case TypedSide.Collection c -> {
                 List<Object> vs = new ArrayList<>(c.values().size());
                 c.values().forEach(v -> vs.add(cell(v)));
                 yield vs;

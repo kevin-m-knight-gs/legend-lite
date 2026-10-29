@@ -117,85 +117,6 @@ public final class Execution {
     }
 
     /**
-     * The core QUERY SERVICE: frontend + Phase G + lowering + rendering +
-     * EXECUTION over the caller's connection, shaped per the result-type
-     * classification ({@link com.legend.plan.ResultShape}). The corpus
-     * bridge's target (PHASE_K_EXECUTION.md). Class queries need an
-     * execution context in the query itself ({@code ->from(...)}) on this
-     * overload; the 4-arg overload supplies a driver runtime.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            java.sql.Connection connection) {
-        return execute(model, query, null, connection);
-    }
-
-    /**
-     * The full pipeline with a DRIVER-SUPPLIED execution context — the
-     * service shape: queries carry no {@code ->from(...)}; the runtime
-     * arrives as an API argument (PHASE_K_EXECUTION.md §4). Phase H
-     * resolves class queries against the runtime's mapping between G and
-     * I; an explicit {@code from()} in the query always wins.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        return execute(model, query, null, runtimeFqn, connection);
-    }
-
-    /**
-     * {@link #execute(String, String, String, java.sql.Connection)} with a
-     * SECTION import scope: the query resolves under {@code imports} (plus
-     * the prelude) against the model's element universe — real pure's rule
-     * for a query written in an import-bearing section. A {@code null}
-     * scope is the sectionless-query behavior.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            com.legend.model.@com.legend.base.Nullable ImportScope imports,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        return execute(model, query, imports, runtimeFqn, connection, ExecuteOptions.NONE);
-    }
-
-    /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            com.legend.model.@com.legend.base.Nullable ImportScope imports,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection, ExecuteOptions options) {
-        ModelContext ctx = Compiler.compileModel(model);
-        // the ONE front door (resolveQuery: names, the statement splice, the
-        // desugars) — a text query is its statements under its section scope
-        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(query);
-        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
-                parsed instanceof com.legend.protocol.spec.LambdaFunction lf
-                        && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
-        return executeResolved(
-                Compiler.resolveQuery(statements,
-                        imports == null ? new com.legend.model.ImportScope(java.util.List.of())
-                                : imports, ctx),
-                ctx, runtimeFqn, connection, null, null, options);
-    }
-
-    /** {@link #execute(String, String, com.legend.model.ImportScope, String, java.sql.Connection, ExecuteOptions)}
-     *  on the session {@code sessions} opens for the target the query's runtime declares ({@link Compiler#executesOn}):
-     *  the model compiled once, the connection decided from it, then opened (C3b). The old door over
-     *  {@link #runProgram}: its result the program's last statement's (track B's B2, 2026-10-29). */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, ExecuteOptions options) {
-        ModelContext ctx = Compiler.compileModel(model);
-        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(query);
-        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
-                parsed instanceof com.legend.protocol.spec.LambdaFunction lf
-                        && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
-        var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(java.util.List.of()), ctx);
-        return runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn, sessions, null, null, options).last();
-    }
-
-    /**
      * THE ONE ENTRY FOR A PROGRAM (track B's B2, 2026-10-29; docs/RESULT_BOUNDARY_START_HERE.md, the track B block;
      * the plan path program's step 8): a test body -- lets, effects, asserts, a value -- typed once
      * ({@link Compiler#query}), run statement by statement by the body driver on the session {@code sessions} opens
@@ -225,62 +146,14 @@ public final class Execution {
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
         ModelContext ctx = typed.context();
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session.connection());
-        return new ProgramReport(StatementExecutor.execute(typed, runtimeFqn, dialect, session, listener, referee,
+        return new ProgramReport(BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee,
                 options));
     }
 
     /** What a program leaves behind: its last statement's side, collected and typed as the judges' sides are
-     *  ({@link com.legend.exec.ExecutionResult}, the name track D renames; the service test runner serializes it,
+     *  ({@link com.legend.exec.TypedSide}; the service test runner serializes it,
      *  nothing else reads it), or null for a body whose last statement answers nothing. The verdicts are the
      *  listener's, one event each; a program reports nothing else. */
-    public record ProgramReport(com.legend.exec.@com.legend.base.Nullable ExecutionResult last) {
-    }
-
-    /**
-     * THE OLD DOOR: phases G&frac12;&rarr;K for an already NAME-RESOLVED query AST on the caller's connection --
-     * {@link #runProgram} with the query typed here and the connection as the driver's session
-     * ({@link com.legend.exec.PlanSessions#session}), its result the last statement's. Every driver path that
-     * enters here (the corpus runner, the service test runner, channel B, core's tests) moves to {@link #runProgram}
-     * and the typed plans (the result boundary program's tracks C and T); track D deletes it.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection, null, null, ExecuteOptions.NONE);
-    }
-
-    /** Listener overload — the runner's scoring seam: observes each
-     * statement-root assert verdict; the platform keeps the judgment. */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener, null, ExecuteOptions.NONE);
-    }
-
-    /** Registration overload (SQLTEXT charter §2): the harness supplies
-     * its {@link com.legend.exec.SqlReplayReferee} beside the listener;
-     * the env carries both. Production never calls this arity. */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener, replayReferee,
-                ExecuteOptions.NONE);
-    }
-
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
-            ExecuteOptions options) {
-        return runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
-                com.legend.exec.PlanSessions.session(connection), assertListener, replayReferee, options).last();
+    public record ProgramReport(com.legend.exec.@com.legend.base.Nullable TypedSide last) {
     }
 }

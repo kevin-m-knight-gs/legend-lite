@@ -196,7 +196,7 @@ final class ArchitectureTest {
      * <strong>Invariant 4c — the root package is the TOP layer.</strong>
      * The acyclic-slices matcher {@code com.legend.(*)..} skips root
      * classes, so nothing structural prevented a phase from importing the
-     * driver (Compiler/StatementExecutor) — audit 19's blind spot. Phases
+     * driver (Compiler/BodyDriver) — audit 19's blind spot. Phases
      * never call up into orchestration. (The harness bridge left
      * production in F1.2 — no exemption remains.)
      */
@@ -213,7 +213,7 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.StatementExecutor.class)
+                    com.legend.BodyDriver.class)
             .as("Invariant 4c: the com.legend root (driver) is the top"
                     + " layer — audit 19")
             .check(CORE_PROD_CLASSES);
@@ -795,7 +795,8 @@ final class ArchitectureTest {
             java.util.Map.entry("Column", 2),
             java.util.Map.entry("DynamicPivot", 1),
             java.util.Map.entry("Equality", 1),
-            java.util.Map.entry("ExecutionResult", 2),
+            // ExecutionResult renamed TypedSide 2026-10-29 (track D); the same two planning classes it reaches
+            java.util.Map.entry("TypedSide", 2),
             // Executor (7) left 2026-10-27: deleted, its sends plan steps (the result boundary program, phase 5)
             java.util.Map.entry("GridProbe", 3),
             // 0 -> 1 (2026-10-20, object identity step 2, found at main's merge 2026-10-22, the first run of this guard
@@ -1034,7 +1035,7 @@ final class ArchitectureTest {
      * different property (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md
      * §3.3). Since 2026-10-29 (B1b) those classes pass a SESSION along, and
      * {@link #theBodyDriverAndTheJudgesHoldNoJdbc} pins them by name. The funnel licenses {@code com.legend} ROOT, which
-     * contains StatementExecutor — the audit's S1 dispatcher. Until the
+     * contains BodyDriver — the audit's S1 dispatcher. Until the
      * orchestration/exec-seam split (backlogged), root's JDBC surface is
      * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
      * {@code java.sql} fails this rule.
@@ -1043,12 +1044,12 @@ final class ArchitectureTest {
     void rootJavaSqlSurfaceIsPinned() {
         noClasses()
             .that().resideInAPackage("com.legend")
-            // nested classes (StatementExecutor$ExecEnv, ...) ride with
+            // nested classes (BodyDriver$ExecEnv, ...) ride with
             // their owner — the pin is per top-level class
             // 2026-10-04 C2a: Compiler LEFT the pin -- the planner, java.sql-free, in //core:planner (no
             // :exec); Execution, the execution front door, holds the execute entry points' Connection
             // parameters it took from Compiler (a move, not growth)
-            // 2026-10-29 (the result boundary program's track B, B1b): StatementExecutor LEFT the pin -- the body
+            // 2026-10-29 (the result boundary program's track B, B1b): BodyDriver LEFT the pin -- the body
             // driver holds a session (Sessions.Session) and reaches the database only through its statements;
             // Execution, the front door, keeps the execute entries' Connection parameters and wraps each as the
             // driver's session (PlanSessions.session)
@@ -1075,7 +1076,7 @@ final class ArchitectureTest {
     /**
      * <strong>The body driver and the judges hold no JDBC (2026-10-29, the result boundary program's track B, B1b;
      * docs/RESULT_BOUNDARY_START_HERE.md, the track B block).</strong> A test body is a sequence of plans: the driver
-     * ({@code StatementExecutor}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
+     * ({@code BodyDriver}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
      * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
      * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
      * on {@code java.sql} or a driver's own API. The funnel above licenses root and {@code testdatagen} as packages;
@@ -1086,7 +1087,7 @@ final class ArchitectureTest {
     @Test
     void theBodyDriverAndTheJudgesHoldNoJdbc() {
         noClasses()
-            .that().haveNameMatching("com\\.legend\\.(StatementExecutor|BodyCompiler|HostJudge|DatabaseJudge"
+            .that().haveNameMatching("com\\.legend\\.(BodyDriver|BodyCompiler|HostJudge|DatabaseJudge"
                     + "|JudgePlans|AssertVerdicts|SqlTextVerdicts|AgreementArm|VerdictArm|CsvLoad|SeedSqlForms"
                     + "|AssertErrorNative|testdatagen\\.TestDataGenerationNatives)(\\$.*)?")
             .should().dependOnClassesThat()
@@ -1364,7 +1365,7 @@ final class ArchitectureTest {
                 // (WeakHashMap — the fact lives exactly as long as the
                 // connection) and re-seeds after a writing statement.
                 // 2026-10-29 (track B's B1b): the map moved from the body driver
-                // (StatementExecutor.ESTABLISHED) to the session seam, the same
+                // (BodyDriver.ESTABLISHED) to the session seam, the same
                 // weak map by the same key, read through Sessions.Session.state()
                 "com.legend.exec.SessionState.OF",
                 // the bare-name rule's table (L7 "resolve once", step 3, 2026-10-10): the names a bare
@@ -1540,7 +1541,7 @@ final class ArchitectureTest {
                     // call and a parameter let (2 + 2); the lineage and the model
                     // builder carry 2 + 4. Owed: each family moves into the parser or
                     // the normalizer, and its row goes to 0 in that commit. The
-                    // driver's own hand-built view accessor (StatementExecutor, 4)
+                    // driver's own hand-built view accessor (BodyDriver, 4)
                     // was deleted the day this was pinned — it is not a row.
                     // RE-PINNED 2026-10-10 (L7 "resolve once" step 3): every AppliedFunction construction in
                     // compiler/, validation/ moved into Calls (179 by script, 25 by hand; the design note's

@@ -90,7 +90,7 @@ public interface SqlReplayReferee {
      * non-answer is a DECLINED outcome with its counted reason.
      */
     RowVerdict verify(Sessions.Session session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
@@ -110,7 +110,7 @@ public interface SqlReplayReferee {
      * ordered chain without keys keeps the multiset compare, COUNTED. */
     record ReplayFacts(boolean extentSubset, boolean ordered,
             java.util.@com.legend.base.Nullable List<String> sortKeys,
-            @com.legend.base.Nullable ExecutionResult population) {
+            @com.legend.base.Nullable TypedSide population) {
         public static final ReplayFacts NONE = new ReplayFacts(false, false, null, null);
 
         /** The compile-time facts alone (no page). */
@@ -125,7 +125,7 @@ public interface SqlReplayReferee {
          * database's arrival order, not a contract; what IS defined is that
          * every golden page row is a member of the population and that the
          * page sizes agree — the PAGE-MEMBERSHIP verdict. */
-        public ReplayFacts withPopulation(ExecutionResult rows) {
+        public ReplayFacts withPopulation(TypedSide rows) {
             return new ReplayFacts(extentSubset, ordered, sortKeys, rows);
         }
     }
@@ -149,7 +149,7 @@ public interface SqlReplayReferee {
      * referee session first; the default ignores them (a referee without
      * temp support declines through the missing table as before). */
     default RowVerdict verify(Sessions.Session session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
@@ -169,7 +169,7 @@ public interface SqlReplayReferee {
      * raw spellings (a scalar is one element). The default declines. */
     default RowVerdict verifyPlan(Sessions.Session session, String goldenPlan,
             java.util.Map<String, java.util.List<String>> bindings,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,

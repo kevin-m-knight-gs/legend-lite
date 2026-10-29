@@ -1,6 +1,5 @@
 package com.legend.server;
 
-import com.legend.exec.ExecutionResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -10,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Stateless query execution: parse → compile → plan → execute — the CORE
@@ -18,9 +16,8 @@ import java.util.Objects;
  * orchestration and connection resolution only.
  *
  * <ul>
- *   <li>{@link #execute(String, String, String, Connection)} — the legacy
- *       snapshot ({@link ExecutionResult}), until the old executor's deletion
- *       (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27).</li>
+ *   <li>(The materialized {@code execute} entries, the old door's snapshot of a query's answer, were deleted
+ *       2026-10-29, the result boundary program's track D: a product answer is a plan, written at the boundary.)</li>
  *   <li>{@link #execute(String, String, String, Connection, OutputStream, OutputFormat)}
  *       and {@link #stream} — the query planned as typed rows, run by the plan's
  *       runner, its rows written in batches as they arrive by the format's writer
@@ -34,36 +31,6 @@ import java.util.Objects;
  * (execution plan W0.1, 2026-09-29); tests seed tables in-process.
  */
 public class QueryService {
-
-    /**
-     * Parse → compile → generate plan → execute with typed result.
-     * Mappings are auto-discovered from the registry.
-     */
-    public ExecutionResult execute(String pureSource, String query, String runtimeName,
-            Connection connection) throws SQLException {
-        return execute(pureSource, query, runtimeName, connection,
-                com.legend.ExecuteOptions.NONE);
-    }
-
-    /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
-    public ExecutionResult execute(String pureSource, String query, String runtimeName,
-            Connection connection, com.legend.ExecuteOptions options) throws SQLException {
-        return Objects.requireNonNull(
-                com.legend.Execution.execute(pureSource, query, null, runtimeName, connection,
-                        options),
-                "query produced no result");
-    }
-
-    /**
-     * Convenience: resolves connection from Runtime, then executes.
-     * Mappings are auto-discovered from the registry.
-     */
-    public ExecutionResult execute(String pureSource, String query, String runtimeName)
-            throws SQLException {
-
-        return Objects.requireNonNull(com.legend.Execution.execute(pureSource, query, runtimeName,
-                ConnectionResolver.SOURCE, com.legend.ExecuteOptions.NONE), "query produced no result");
-    }
 
     /**
      * The query run on {@code connection}, its answer written to {@code out} in {@code format} as its rows arrive

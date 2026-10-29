@@ -9,7 +9,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.Column;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Row;
@@ -32,7 +32,7 @@ import java.util.Map;
  * lowered query as a typed-rows plan, or a graph fetch's JSON text -- its cells read from the driver by the plan's
  * declared types ({@code exec.JdbcDecode}, the typed seam of step 7: the Z2 ruling's carrier-decode bridge at the
  * plan boundary), then compares. The legacy
- * executor still PLANS a side ({@link StatementExecutor#planHostSide}: the let prefix, the inliner's splice, the
+ * executor still PLANS a side ({@link BodyDriver#planHostSide}: the let prefix, the inliner's splice, the
  * natives' staging, the store resolution, the wire reconciliation) -- the one road both judges' sides take, until the
  * test runners emit plan sequences (step 8) and it is deleted (step 11).
  */
@@ -50,7 +50,7 @@ final class JudgePlans {
      * session is H2 2.4"); no session statements and no setup -- the body's session was established by the runner
      * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#given}).
      */
-    static ExecutionPlan.Target target(StatementExecutor.ExecEnv env) {
+    static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
         com.legend.database.Target decided = Compiler.executesOn(env.ctx(), env.runtimeFqn());
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
@@ -70,7 +70,7 @@ final class JudgePlans {
      *  planner defect, refused by name. A sort key that is no output is carried as a hidden column
      *  ({@link TypedRows#statement}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
     static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement, ExecutionPlan.TdsResult.Shape.RELATION);
         List<OutputCol> outs = statement.outputs();
         boolean anyByName = columns.stream().anyMatch(c -> outs.stream().anyMatch(o -> o.name().equals(c.name())));
@@ -89,10 +89,10 @@ final class JudgePlans {
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in
      *  database mode, where a let's relation is one CTE every statement of the body reads (leg 3.4 step 2); the
-     *  legacy executor attached them at its render ({@code StatementExecutor.renderFor}), and a side's plan needs
+     *  legacy executor attached them at its render ({@code BodyDriver.renderFor}), and a side's plan needs
      *  them the same way (the plan path program's step 6, 2026-10-18: `//spec:corpus_h2`'s database pass found
      *  660 row legs reading a frame that was not there). In host mode a frame is pasted, and the plan is its own. */
-    private static SqlQuery withFrames(SqlQuery plan, StatementExecutor.ExecEnv env) {
+    private static SqlQuery withFrames(SqlQuery plan, BodyDriver.ExecEnv env) {
         var batch = env.verdictBatch();
         return batch == null ? plan : com.legend.sql.FrameCtes.attach(plan, batch.frames());
     }
@@ -109,7 +109,7 @@ final class JudgePlans {
 
     /** The database judge's statements as plans ({@link com.legend.exec.VerdictBatch.Runner}): a verdict statement's
      *  one row, or a fused batch's rows, decoded by the verdict schema. */
-    static com.legend.exec.VerdictBatch.Runner runner(StatementExecutor.ExecEnv env) {
+    static com.legend.exec.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.exec.VerdictBatch.Runner() {
             @Override
             public List<List<Object>> rows(SqlQuery statement, PlanSessions.Source on, boolean fused) {
@@ -126,29 +126,29 @@ final class JudgePlans {
 
     /**
      * A side's value as a plan's result (the host judge's sides, §6): the side planned as the legacy executor plans a
-     * verdict side, with no canon rider ({@link StatementExecutor#planHostSide}); a side the pipeline answers without
+     * verdict side, with no canon rider ({@link BodyDriver#planHostSide}); a side the pipeline answers without
      * a plan (a literal-only side the compiler folds, a host constant) is that answer, nothing sent. {@code identity}:
      * the identity lane (an assert-condition side whose in-SQL equality needs instance identity).
      * A side whose plan answers a DYNAMIC PIVOT's columns unnamed runs as a keyed plan (its keys read first,
      * {@link #tabular}); a cast over the pivot names them, and such a side is an ordinary relation (step 7).
      */
-    static ExecutionResult evalSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, boolean identity, boolean fold,
+    static TypedSide evalSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, boolean identity, boolean fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
-        StatementExecutor.PlannedValue pv = StatementExecutor.planHostSide(value, letPrefix, specs, env, identity,
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(value, letPrefix, specs, env, identity,
                 fold, hook);
-        StatementExecutor.WrappedSide side = pv.side();
+        BodyDriver.WrappedSide side = pv.side();
         if (side == null) {
             return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
         }
-        ExecutionResult result = sideResult(side, env);
+        TypedSide result = sideResult(side, env);
         // the engine's reader semantics for toOne() over a relation: exactly one row (the legacy executor's check)
         TypedSpec root = pv.root();
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
                 && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
                 && !tw.args().isEmpty() && Type.isRelation(tw.args().get(0).info().type())
-                && result instanceof ExecutionResult.Tabular tab && tab.rows().size() != 1) {
+                && result instanceof TypedSide.Tabular tab && tab.rows().size() != 1) {
             throw new IllegalStateException("toOne() over a relation returned " + tab.rows().size()
                     + " row(s) — the exactly-one contract (engine reader semantics)");
         }
@@ -157,7 +157,7 @@ final class JudgePlans {
 
     /** A planned side's result: its plan run by the runner, its rows decoded by the plan's types and shaped as the
      *  side's declared shape (the legacy executor's own shaping rules, read from the plan's facts instead of JDBC). */
-    static ExecutionResult sideResult(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    static TypedSide sideResult(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
         return result(w, env, true);
     }
 
@@ -165,14 +165,14 @@ final class JudgePlans {
      *  in the order its query gives -- the assert boundary's deterministic order is the assertion surface's feature,
      *  never an ordinary statement's (2026-10-27, the result boundary program's phase 5: a statement's VALUES rows
      *  have no scan key to order by). */
-    static ExecutionResult statementResult(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    static TypedSide statementResult(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
         return result(w, env, false);
     }
 
-    private static ExecutionResult result(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env,
+    private static TypedSide result(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
             boolean assertBoundary) {
         ExprType info = w.shapeInfo();
-        ExecutionResult result = sideResult0(w, env, assertBoundary);
+        TypedSide result = sideResult0(w, env, assertBoundary);
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the side's plan columns and the cells the decode gave, with their carriers
             StringBuilder sb = new StringBuilder("[side] " + w.shape() + " " + info.type().typeName() + " slots=");
@@ -190,11 +190,11 @@ final class JudgePlans {
         return result;
     }
 
-    private static ExecutionResult sideResult0(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env,
+    private static TypedSide sideResult0(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
             boolean assertBoundary) {
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
-            case GRAPH -> new ExecutionResult.Graph(objects(w, env), info.type());
+            case GRAPH -> new TypedSide.Graph(objects(w, env), info.type());
             case TABULAR -> tabular(w, env, assertBoundary);
             case SCALAR, COLLECTION -> values(w, env);
         };
@@ -203,7 +203,7 @@ final class JudgePlans {
     /** A graph fetch side's objects: its statement's one cell, the objects' JSON array as the database built it (the
      *  side's graph root), read as a typed value of one text column -- the plan asks the database for no output text
      *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
-    private static String objects(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    private static String objects(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
         SqlQuery plan = withFrames(w.plan(), env);
         List<OutputCol> outs = plan.outputs();
         if (outs.size() != 1) {
@@ -227,7 +227,7 @@ final class JudgePlans {
         };
     }
 
-    private static ExecutionResult tabular(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env,
+    private static TypedSide tabular(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
             boolean assertBoundary) {
         ExprType info = w.shapeInfo();
         SqlQuery plan = w.plan();
@@ -268,15 +268,15 @@ final class JudgePlans {
         for (List<Object> r : rows.rows()) {
             out.add(new Row(r));
         }
-        return new ExecutionResult.Tabular(columns, out, info.type());
+        return new TypedSide.Tabular(columns, out, info.type());
     }
 
     /** A side over a DYNAMIC PIVOT nothing names: its keyed plan ({@link PlanMaker#keyed}, the probe plan the server
      *  runs), its keys read first and its body written for them; each answered column typed by the schema -- a fixed
      *  one by its name, a per-key one by its aggregate's template -- and named as the plan names it (a generated
      *  name presented in its quotes, as the engine labels it). */
-    private static ExecutionResult keyed(SqlQuery plan, Type.RelationType schema, ExprType info,
-            StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    private static TypedSide keyed(SqlQuery plan, Type.RelationType schema, ExprType info,
+            BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
         SqlQuery framed = withFrames(plan, env);
         com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                 com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
@@ -306,7 +306,7 @@ final class JudgePlans {
         for (List<Object> r : rows.rows()) {
             out.add(new Row(r));
         }
-        return new ExecutionResult.Tabular(columns, out, info.type());
+        return new TypedSide.Tabular(columns, out, info.type());
     }
 
     /** A value root's rows in the VALUE lane's carrier: a timestamp slot's cell with its digits trimmed
@@ -340,7 +340,7 @@ final class JudgePlans {
      *  legacy executor's rules (a required root of no rows refuses; a scalar of two rows refuses; a null cell in a
      *  collection is the TDSNull value under a TDSNull root, a null slot on the Any and variant lanes, a lowering
      *  defect otherwise). */
-    private static ExecutionResult values(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
+    private static TypedSide values(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
         ExprType info = w.shapeInfo();
         Type type = info.type();
         PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env),
@@ -364,9 +364,9 @@ final class JudgePlans {
                 // the value IS a List (a List<T> instance is one value holding its list, as the legacy executor kept
                 // the decoded list; 2026-10-27, the result boundary program's phase 5: the plan's decode reads every
                 // array as a list, so the declared type decides)
-                return new ExecutionResult.Collection(new ArrayList<>(l), type);
+                return new TypedSide.Collection(new ArrayList<>(l), type);
             }
-            return new ExecutionResult.Scalar(v, type);
+            return new TypedSide.Scalar(v, type);
         }
         List<Object> values = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
@@ -394,6 +394,6 @@ final class JudgePlans {
                     + " values, below its declared lower bound " + lower
                     + " — NULL cells were dropped past the type's own contract");
         }
-        return new ExecutionResult.Collection(values, type);
+        return new TypedSide.Collection(values, type);
     }
 }

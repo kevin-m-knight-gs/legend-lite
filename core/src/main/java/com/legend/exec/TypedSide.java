@@ -7,12 +7,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The typed execution result — a sealed quartet, one variant per
- * {@link ResultShape}. Representation-identical to the engine module's
- * result types by design (PHASE_K_EXECUTION.md): the bridge re-wraps
- * field-by-field and owns no rules.
+ * THE JUDGES' COLLECTED SIDE of a statement (the result boundary program's track D, 2026-10-29; the old door's
+ * {@code ExecutionResult} until then, whose other role -- the product's materialized answer -- is gone: a product
+ * answer is a plan, written at the boundary): a sealed quartet, one variant per {@link ResultShape}, which the body
+ * driver's judges build to compare an assert's two sides, the SQL-text referee verifies, and the service test runner
+ * serializes for a service test's expectation. Never what a caller of the product receives.
  */
-public sealed interface ExecutionResult {
+public sealed interface TypedSide {
 
     /** The Pure-level result type. Never null. */
     Type returnType();
@@ -69,7 +70,7 @@ public sealed interface ExecutionResult {
 
     /** Single scalar value: {@code 1 + 1} → 2. */
     record Scalar(@com.legend.base.Nullable Object value, Type returnType)
-            implements ExecutionResult {
+            implements TypedSide {
         public Scalar {
             Objects.requireNonNull(returnType, "returnType");
         }
@@ -91,7 +92,7 @@ public sealed interface ExecutionResult {
     }
 
     /** A flat collection: N rows × 1 column flattened; {@code returnType} is the ELEMENT type. */
-    record Collection(List<Object> values, Type returnType) implements ExecutionResult {
+    record Collection(List<Object> values, Type returnType) implements TypedSide {
         public Collection {
             Objects.requireNonNull(values, "values");
             Objects.requireNonNull(returnType, "returnType");
@@ -115,7 +116,7 @@ public sealed interface ExecutionResult {
 
     /** Tabular result: full rows × typed columns (the relation surface). */
     record Tabular(List<Column> columns, List<Row> rows, Type returnType)
-            implements ExecutionResult {
+            implements TypedSide {
         public Tabular {
             Objects.requireNonNull(columns, "columns");
             Objects.requireNonNull(rows, "rows");
@@ -129,7 +130,7 @@ public sealed interface ExecutionResult {
     }
 
     /** Graph result: the json IS a well-formed JSON array built by the database. */
-    record Graph(String json, Type returnType) implements ExecutionResult {
+    record Graph(String json, Type returnType) implements TypedSide {
         public Graph {
             Objects.requireNonNull(returnType, "returnType");
         }

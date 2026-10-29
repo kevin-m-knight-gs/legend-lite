@@ -72,7 +72,7 @@ public final class VerdictBatch {
      * row FAILED — returns on a pass by another judgment (the SQL-text referee's
      * rows), raises its own failure otherwise. Never consulted on a held row. */
     public interface Appeal {
-        ExecutionResult appeal();
+        TypedSide appeal();
     }
 
     private record Resolved(RuntimeException failure) implements Step {

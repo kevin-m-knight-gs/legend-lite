@@ -424,7 +424,7 @@ public final class Lowerer {
                         overRow(scan, u.where(), "update", "its predicate"));
             }
             default -> throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
-                    + " (StatementExecutor dispatches only a write into a store table here)");
+                    + " (BodyDriver dispatches only a write into a store table here)");
         };
     }
 

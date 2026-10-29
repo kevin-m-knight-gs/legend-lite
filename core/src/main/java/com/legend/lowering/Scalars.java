@@ -1629,7 +1629,7 @@ final class Scalars {
                         ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                         : ListEncodings.orderedDedup(args.get(0)));
         // print/println inside an expression (map(r|println(...))): the
-        // NO-OP doctrine (StatementExecutor's print arm) — the value is
+        // NO-OP doctrine (BodyDriver's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and
         // drops with it (effectful args cannot type into scalar position)
         for (com.legend.model.FunctionId f : Pure.AT_IO_PRINT) {
