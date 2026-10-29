@@ -119,12 +119,61 @@ Reader rules added (the reader stays a reader of the product's output; the write
 | MultiplicityStrictnessTest | `collectionEgressLowerBoundRaisesOnZeroRows` | Pure's error "Cannot cast a collection of size 0 to multiplicity [1..*]" from the judges' value lane on `->toOneMany()` over no row | the plan path writes `[]`: no egress bound is enforced on it | the test keeps the judges' answer (`Program.last`); the plan path's silence is a DIVERGENCE from legend-pure, which raises at `toOneMany` (D46, queued to track F: the egress lower bound enforced on the plan path as Pure enforces it, or ruled) |
 | LegacyTextTest (6), ResolveDeepEmptinessProbeTest (`classRootedFrameRead`), RowLoadDuckDbTest (`systemSeedIsBulk`), the assert-arm, verdict, instance-identity and `executeInDb` files (AssertErrorNativeTest, AssertVerdictSpliceTest, AssertVerdictsTest, InstanceIdentityTest, LiteralChannelTest, AuditTier1PipelineTest, ExecuteFrameTest, ExecuteInDbDuckDbTest, ExecuteInDbProbeCountTest, Phase1AuditTest, RawGridSchemaDuckDbTest, PctFunctionSuppressionTest, JudgesOnPlansTest) | -- | the old door | `Program.last` / `Execution.runProgram`: bodies only the program entry runs (the SQL-text natives `toSQLString`, which the plan path refuses as a read of a store the storeless runtime binds no connection to; the router's `execute` frame in a let; a system metamodel store read, D44; the assert arms and the effect natives, which ARE the body driver's judging) | the user's rule: a test of a verdict reads what the platform judged; no value moved |
 | RowLoadH2Test | `declaredCsvTestDataLoadsOnItsDatabase` | the old door established the runtime's declared test data on the connection | `Lean.run` (the query service's route on a given connection, `Establish.AS_GIVEN`) found no table | rule 7: `Lean.established`, the engine-shaped API's route, which establishes; no value moved |
+| ResolveGraphUnionProbeTest, StructValueTest, AuditTier1PipelineTest, ExecuteInDbDuckDbTest, Phase1AuditTest | `namedSetRoute`; `mapOverInstanceList`; `nullCellToStringIsEmpty`; `multiStatementBlobWithKeywordColumns`; `columnNamesIsASchemaFact` | the old door's forms | the reader's list forms the script's `Row` regex had stripped (`r` for `r.values()`), an old-door `toString` containment (`rows=[Row[values=[2]]]`), and `one()` where the answer is no row | repaired to `r.values()`, the row's value (one row, its cell 2), `r.value()` (null for no row): no value moved. With the rows above these are the 16 that failed the first T-b2 run |
+| ConstantPlanParityTest, SubstrIndexingTest, ServerSessionsTest | the `scalar` helpers; the shape assertion | `assertTrue(r instanceof Scalar, "expected a scalar frame, got <class>")` | `assertEquals(Shape.VALUE, r.shape(), "expected a scalar frame")` then `one()` (one row of one column) | a helper's form and message (the audit's finding 10): value-equivalent |
 
-Not on the twin by design, left to track D (the census: 8 files, 23 lines): the judges' own vocabulary
-(`JudgesOnPlansTest` reads verdicts through `Execution.runProgram`; `AgreementArmTest` builds the arm's sides;
-`ConstantPlanParityTest` pins `LiteralFold`'s own result type), the guards' registers (`ArchitectureTest`,
-`JavaEvalLedgerTest`), two javadocs (`ExecutionResultIntegrationTest`, `StreamingIntegrationTest`), and `Lean.of`,
-the view of the body driver's side until D renames it.
+Not on the twin by design, left to track D (the census: 7 files, 21 lines): the judges' own vocabulary
+(`AgreementArmTest` builds the arm's sides; `ConstantPlanParityTest` pins `LiteralFold`'s own result type;
+`JudgesOnPlansTest` is off the census, its verdicts read through `Execution.runProgram`), the guards' registers
+(`ArchitectureTest`, `JavaEvalLedgerTest`), two javadocs (`ExecutionResultIntegrationTest`, `StreamingIntegrationTest`),
+and `Lean.of`, the view of the body driver's side until D renames it.
 
-**By the census** (`probes/old_door_census.py.txt`): at `9ca7482f` 101 files, 461 lines; after T-b2 and T-c 8 files,
-23 lines, every one named above.
+**By the census** (`probes/old_door_census.py.txt`): at `9ca7482f` 101 files, 461 lines; after T-b2 and T-c 7 files,
+21 lines, every one named above (the T-b2/T-c audit: the records first said 8 and 23, counting `JudgesOnPlansTest`,
+which this batch had already moved). The 94 files that left the old door between the two commits tile as: 76 in the
+eight named packages (root 9, exec 16, lowering 16, resolver 12, server 9 -- the five Postgres lanes' files, the two
+connection-lease tests, the project rows, the server sessions --, compiler/spec 5, normalizer 3, sql/dialect 3,
+compiler 2, compiler/element 1), 13 in integration (the six the first rule missed; the SQL, Cypher and native Cypher
+parity lanes' files; the IQ parity, IQ corpus and regress corpus lanes' files; `CypherWritePlansTest`), 5 harness
+files in testcases (`SqlParity`, `CypherParity`, `CypherValues`, `IqParity`, `ReservedNames`, with
+`SqlStressOnPostgres` the sixth changed there). The eleven per-lane targets whose files moved: `sql_parity_test`,
+`sql_parity_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `iq_corpus_test`, `pg_regress_corpus_test`,
+`cypher_parity_test`, `cypher_parity_native_test`, `cypher_parity_postgres_test`, `sql_island_postgres_test`,
+`postgres_arm_test`.
+
+## Batch T-d (2026-10-29): the twin's lanes -- core's integration tests on SQLite and H2, each held to its floor
+
+The twin runs per lane like PCT (the start page's track T, item 3): `-Dlegend.test.lane=<backend name>` makes
+`AbstractDatabaseTest.backend()` the lane's (`testing/LaneFloor.backend()`); the Bazel targets
+`//core:core_tests_integration_sqlite` and `//core:core_tests_integration_h2` (the suite `//core:core_tests_lanes`) set
+it. Every test is held to the lane's RECORDED floor, `core/src/test/resources/lanes/<lane>.txt` (`Class#method`, a tab,
+the reason): a listed test that fails passes the run and is printed; a listed test that PASSES fails the run, asking
+for its line to go; an unlisted failure fails the run. A listed test whose set-up fails is skipped, not run against a
+broken set-up. The floors are measurements (each line's reason the failure's own message, measured 2026-10-29), not
+judgments: a line moves only with its reason in the commit.
+
+| Lane | Tests | On the floor | The floor's weight, by cause (measured 2026-10-29) |
+|---|---|---|---|
+| the platform (DuckDB) | 2,232 | 0 | -- |
+| sqlite | 2,232 | 15 | the dialect's refusals (a windowed `ARG_MAX`/`ARG_MIN`, a `PIVOT`, `CURRENT_USER`, `year()`), an `ASOF JOIN` answer, three tests that assert the platform's SQL text (`LEFT JOIN LATERAL`, `UNNEST`, `PIVOT`) |
+| h2 | 2,232 | 169 | the dialect's refusals (fold and unnest encodings, `PIVOT`, `ARG_MAX`/`ARG_MIN`, `JARO_WINKLER_SIMILARITY`, bit operations, a signed 64-bit `hashCode`, `LIST_GET`), the same three SQL-text tests, two expected-error texts |
+
+Harness assumptions corrected so the floors measure the dialects, not the harness (no value moved): the UTC session
+statement (`SET timezone='UTC'`, DuckDB's syntax) runs on the platform's session only (`TypeInferenceIntegrationTest`,
+`ExecutionResultIntegrationTest`: 309 + 8 set-up failures on both lanes before); the connection text a test builds
+itself takes the lane's type and specification (`DynaFunctionIntegrationTest`, `RenderCsvIntegrationTest`: "the query
+executes on DuckDB but the session is <lane>", 35 before); a storeless runtime typed for the platform takes the lane's
+(`FoldCheckerTest.testMapReduceFoldThroughLetInlining`); a seed's `DATE '2001-02-03'` is the plain literal every
+database reads into a DATE column (`RenderCsvIntegrationTest`).
+
+**No MongoDB lane yet:** the integration base opens a JDBC session (`AbstractDatabaseTest.connection`), and the
+MongoDB backend has none -- measured 2026-10-29: every one of the 2,232 tests refused by that name. Its lane waits
+on the base class moving to the session seam (`Sessions.Session`), queued with track D's `connection` deletions.
+
+The start page's item 4 (the ~850 compile-only tests on the old door) is closed by T-b2 and T-c: by the census no
+test reaches the old door to compile or plan (7 files, 21 lines remain, every one track D's); a test of a refusal
+asserts on `Lean.run`'s planning, a test of SQL text on the plan's statement. The T-b2/T-c audit's nits landed with
+T-d: a display name the `Row` regex rewrote restored (`Phase1AuditTest`), two unused imports, the vestigial
+parentheses of the cast rewrite, a vacuous `assertNotNull` on the lease route replaced by the answer's shape and
+column (`ConnectionLeaseTest`), `SqlParity.grid`'s count arm reading `value()` (a to-one answer of no row is a null
+cell, as a `Scalar(null)` was), the JDBC decoder's own struct loop on the same identity-field rule.

@@ -37,8 +37,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
             st.execute("CREATE TABLE T_PERSON (ID INTEGER, NAME VARCHAR,"
                     + " NICK VARCHAR, DOB DATE)");
             st.execute("INSERT INTO T_PERSON VALUES"
-                    + " (1, 'Ann', 'The, Ann', DATE '2001-02-03'),"
-                    + " (2, 'Bob \"B\"', NULL, DATE '1999-12-31')");
+                    + " (1, 'Ann', 'The, Ann', '2001-02-03'),"
+                    + " (2, 'Bob \"B\"', NULL, '1999-12-31')");
         }
     }
 
@@ -60,15 +60,16 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                 id: [DB] T_PERSON.ID, name: [DB] T_PERSON.NAME,
                 nick: [DB] T_PERSON.NICK, dob: [DB] T_PERSON.DOB } )
             ###Connection
-            RelationalDatabaseConnection store::Conn { type: DuckDB;
-                specification: DuckDB { }; auth: Test; }
+            RelationalDatabaseConnection store::Conn { type: %s;
+                %s; }
             ###Runtime
             Runtime test::RT { mappings: [ test::M ];
                 connections: [ test::DB: [ environment: store::Conn ] ]; }
             """;
 
     private String csv(String query) throws SQLException {
-        Lean.Result r = Lean.run(MODEL, query, "test::RT", connection);
+        Lean.Result r = Lean.run(MODEL.formatted(backend().type(), backend().specificationAndAuth()), query,
+                "test::RT", connection);
         return r.one().toString();
     }
 

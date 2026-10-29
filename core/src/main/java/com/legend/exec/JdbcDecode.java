@@ -397,6 +397,9 @@ final class JdbcDecode {
         if (node instanceof Json.Obj o) {
             for (ExecutionPlan.Column f : fields) {
                 Json.Node fv = o.fields().get(f.name());
+                if (fv == null && com.legend.result.CellText.synthetic(f.name())) {
+                    continue;   // an identity field the JSON does not carry: not a null property (RowDecode's rule)
+                }
                 out.put(f.name(), fv == null ? null : com.legend.result.RowDecode.cell(fv, f));
             }
             return out;

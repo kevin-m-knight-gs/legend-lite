@@ -189,7 +189,7 @@ class MultiplicityStrictnessTest {
                     new Case("{| ['a','b']->filter(x|false)->head()->joinStrings('-') }", ""),
                     new Case("{| ['a','b']->filter(x|false)->head()->makeString() }", ""),
             }) {
-                Object got = (Lean.run(StorelessRuntime.with("", Databases.PLATFORM), k.q(), StorelessRuntime.RUNTIME, c)).one();
+                Object got = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), k.q(), StorelessRuntime.RUNTIME, c).one();
                 assertEquals(k.want(), got, k.q());
             }
         }

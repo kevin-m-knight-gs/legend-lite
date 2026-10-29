@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 
@@ -18,10 +18,10 @@ import java.util.List;
  * 
  * Uses Pure syntax for defining Class, Database, and Mapping.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 public abstract class AbstractDatabaseTest {
 
     protected Connection connection;
-    protected QueryService queryService = new QueryService();
 
     // ==================== Pure Definitions ====================
 
@@ -282,11 +282,13 @@ public abstract class AbstractDatabaseTest {
     // ====================
 
     /**
-     * The database this test runs on: the platform's own engine, unless a test named for a database says it is that
-     * database's (the dialect program's Phase 6, 2026-10-16).
+     * The database this test runs on: the lane's ({@link LaneFloor#LANE_PROPERTY}; a Bazel target beside PCT's,
+     * {@code //core:core_tests_integration_<lane>}, sets it, and holds the run to the lane's recorded floor), else
+     * the platform's own engine, unless a test named for a database says it is that database's (the dialect
+     * program's Phase 6, 2026-10-16).
      */
     protected TestBackend backend() {
-        return TestBackends.platform();
+        return LaneFloor.backend();
     }
 
     /**

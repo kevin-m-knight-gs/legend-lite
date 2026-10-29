@@ -97,7 +97,7 @@ class ExecuteFrameTest {
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->at(0);}");
-        assertEquals(3, (r).rows().size());
+        assertEquals(3, r.rows().size());
     }
 
     @Test
@@ -148,7 +148,7 @@ class ExecuteFrameTest {
         Lean.Result r = run("{| meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);}");
-        assertEquals(3, (r).rows().size());
+        assertEquals(3, r.rows().size());
     }
 
     @Test
@@ -158,6 +158,6 @@ class ExecuteFrameTest {
                 + "->project([p|$p.name], ['name'])};\n"
                 + "let r = meta::pure::router::execute($q, m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values;}");
-        assertEquals(3, (r).rows().size());
+        assertEquals(3, r.rows().size());
     }
 }

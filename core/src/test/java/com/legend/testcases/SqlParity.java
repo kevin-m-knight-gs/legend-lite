@@ -464,7 +464,7 @@ public final class SqlParity {
         Integer upper = result.columns().size() == 1 ? result.columns().get(0).multiplicity().upper() : null;
         if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE && upper != null && upper <= 1) {
             // (a statement that writes a table: its count of rows, as Postgres's update count is read)
-            return new Grid(List.of("count"), List.of(java.util.Collections.singletonList(cell(result.one()))));
+            return new Grid(List.of("count"), List.of(java.util.Collections.singletonList(cell(result.value()))));
         }
         List<String> columns = result.columns().stream().map(c -> c.name()).toList();
         List<List<Object>> rows = new ArrayList<>();

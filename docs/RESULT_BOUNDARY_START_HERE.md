@@ -427,10 +427,16 @@ floor. Census: `python3 -I docs/result-boundary-homework/probes/test_census.py.t
   parity harnesses and their eleven lane tests on the twin; `Lean.value()`, `Lean.service` (a new product entry,
   `QueryService.execute(..., sinkOf)`), `Lean.established`; `Program` typed as the old door types; the reader in
   `:test_cases` (the T-b gate's build failure fixed). Two product bugs the twin found, fixed in main: `Json.parse`'s
-  negative zero, `RowDecode`'s identity fields. By the census (`probes/old_door_census.py.txt`) 8 files, 23 lines remain,
+  negative zero, `RowDecode`'s identity fields. By the census (`probes/old_door_census.py.txt`) 7 files, 21 lines remain,
   every one track D's. Findings for F: the plan path's egress lower bound (Pure raises, the plan path writes `[]`: the
   user to rule), the metamodel-store route, the API's unflattened typed columns. Next: T-d (the per-lane targets for
   core's tests beside PCT's: DuckDB, SQLite, H2, MongoDB), then track D.
+- **T-d built 2026-10-29** (GATES, the T-d entry; the decisions log D47; the ledger, batch T-d): the twin per lane --
+  `testing/LaneFloor` holds each lane's run to its recorded floor (`core/src/test/resources/lanes/<lane>.txt`, which
+  only shrinks); `//core:core_tests_integration_sqlite` (15 on the floor) and `_h2` (169), in `//gates:core`; four
+  harness assumptions corrected, no value moved. No MongoDB lane yet (the base opens a JDBC session; MongoDB has
+  none): with track D's session-seam move. Item 4 (the compile-only tests) closed by T-b2/T-c. Track T is built; its
+  remaining item is Arrow's judge (track A). Next: track D.
 
 ### Track C. The corpus, channel B and the service tests on track B
 

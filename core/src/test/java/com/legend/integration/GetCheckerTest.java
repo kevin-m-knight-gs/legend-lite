@@ -2,7 +2,6 @@ package com.legend.integration;
 
 import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +33,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class GetCheckerTest {
 
     private Connection connection;
-    private final QueryService queryService = new QueryService();
 
     private static final String EVENT_DATABASE = """
             ###Relational

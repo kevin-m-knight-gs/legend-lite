@@ -1,0 +1,19 @@
+# THE SQLITE LANE'S FLOOR (track T, T-d): core's integration tests that fail on sqlite today, each with its measured reason
+# (<Class#method><TAB><reason>; the class without its package, a nested class with $). A line goes when its test passes
+# on the lane (the run says so); a line is added only with its reason in the commit. First measured 2026-10-29 at the
+# twin's T-d (docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md, batch T-d).
+AsOfJoinCheckerTest$MatchOnly#testAsOfJoinEmptyRight	measured 2026-10-29: ASOF JOIN with empty right produces no matches ==> expected: <0> but was: <2>
+DynaFunctionIntegrationTest$MiscFunctions#testCurrentUserId	measured 2026-10-29: CURRENT_USER_FN reached SQLite: SQLite has no users
+ExtendCheckerTest$BivariantExtend#testMaxBy	measured 2026-10-29: a windowed ARG_MAX reached SQLite
+ExtendCheckerTest$BivariantExtend#testMinBy	measured 2026-10-29: a windowed ARG_MIN reached SQLite
+ExtendCheckerTest$DateTimeExtend#testNow	measured 2026-10-29: [SQLITE_ERROR] SQL error or missing database (no such function: year)
+PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
+PivotCheckerTest$SingleColumnPivot#testComputedMultiplicationExpression	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
+PivotCheckerTest$SingleColumnPivot#testLiteralCountExpression	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
+PivotCheckerTest$SqlGeneration#testMultiColumnPivotSql	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
+PivotCheckerTest$SqlGeneration#testSingleColumnPivotSql	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
+RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayCrossProduct	measured 2026-10-29: Should use UNNEST for array access ==> expected: <true> but was: <false>
+RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayWithEmptyArray	measured 2026-10-29: Should use LEFT JOIN LATERAL for empty array support ==> expected: <true> but was: <false>
+TypeConversionCheckerTest$SqlGeneration#testPivotCastFilterSql	measured 2026-10-29: Should contain PIVOT keyword: SELECT t1.city AS city, t1."2011__|__total" AS "2011__|__total", t1."2012__|__total" AS "2
+TypeInferenceIntegrationTest#testHugeIntegerLiteralSubtraction	measured 2026-10-29: an integer past 64 bits has no SQLite value
+TypeInferenceIntegrationTest#testLargeIntegerMultiplication	measured 2026-10-29: an integer past 64 bits has no SQLite value

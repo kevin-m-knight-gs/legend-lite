@@ -91,19 +91,19 @@ class LiteralChannelTest {
     @DisplayName("kind rides the bytes: string '1' never equals integer 1,"
             + " float 1.0 never equals integer 1")
     void kindDisjointness() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertNotEquals([1, 'a'], ['1', 'a'])}")).one());
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertNotEquals([1, 'a'], [1.0, 'a'])}")).one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertNotEquals([1, 'a'], ['1', 'a'])}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertNotEquals([1, 'a'], [1.0, 'a'])}").one());
     }
 
     @Test
     @DisplayName("an Any scalar meets a TYPED side in the literal channel")
     void anyMeetsTyped() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertEquals('a', [1, 'a']->at(1))}")).one());
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertEquals(1, [1, 'a']->at(0))}")).one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals('a', [1, 'a']->at(1))}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals(1, [1, 'a']->at(0))}").one());
     }
 
     @Test
@@ -113,9 +113,9 @@ class LiteralChannelTest {
         long before = CanonicalDivergence.sqlDeclinedCount();
         // a JSON tree inside an Any cell (list of lists via map) —
         // host referee judges; the byte channel counts its decline
-        assertEquals(Boolean.TRUE, (run(
+        assertEquals(Boolean.TRUE, run(
                 "{|assertEquals([pair(1,'a')]->map(p|$p), "
-                        + "[pair(1,'a')]->map(p|$p))}")).one());
+                        + "[pair(1,'a')]->map(p|$p))}").one());
         assertTrue(CanonicalDivergence.sqlDeclinedCount() >= before,
                 CanonicalDivergence.summary());
     }

@@ -5,7 +5,6 @@ package com.legend.sql.dialect;
 
 import com.legend.testing.Program;
 
-
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;

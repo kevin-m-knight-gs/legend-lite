@@ -34,6 +34,13 @@ public interface TestBackend {
     /** Whether it runs in-process (the platform opens its own private instances of it), or is a server. */
     boolean inProcess();
 
+    /** The statements a test runs on a fresh session of this backend so the suite's answers are deterministic
+     *  (the platform's: its clock in UTC); none for a backend whose session takes the launcher's one zone (track T,
+     *  T-d, 2026-10-29: the decision is the backend's, never a test's). */
+    default java.util.List<String> sessionSetUp() {
+        return java.util.List.of();
+    }
+
     /** A NEW session for the platform's system database on this server (closing it closes it). An in-process backend
      *  has none: the platform opens its own private instance. */
     Connection openSystem() throws SQLException;

@@ -77,7 +77,7 @@ class UserCallInlinerTest {
     }
 
     private java.util.List<?> col(Lean.Result r) {
-        return (r).rows().stream()
+        return r.rows().stream()
                 .map(row -> row.get(0)).toList();
     }
 
@@ -215,9 +215,9 @@ class UserCallInlinerTest {
         assertTrue(String.valueOf(call.getMessage()).contains("m::sq")
                 && call.getMessage().contains("TypedUserCall"), call.getMessage());
         // read once, or drawn where it is written, it stands
-        assertEquals(true, (run("|let r = random(); $r < 1.0;")).one());
+        assertEquals(true, run("|let r = random(); $r < 1.0;").one());
         assertEquals(java.util.List.of(true, true, true),
                 col(run("m::Person.all()->project(~[v: p | m::once(random()) < 2.0])")));
-        assertEquals(true, (run("|random() < 1.0")).one());
+        assertEquals(true, run("|random() < 1.0").one());
     }
 }

@@ -127,7 +127,7 @@ class NullSemanticsTest {
         Lean.Result r = Lean.run(MODEL,
                 "{| m::A.all()->project([x|$x.street->endsWith('p'), x|$x.name],"
                         + " ['e','nm']);}", "m::RT", conn);
-        var rows = (r).rows();
+        var rows = r.rows();
         assertEquals(3, rows.size());
         for (var row : rows) {
             if ("c".equals(row.get(1))) {

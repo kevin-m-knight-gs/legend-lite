@@ -171,10 +171,10 @@ class StructValueTest {
     @Test
     @DisplayName("collection arithmetic: plus sums, minus left-folds, indexOf searches string lists")
     void collectionArithmeticAndSearch() throws SQLException {
-        assertEquals(6L, ((Number) (run("|[1, 2, 3]->plus()")).one()).longValue());
-        assertEquals(5L, ((Number) (run("|[10, 3, 2]->minus()")).one()).longValue());
-        assertEquals(24L, ((Number) (run("|[2, 3, 4]->times()")).one()).longValue());
-        assertEquals(1L, ((Number) (run("|['apple', 'banana']->indexOf('banana')")).one()).longValue(),
+        assertEquals(6L, ((Number) run("|[1, 2, 3]->plus()").one()).longValue());
+        assertEquals(5L, ((Number) run("|[10, 3, 2]->minus()").one()).longValue());
+        assertEquals(24L, ((Number) run("|[2, 3, 4]->times()").one()).longValue());
+        assertEquals(1L, ((Number) run("|['apple', 'banana']->indexOf('banana')").one()).longValue(),
                 "a String[*] source is LIST search, not strpos");
     }
 

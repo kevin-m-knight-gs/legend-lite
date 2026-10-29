@@ -514,8 +514,12 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 - **2026-10-29, track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product
   bugs fixed** (GATES, the T-b2/T-c entry; the decisions log D45, D46; the ledger): `Json.parse`'s negative zero and
   `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
-  sinkOf)`. 8 files, 23 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
+  sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
   egress lower bound). Next: T-d, then D.
+- **2026-10-29, track T, T-d: the twin's lanes** (GATES, the T-d entry; the decisions log D47; the ledger, batch T-d):
+  core's integration tests on SQLite (15 on its floor) and H2 (169), each lane a Bazel target in the core gate held to
+  its recorded floor (`testing/LaneFloor`); the MongoDB lane deferred to D's session-seam move. Track T built but for
+  Arrow's judge (A). Next: track D.
 - **2026-10-29, track C built: the corpus runner, the service test runner and channel B on `Execution.runProgram`**
   (GATES, the track C entry; the decisions log D39): the body typed once, the session the caller's, nothing
   materialized returned to the corpus runner or channel B; the referee keeps `ExecutionResult` as the judges' side

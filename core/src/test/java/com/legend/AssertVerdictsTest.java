@@ -71,14 +71,14 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("assertEquals: World-1 verdict over DB-computed sides")
     void assertEqualsVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertEquals('a', ['a','b']->head())}")).one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals('a', ['a','b']->head())}").one());
         // the World-1 comparisons the SQL world once needed hacks for:
         // empties, [x] vs x, mixed trees — all just work host-side
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertEquals([], [1,2]->filter(x|$x > 5))}")).one());
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertEquals([1,2], [1,2])}")).one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals([], [1,2]->filter(x|$x > 5))}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals([1,2], [1,2])}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals('a', ['a','b']->last())}"));
@@ -89,8 +89,8 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("native assert: condition computes in the database, verdict host-side")
     void nativeAssertVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|assert((1 + 1) == 2)}")).one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assert((1 + 1) == 2)}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assert((1 + 1) == 3)}"));
@@ -100,10 +100,10 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("assertInstanceOf: RUNTIME carrier kind up the m3 value lattice")
     void assertInstanceOfVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertInstanceOf(1 + 1, Integer)}")).one());
-        assertEquals(Boolean.TRUE, (run(
-                "{|assertInstanceOf(1.5, Number)}")).one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertInstanceOf(1 + 1, Integer)}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertInstanceOf(1.5, Number)}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertInstanceOf('x', Integer)}"));
@@ -115,10 +115,10 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("assertTdsEquivalent: the GRID verdict — relations execute in DB, cells zip host-side")
     void assertTdsEquivalentVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
+        assertEquals(Boolean.TRUE, run(
                 "{|assertTdsEquivalent(#TDS\n"
                 + "  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n"
-                + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}")).one());
+                + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
@@ -151,9 +151,9 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("quantified verdict: map(f|assert(pred)) vectorizes in SQL, judges host-side")
     void quantifiedVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, (run(
+        assertEquals(Boolean.TRUE, run(
                 "{|[1,2,3]->map(i|assert(['1','2','3']->contains($i->toString()),"
-                + " 'element missing'))}")).one());
+                + " 'element missing'))}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|[1,2,9]->map(i|assert(['1','2','3']->contains($i->toString()),"

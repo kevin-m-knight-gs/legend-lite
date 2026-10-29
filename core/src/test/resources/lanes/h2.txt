@@ -1,0 +1,173 @@
+# THE H2 LANE'S FLOOR (track T, T-d): core's integration tests that fail on h2 today, each with its measured reason
+# (<Class#method><TAB><reason>; the class without its package, a nested class with $). A line goes when its test passes
+# on the lane (the run says so); a line is added only with its reason in the commit. First measured 2026-10-29 at the
+# twin's T-d (docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md, batch T-d).
+AsOfJoinCheckerTest$MatchOnly#testAsOfJoinEmptyRight	measured 2026-10-29: ASOF JOIN with empty right produces no matches ==> expected: <0> but was: <2>
+ConcatenateFlattenCheckerTest$ConcatenateErrors#testConcatMismatchLeftExtra	measured 2026-10-29: Expected column mismatch error, got: Column count does not match; SQL statement:  SELECT * FROM (VALUES (1, 'Alice', 95)
+ConcatenateFlattenCheckerTest$ConcatenateErrors#testConcatMismatchRightExtra	measured 2026-10-29: Expected column mismatch error, got: Column count does not match; SQL statement:  SELECT * FROM (VALUES (1, 'Alice')) AS
+CorrelatedRelationCheckerTest#aCorrelatedMapToOneIsAScalarSubquery	measured 2026-10-29: Column "_tds0.id" not found; SQL statement:  SELECT "_tds0"."id" AS "id", (SELECT "t1"."value" AS "value" FROM ( SELECT 
+CorrelatedRelationCheckerTest#aRootMapToOneOverAWindowFilter	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+ExtendCheckerTest$BitwiseExtend#testBitAnd	measured 2026-10-29: BIT_AND reached a dialect without bit-op support
+ExtendCheckerTest$BitwiseExtend#testBitOr	measured 2026-10-29: BIT_OR reached a dialect without bit-op support
+ExtendCheckerTest$BitwiseExtend#testBitShiftLeft	measured 2026-10-29: BIT_SHIFT_LEFT reached a dialect without bit-op support
+ExtendCheckerTest$BitwiseExtend#testBitShiftRight	measured 2026-10-29: BIT_SHIFT_RIGHT reached a dialect without bit-op support
+ExtendCheckerTest$BitwiseExtend#testBitXor	measured 2026-10-29: BIT_XOR reached a dialect without bit-op support
+ExtendCheckerTest$BivariantExtend#testMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0".*, ARG_MAX("_tds0"."name", "_tds0"."score") OVER () AS "win
+ExtendCheckerTest$BivariantExtend#testMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0".*, ARG_MIN("_tds0"."name", "_tds0"."score") OVER () AS "los
+ExtendCheckerTest$ComparisonExtend#testGreatest	measured 2026-10-29: LIST_MAX reached a dialect without a list encoding
+ExtendCheckerTest$ComparisonExtend#testLeast	measured 2026-10-29: LIST_MIN reached a dialect without a list encoding
+ExtendCheckerTest$DateTimeExtend#testDateConstructor	measured 2026-10-29: Function "MAKE_DATE" not found; SQL statement:  SELECT "_tds0".*, make_date("_tds0"."yr", CASE WHEN "_tds0"."mon" < 1 OR
+ExtendCheckerTest$DateTimeExtend#testTimeBucket	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
+ExtendCheckerTest$MathExtend#testCbrt	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT "_tds0".*, cbrt("_tds0"."val") AS "cube" FROM (VALUES (27), (8)) AS "_
+ExtendCheckerTest$StringExtendAdvanced#testDecodeBase64	measured 2026-10-29: decodeBase64 reached H2, which has no from_base64()
+ExtendCheckerTest$StringExtendAdvanced#testEncodeBase64	measured 2026-10-29: encodeBase64 reached H2, which has no to_base64()
+ExtendCheckerTest$StringExtendAdvanced#testJaroWinkler	measured 2026-10-29: Function "JARO_WINKLER_SIMILARITY" not found; SQL statement:  SELECT "_tds0".*, jaro_winkler_similarity("_tds0"."a", "_t
+ExtendCheckerTest$StringExtendAdvanced#testLevenshteinDistance	measured 2026-10-29: Function "LEVENSHTEIN" not found; SQL statement:  SELECT "_tds0".*, levenshtein("_tds0"."a", "_tds0"."b") AS "d" FROM (V
+ExtendCheckerTest$StringExtendAdvanced#testReverseString	measured 2026-10-29: Function "REVERSE" not found; SQL statement:  SELECT "_tds0".*, reverse("_tds0"."str") AS "rev" FROM (VALUES ('hello')) 
+FoldCheckerTest#testMapReduceFoldThroughLetInlining	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$Chained#testFoldThenArithmetic	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$Chained#testFoldThenCompare	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$Chained#testFoldThenToString	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$CollectionBuild#testSlidingWindow	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+FoldCheckerTest$Concatenation#testEmptyListAndEmptyIdentity	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+FoldCheckerTest$EdgeCases#testAllZeros	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$EdgeCases#testCustomParamNames	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$EdgeCases#testLargeListSum	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$EdgeCases#testMultiplyWithLargeInit	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$EdgeCases#testNegativeNumbers	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$EdgeCases#testWordLengthCount	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$MapReduce#testFoldFromVariant	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$MapReduce#testFoldFromVariantAsPrimitive	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$MapReduce#testFoldStructToString	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$MapReduce#testStringLengthSum	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$MapReduce#testStringLengthSumZeroInit	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testFloatSum	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testIntegerProduct	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testIntegerSumWithInit	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testIntegerSumZeroInit	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testIntegerWithExtraArithmetic	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testSingleElement	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testSingleElementWithInit	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testStringConcat	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testStringConcatWithPrefix	measured 2026-10-29: fold reached a dialect without a fold encoding
+FoldCheckerTest$SameType#testSubtractionFold	measured 2026-10-29: fold reached a dialect without a fold encoding
+GroupByCheckerTest$RowMapperAggregates#testMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MAX("_tds0"."name", "_tds0"."employeeNu
+GroupByCheckerTest$RowMapperAggregates#testMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MIN("_tds0"."name", "_tds0"."employeeNu
+PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
+PivotCheckerTest$SingleColumnPivot#testComputedMultiplicationExpression	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
+PivotCheckerTest$SingleColumnPivot#testLiteralCountExpression	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
+PivotCheckerTest$SqlGeneration#testMultiColumnPivotSql	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
+PivotCheckerTest$SqlGeneration#testSingleColumnPivotSql	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
+RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayCrossProduct	measured 2026-10-29: Should use UNNEST for array access ==> expected: <true> but was: <false>
+RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayWithEmptyArray	measured 2026-10-29: Should use LEFT JOIN LATERAL for empty array support ==> expected: <true> but was: <false>
+ScalarFunctionIntegrationTest#testBitAnd	measured 2026-10-29: BIT_AND reached a dialect without bit-op support
+ScalarFunctionIntegrationTest#testBitOr	measured 2026-10-29: BIT_OR reached a dialect without bit-op support
+ScalarFunctionIntegrationTest#testBitShiftLeft	measured 2026-10-29: BIT_SHIFT_LEFT reached a dialect without bit-op support
+ScalarFunctionIntegrationTest#testBitShiftRight	measured 2026-10-29: BIT_SHIFT_RIGHT reached a dialect without bit-op support
+ScalarFunctionIntegrationTest#testBitXor	measured 2026-10-29: BIT_XOR reached a dialect without bit-op support
+ScalarFunctionIntegrationTest#testCbrtSimple	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT cbrt(27.0) AS "value" [90022-214]
+ScalarFunctionIntegrationTest#testHash	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
+ScalarFunctionIntegrationTest#testLevenshteinDistance	measured 2026-10-29: Function "LEVENSHTEIN" not found; SQL statement:  SELECT levenshtein('hello', 'hallo') AS "value" [90022-214]
+ScalarFunctionIntegrationTest#testPctCbrt0	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT cbrt(0) AS "value" [90022-214]
+ScalarFunctionIntegrationTest#testPctCbrtEval27	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT cbrt(27) AS "value" [90022-214]
+ScalarFunctionIntegrationTest#testPctHashCode	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
+ScalarFunctionIntegrationTest#testPctJaroWinklerDiff	measured 2026-10-29: Function "JARO_WINKLER_SIMILARITY" not found; SQL statement:  SELECT jaro_winkler_similarity('John Smith', 'Jane Smith')
+ScalarFunctionIntegrationTest#testPctJaroWinklerSame	measured 2026-10-29: Function "JARO_WINKLER_SIMILARITY" not found; SQL statement:  SELECT jaro_winkler_similarity('John Smith', 'John Smith')
+ScalarFunctionIntegrationTest#testReverseString	measured 2026-10-29: Function "REVERSE" not found; SQL statement:  SELECT reverse('hello') AS "value" [90022-214]
+ScalarFunctionIntegrationTest#testSplitSimple	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+StructFilterIntegrationTest#testExistsInSelectFilterLegalName	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+StructFilterIntegrationTest#testExistsInSelectFilterLegalNameP3	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+StructFilterIntegrationTest#testExistsInSelectFilterNoMatch	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+StructFilterIntegrationTest#testStructFilterSimpleProperty	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeConversionCheckerTest$SqlGeneration#testPivotCastFilterSql	measured 2026-10-29: Should contain PIVOT keyword: SELECT "t1"."city" AS "city", "t1"."2011__|__total" AS "2011__|__total", "t1"."2012__|__to
+TypeInferenceIntegrationTest#anyAudit_T1_path5_classTypeParamWithClassDefs	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#anyAudit_T2_path6_nestedStructProperty	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#anyAudit_T2b_path6_nestedStructValAccess	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#anyAudit_T4_projectColumnType	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testAddToList	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testAddToListWithOffset	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testAsciiEmptyChar	measured 2026-10-29: Scalar value should not be null ==> expected: not <null>
+TypeInferenceIntegrationTest#testAverageMixedNumbers	measured 2026-10-29: LIST_AVG reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testBitShiftLeft46Bits	measured 2026-10-29: BIT_SHIFT_LEFT reached a dialect without bit-op support
+TypeInferenceIntegrationTest#testCastEmptyArrayToInteger	measured 2026-10-29: LIST_MAX reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testConcatenateHeterogeneousStructs	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testContainsStructReturnsTrue	measured 2026-10-29: collection membership reached a dialect without a list encoding [collection: Call LIST_TRANSFORM]
+TypeInferenceIntegrationTest#testContainsWithFunction	measured 2026-10-29: a struct extraction reached a dialect without struct support
+TypeInferenceIntegrationTest#testDateFromSubSecondPrecision	measured 2026-10-29: a date-time constructor reached H2, which has no make_timestamp()
+TypeInferenceIntegrationTest#testDecodeBase64	measured 2026-10-29: decodeBase64 reached H2, which has no from_base64()
+TypeInferenceIntegrationTest#testDecodeBase64NoPadding	measured 2026-10-29: decodeBase64 reached H2, which has no from_base64()
+TypeInferenceIntegrationTest#testDecodeBase64RoundTrip	measured 2026-10-29: decodeBase64 reached H2, which has no from_base64()
+TypeInferenceIntegrationTest#testDropNegative	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testEmptySetCollectionOps	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testExistsOnStructArray	measured 2026-10-29: collection exists reached a dialect without a list-predicate encoding
+TypeInferenceIntegrationTest#testFindLiteral	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testFindOnStructArrayReturnsMap	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testFoldCollectionAccumulator_WithIfSizeTail	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testFoldEmptyListAndEmptyIdentity	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testFoldFromVariantAsPrimitive	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldIntegerSumWithInitialValue	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldIntegerSumZeroInit	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldIntegerWithExtraArithmetic	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldMixedAccumulatorTypes	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldOnStructListWithStringAccumulator	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldStringConcat	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFoldStringConcatWithPrefix	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testFold_FromVariant	measured 2026-10-29: fold reached a dialect without a fold encoding
+TypeInferenceIntegrationTest#testForAllFalse	measured 2026-10-29: collection forAll reached a dialect without a list-predicate encoding
+TypeInferenceIntegrationTest#testForAllOnEmptySet	measured 2026-10-29: collection forAll reached a dialect without a list-predicate encoding
+TypeInferenceIntegrationTest#testForAllTrue	measured 2026-10-29: collection forAll reached a dialect without a list-predicate encoding
+TypeInferenceIntegrationTest#testFormatDateIsoWithTimezone	measured 2026-10-29: minimal-fraction date format reached a dialect without a trim-zeros token
+TypeInferenceIntegrationTest#testFormatDateIsoWithXTimezone	measured 2026-10-29: minimal-fraction date format reached a dialect without a trim-zeros token
+TypeInferenceIntegrationTest#testFormatFloatSubstitution	measured 2026-10-29: format specifier '%.' reached H2, which has no printf — only %d / %s concatenate
+TypeInferenceIntegrationTest#testGroupByMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MAX("_tds0"."name", "_tds0"."employeeNu
+TypeInferenceIntegrationTest#testGroupByMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MIN("_tds0"."name", "_tds0"."employeeNu
+TypeInferenceIntegrationTest#testHashCodeAggregate	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
+TypeInferenceIntegrationTest#testHashCodeReturnsInteger	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
+TypeInferenceIntegrationTest#testHeadComplex	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testIndexOfList	measured 2026-10-29: LIST_POSITION reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testInstanceArrayWithMap	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testInstanceEquality	measured 2026-10-29: a struct extraction reached a dialect without struct support
+TypeInferenceIntegrationTest#testIsEmptyOnStructField	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testJoinStringsNoStrings	measured 2026-10-29: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testJoinStringsNoStringsPrefixSuffix	measured 2026-10-29: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testListCorr	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testListCovarPopulation	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testListMedian	measured 2026-10-29: LIST_MEDIAN reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testListMode	measured 2026-10-29: LIST_MODE reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testListVariancePopulation	measured 2026-10-29: collection reduction 'VAR_POP' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testListVarianceSample	measured 2026-10-29: collection reduction 'VAR_SAMP' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testMapOnStructListWithAtOnScalarProperties	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testMaxBy_LargerList	measured 2026-10-29: a struct extraction reached a dialect without struct support
+TypeInferenceIntegrationTest#testMaxBy_Simple	measured 2026-10-29: a struct extraction reached a dialect without struct support
+TypeInferenceIntegrationTest#testMaxBy_TopK	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testMaxNoArgs	measured 2026-10-29: LIST_MAX reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testMinBy_LargerList	measured 2026-10-29: a struct extraction reached a dialect without struct support
+TypeInferenceIntegrationTest#testMinBy_Simple	measured 2026-10-29: a struct extraction reached a dialect without struct support
+TypeInferenceIntegrationTest#testMinBy_TopK	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testMinNoArgs	measured 2026-10-29: LIST_MIN reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testMinNumbers	measured 2026-10-29: LIST_POSITION reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testNullableComparisonWithVariantTo	measured 2026-10-29: Data conversion error converting "JSON to BIGINT"; SQL statement:  SELECT "_tds0"."id" AS "id", "_tds0"."value" AS "valu
+TypeInferenceIntegrationTest#testParseDateNoFormat	measured 2026-10-29: Function "TIMEZONE" not found; SQL statement:  SELECT timezone('UTC', CAST('2014-02-27T10:01:35.231+0000' AS TIMESTAMPTZ
+TypeInferenceIntegrationTest#testParseDateWithTimezone	measured 2026-10-29: Function "TIMEZONE" not found; SQL statement:  SELECT timezone('UTC', CAST('2014-02-27T10:01:35.231-0500' AS TIMESTAMPTZ
+TypeInferenceIntegrationTest#testPercentileContinuousOnList	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testPercentileContinuousOnListQuartile	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testPercentile_Continuous	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testPercentile_Descending	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testPercentile_Discrete	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testSliceNegativeStart	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testSortDescending	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testSortWithKeyFunction	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testTakeNegative	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testTimeBucketDateTime	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
+TypeInferenceIntegrationTest#testTimeBucketDateTime2Weeks	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
+TypeInferenceIntegrationTest#testTimeBucketStrictDate1Day	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
+TypeInferenceIntegrationTest#testTimeBucketStrictDate2Days	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
+TypeInferenceIntegrationTest#testTimeBucketStrictDate2Weeks	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
+TypeInferenceIntegrationTest#testVariancePopulation	measured 2026-10-29: collection reduction 'VAR_POP' reached a dialect without a list encoding
+TypeInferenceIntegrationTest#testVariantMapsToJson	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+TypeInferenceIntegrationTest#testZipBothListsAreOfPairs	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testZipBothListsSameLength	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testZipFirstListLonger	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testZipFirstListsIsOfPairs	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testZipSecondListLonger	measured 2026-10-29: a struct literal reached a dialect without struct support
+TypeInferenceIntegrationTest#testZipSecondListsIsOfPairs	measured 2026-10-29: a struct literal reached a dialect without struct support

@@ -5,7 +5,6 @@ package com.legend.resolver;
 
 import com.legend.testing.Program;
 
-
 import com.legend.testbackend.TestBackends;
 import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.AfterAll;

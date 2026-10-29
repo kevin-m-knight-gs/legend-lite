@@ -26,8 +26,11 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
     @BeforeEach
     void setUp() throws SQLException {
         connection = backend().open();
+        // the backend's own session set-up (the platform's: UTC)
         try (var stmt = connection.createStatement()) {
-            stmt.execute("SET timezone='UTC'");
+            for (String sql : backend().sessionSetUp()) {
+                stmt.execute(sql);
+            }
         }
         setupDatabase();
     }

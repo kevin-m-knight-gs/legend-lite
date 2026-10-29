@@ -1,0 +1,178 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.testing;
+
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.InvocationInterceptor;
+import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * THE LANE'S FLOOR (the result boundary program's track T, T-d, 2026-10-29): core's integration tests run on each
+ * database beside PCT's lanes. A run names its lane by the system property {@link #LANE_PROPERTY} (a backend's name,
+ * {@link TestBackends#named}: {@code sqlite}, {@code h2}, {@code mongodb}, ...; unset, the platform's own engine, and
+ * nothing here applies). On a lane, every test is held to the lane's RECORDED floor, the classpath resource
+ * {@code lanes/<lane>.txt}: one line per test that fails on that lane today, {@code Class#method} (the class without
+ * its package, a nested class with {@code $}; a parameterized invocation {@code Class#method[its display name]}), a
+ * tab, the reason (a dialect gap, a database's own rule, a defect by its register row). A listed test that fails
+ * passes the run, printed; a listed test that PASSES fails the run, asking for its line to go (the floor only
+ * shrinks); a failing test the floor does not list fails the run, as on the platform. The floor is a measurement,
+ * never a judgment: a line moves only with the reason in the commit (AGENTS.md: a ceiling, pin or allowlist entry
+ * moves only with a dated justification).
+ */
+public final class LaneFloor implements InvocationInterceptor {
+
+    /** The system property that names the lane; unset, the platform's own engine. */
+    public static final String LANE_PROPERTY = "legend.test.lane";
+
+    private static final Map<String, Map<String, String>> FLOORS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace.create(LaneFloor.class);
+    private static final String SET_UP_FAILED = "set-up failed";
+
+    /** The lane's name, or null on the platform's lane. */
+    public static @com.legend.base.Nullable String lane() {
+        String lane = System.getProperty(LANE_PROPERTY);
+        return lane == null || lane.isBlank() ? null : lane;
+    }
+
+    /** The lane's backend: the one {@link #LANE_PROPERTY} names, else the platform's. */
+    public static TestBackend backend() {
+        String lane = lane();
+        return lane == null ? TestBackends.platform() : TestBackends.named(lane);
+    }
+
+    @Override
+    public void interceptTestMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext,
+            ExtensionContext extensionContext) throws Throwable {
+        judge(invocation, key(extensionContext, false), extensionContext);
+    }
+
+    @Override
+    public void interceptTestTemplateMethod(Invocation<Void> invocation,
+            ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
+        judge(invocation, key(extensionContext, true), extensionContext);
+    }
+
+    /** A listed test's set-up may be what fails on the lane (a table the dialect cannot create): on the floor too. */
+    @Override
+    public void interceptBeforeEachMethod(Invocation<Void> invocation,
+            ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
+        around(invocation, extensionContext, "set-up");
+    }
+
+    @Override
+    public void interceptAfterEachMethod(Invocation<Void> invocation,
+            ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
+        around(invocation, extensionContext, "tear-down");
+    }
+
+    private static void around(Invocation<Void> invocation, ExtensionContext ctx, String what) throws Throwable {
+        String lane = lane();
+        String key = ctx.getTestMethod().isPresent() ? key(ctx, ctx.getTestMethod().get().isAnnotationPresent(
+                org.junit.jupiter.params.ParameterizedTest.class)) : null;
+        String reason = lane == null || key == null ? null : floor(lane).get(key);
+        if (reason == null) {
+            invocation.proceed();
+            return;
+        }
+        try {
+            invocation.proceed();
+        } catch (Throwable t) {
+            if (what.equals("set-up")) {
+                ctx.getStore(NAMESPACE).put(SET_UP_FAILED, true);
+            }
+            System.out.println("[lane " + lane + "] on the floor, its " + what + ": " + key + " (" + reason + "): "
+                    + t.getClass().getSimpleName() + ": " + excerpt(t));
+        }
+    }
+
+    private static String excerpt(Throwable t) {
+        String message = String.valueOf(t.getMessage());
+        return message.length() > 200 ? message.substring(0, 200) + "..." : message;
+    }
+
+    /** {@code Class#method}, the class without its package; an invocation of a template with its display name. */
+    static String key(ExtensionContext ctx, boolean invocation) {
+        String cls = ctx.getRequiredTestClass().getName();
+        int dot = cls.lastIndexOf('.');
+        String name = cls.substring(dot + 1) + "#" + ctx.getRequiredTestMethod().getName();
+        return invocation ? name + "[" + ctx.getDisplayName() + "]" : name;
+    }
+
+    private static void judge(Invocation<Void> invocation, String key, ExtensionContext ctx) throws Throwable {
+        String lane = lane();
+        if (lane == null) {
+            invocation.proceed();
+            return;
+        }
+        String reason = floor(lane).get(key);
+        if (reason == null) {
+            invocation.proceed();
+            return;
+        }
+        if (ctx.getStore(NAMESPACE).get(SET_UP_FAILED) != null) {
+            // its set-up failed on the floor: the test is not run against a broken set-up (which would pass or fail
+            // for the wrong reason); it stays on the floor until its set-up passes here
+            invocation.skip();
+            return;
+        }
+        try {
+            invocation.proceed();
+        } catch (Throwable t) {
+            // on the floor: the run passes; said, so a run's log shows the floor's weight
+            System.out.println("[lane " + lane + "] on the floor: " + key + " (" + reason + "): "
+                    + t.getClass().getSimpleName() + ": " + excerpt(t));
+            return;
+        }
+        throw new AssertionError("the lane's floor shrinks: " + key + " passes on " + lane + " now (the floor said: "
+                + reason + "); remove its line from lanes/" + lane + ".txt, with the reason in the commit");
+    }
+
+    /** The lane's floor, read once: a lane with no file has an empty floor (every failure fails the run). */
+    static Map<String, String> floor(String lane) {
+        return FLOORS.computeIfAbsent(lane, LaneFloor::read);
+    }
+
+    private static Map<String, String> read(String lane) {
+        Map<String, String> floor = new LinkedHashMap<>();
+        try (InputStream in = LaneFloor.class.getResourceAsStream("/lanes/" + lane + ".txt")) {
+            if (in == null) {
+                return floor;
+            }
+            BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            String line;
+            int n = 0;
+            while ((line = r.readLine()) != null) {
+                n++;
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                int tab = line.indexOf('\t');
+                if (tab < 0) {
+                    throw new IllegalStateException("lanes/" + lane + ".txt line " + n + ": '<Class#method><TAB><reason>'"
+                            + " expected, got '" + line + "'");
+                }
+                String key = line.substring(0, tab).trim();
+                if (floor.put(key, line.substring(tab + 1).trim()) != null) {
+                    throw new IllegalStateException("lanes/" + lane + ".txt line " + n + ": " + key + " listed twice");
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return floor;
+    }
+}

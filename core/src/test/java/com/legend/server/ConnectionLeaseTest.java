@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.sql.Connection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -110,9 +109,11 @@ class ConnectionLeaseTest {
     void allFour() throws Exception {
         String query = "|model::Person.all()->project(~[name: p|$p.firstName])";
 
-        // 1. execute(pureSource, query, runtimeName) — QueryService:81
-        assertNotNull(Lean.service(duckModel, query, "test::TestRuntime"),
-                "3-arg execute returned no result");
+        // 1. the service's own route with no caller's connection (QueryService.execute(model, query, runtime, sinkOf),
+        //    the route its format door rides): the runtime's connection leased
+        Lean.Result leased = Lean.service(duckModel, query, "test::TestRuntime");
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, leased.shape());
+        assertEquals("name", leased.columns().get(0).name(), String.valueOf(leased));
 
         // 2. pure/v1 execute (E8) — PureV1Api.execute leases the runtime's connection
         String lambda = PureV1Api.grammarToJsonLambda(query, false).json();

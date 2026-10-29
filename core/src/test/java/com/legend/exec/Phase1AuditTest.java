@@ -58,7 +58,7 @@ class Phase1AuditTest {
     }
 
     @Test
-    @DisplayName("Pin 1: bare .rows = real List<Object> objects, real cells, NULL-first-column included")
+    @DisplayName("Pin 1: bare .rows = real Row objects, real cells, NULL-first-column included")
     void bareRowsAreRealRows() throws Exception {
         Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("

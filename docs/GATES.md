@@ -15783,3 +15783,30 @@ decisions log D45, D46; the ledger `docs/result-boundary-homework/T_EXPECTATIONS
    whole per-commit chain green BEFORE the commit this time (T-b's gate ran its last group after, and missed a build
    failure).
 3. **Not measured:** the lanes.
+
+## 2026-10-29 — Track T, T-d: the twin's lanes (SQLite, H2) held to their floors; the T-b2/T-c audit's fixes
+
+The result boundary program's track T, last batch but Arrow's (docs/RESULT_BOUNDARY_START_HERE.md, track T; the
+decisions log D47; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-d).
+
+1. **Built:** `testing/LaneFloor` (a JUnit extension on `AbstractDatabaseTest`: the lane by `-Dlegend.test.lane`, the
+   run held to the lane's recorded floor `src/test/resources/lanes/<lane>.txt`, which only shrinks; a floored test
+   whose set-up fails is skipped); `//core:core_tests_integration_sqlite` and `_h2`, the suite `//core:core_tests_lanes`
+   in `//gates:core`; the backend's own session set-up (`TestBackend.sessionSetUp`: DuckDB's UTC statement, named by its
+   owner alone -- the census's `DialectLeakRatchetTest` caught the two tests that named the database themselves); four
+   harness assumptions in the integration tests corrected, no value moved; the T-b2/T-c audit's fixes (the records'
+   7-files-21-lines, the tiling of the 94 files, the 16 first-run failures all named; a display name restored, unused
+   imports, the cast rewrite's parentheses, the lease test's vacuous assertion, `SqlParity.grid`'s count arm,
+   `JdbcDecode`'s struct loop on the identity-field rule, a `//json` pin of negative zero; the audit's finding 12, the
+   writer's token node holding a BigDecimal's double, stays: the writer emits the token text and nothing compares the
+   node, and the writer-carriage guard refuses a `Double.parseDouble` in a writer by design). No MongoDB lane (the
+   base opens a JDBC session; MongoDB has none).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests`, `//core:core_tests_lanes` (the platform 2,232 of 2,232; sqlite 2,232 with 15 on its floor; h2
+   2,232 with 169), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four
+   DuckDB parity lanes 36 of 36; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2` 12 of 12; the 21 PCT lanes 21 of 21; `//datacube:python_execute_test` passes; the product
+   job's guard (`tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)`) empty. Two guards caught drift
+   on the way: `DialectLeakRatchetTest` (a database named by two tests themselves: moved into its owner,
+   `TestBackend.sessionSetUp`) and `WriterCarriageGuardTest` (a `Double.parseDouble` in a writer: reverted).
+3. **Not measured:** the lanes.

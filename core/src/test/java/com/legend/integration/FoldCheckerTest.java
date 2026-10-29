@@ -59,7 +59,7 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
         // ("a scalar query has no row scope for $p.lastName"). CLOSED
         // strategy lambdas make the walker's own α-hygiene reach them.
         String model = "Class my::P { firstName: String[1]; lastName: String[1]; }";
-        var r = Lean.run(com.legend.test.StorelessRuntime.with(model, Databases.PLATFORM),
+        var r = Lean.run(com.legend.test.StorelessRuntime.with(model, backend().type()),
                 "{|let people = [^my::P(firstName='Pierre', lastName='Doe'),"
                         + " ^my::P(firstName='Kevin', lastName='RoeDoe')];"
                         + " $people->fold({p, s | $s + '; ' + $p.lastName->at(0)"

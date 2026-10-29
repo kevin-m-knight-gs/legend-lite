@@ -336,7 +336,7 @@ public final class CellText {
     private static final String SYNTHETIC_CANON = "__canon";
 
     /** Whether {@code field} is one of the identity fields an object carries through the database. */
-    static boolean synthetic(String field) {
+    public static boolean synthetic(String field) {
         return field.equals(SYNTHETIC_ID) || field.equals(SYNTHETIC_TYPE) || field.equals(SYNTHETIC_CANON);
     }
 

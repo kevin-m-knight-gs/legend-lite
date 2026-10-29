@@ -48,7 +48,7 @@ class MissingValueInComputedColumnTest {
             st.execute("INSERT INTO T VALUES (1, 'a', 5), (2, NULL, NULL)");
         }
         Lean.Result r = Lean.run(model(type), query, "h5::RT", conn);
-        return (r).rows();
+        return r.rows();
     }
 
     private static void probe(Connection conn, TestBackend type) throws Exception {

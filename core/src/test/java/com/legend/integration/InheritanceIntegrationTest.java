@@ -2,7 +2,6 @@ package com.legend.integration;
 
 import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -31,7 +30,6 @@ class InheritanceIntegrationTest {
     class EndToEndTests {
 
         private Connection connection;
-        private QueryService queryService;
 
         /**
          * Complete Pure model with inheritance hierarchy:
@@ -130,7 +128,6 @@ class InheritanceIntegrationTest {
         @BeforeEach
         void setUp() throws Exception {
             connection = TestBackends.platform().open();
-            queryService = new QueryService();
 
             // Create table with all columns (including inherited)
             try (Statement stmt = connection.createStatement()) {
