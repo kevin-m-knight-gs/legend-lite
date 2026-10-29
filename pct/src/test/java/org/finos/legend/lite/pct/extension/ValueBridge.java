@@ -35,7 +35,7 @@ import java.util.Map;
 
 /**
  * THE OUTBOUND BIJECTION (the permanent piece of the derived minimum,
- * ADAPTER_NECESSITY_CENSUS §5b): the platform's typed ExecutionResult
+ * ADAPTER_NECESSITY_CENSUS §5b): the platform's typed TypedSide
  * values become the reference interpreter's CoreInstances — one arm
  * per entry of the platform's CLOSED egress vocabulary, keyed on the
  * VALUE's class, with identity LOOKUPS where the interpreter's

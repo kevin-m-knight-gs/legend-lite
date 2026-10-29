@@ -47,7 +47,7 @@ text                                                            [FRONTEND]
                                                                 [BACKEND]
   ──▶  sql/dialect/  SqlDialect.render(SqlQuery)                  SqlQuery → SQL string
                                                                 [RUNTIME]
-  ──▶  exec/         Executor                                    SQL string + JDBC → ExecutionResult
+  ──▶  exec/         PlanRunner (+ result/ the writers)           a plan + a session → typed rows to a sink
 ```
 
 | # | Step | Package | Driver | Output |
@@ -64,7 +64,7 @@ text                                                            [FRONTEND]
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
 | J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2`→`H2Modern`, `EngineStyle*` | SQL string |
-| K | execute | `exec/` | `Executor` | typed `ExecutionResult` |
+| K | execute | `exec/`, `result/` | `PlanRunner`, the writers | typed rows to a sink, each cell spelled at the boundary (the old door's `Executor`/`ExecutionResult` deleted 2026-10-27 and 2026-10-29) |
 
 Wired by `com.legend.Compiler.compile(...)`.
 
@@ -222,7 +222,7 @@ Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
 2. **No `util/` package.** `[ENFORCED — ArchitectureTest:66]`
 3. **Sealed everywhere a hierarchy exists.** `PackageableElement`,
    `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `SqlQuery`,
-   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `ExecutionResult`.
+   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `TypedSide` (the judges' side; `ExecutionResult` until 2026-10-29).
    `[CONVENTION]` — no sealed-or-final test exists.
    *(This entry previously named `Rel`, `ScalarOp`, `Dialect`, `NativeChecker`
    and `BindRule`, none of which exist in core.)*

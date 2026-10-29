@@ -3,7 +3,7 @@
 
 package com.legend.harness;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -340,7 +340,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             java.util.@com.legend.base.Nullable List<String> seeds,
             java.util.@com.legend.base.Nullable List<String> extraSeeds,
             String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
@@ -391,7 +391,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     public static @com.legend.base.Nullable String verifyAuto(Connection session,
             java.util.@com.legend.base.Nullable List<String> seeds,
             java.util.@com.legend.base.Nullable List<String> extraSeeds,
-            String goldenSql, ExecutionResult ours,
+            String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts)
@@ -409,7 +409,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * compares against our rows exactly like the replay path.
      */
     public static @com.legend.base.Nullable String verifyOnSession(
-            Connection session, String goldenSql, ExecutionResult ours,
+            Connection session, String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
@@ -572,7 +572,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     @Override
     public com.legend.exec.SqlReplayReferee.RowVerdict verify(
             com.legend.exec.Sessions.Session session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts,
@@ -584,7 +584,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
 
     public com.legend.exec.SqlReplayReferee.RowVerdict verify0(
             com.legend.exec.Sessions.Session session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts,
@@ -604,7 +604,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     @Override
     public com.legend.exec.SqlReplayReferee.RowVerdict verify(
             com.legend.exec.Sessions.Session session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts,
@@ -617,7 +617,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
 
     public com.legend.exec.SqlReplayReferee.RowVerdict verify1(
             com.legend.exec.Sessions.Session session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts,
@@ -692,7 +692,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     public com.legend.exec.SqlReplayReferee.RowVerdict verifyPlan(
             com.legend.exec.Sessions.Session session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts,
@@ -705,7 +705,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     public com.legend.exec.SqlReplayReferee.RowVerdict verifyPlan0(
             com.legend.exec.Sessions.Session session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts,
@@ -798,7 +798,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
 
     private com.legend.exec.SqlReplayReferee.RowVerdict verifyArmed(
             java.sql.Connection session, String goldenSql,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.compiler.element.ModelContext ctx,
@@ -807,7 +807,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
                 new java.util.LinkedHashMap<>();
         if (mappingFqn != null
-                && !(ours instanceof ExecutionResult.Graph)) {
+                && !(ours instanceof TypedSide.Graph)) {
             for (int i = 0; i < ours.columns().size(); i++) {
                 if (ours.columns().get(i).pureType()
                         instanceof com.legend.compiler.element.type.Type
