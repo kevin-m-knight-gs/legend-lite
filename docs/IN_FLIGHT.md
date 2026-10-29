@@ -2911,7 +2911,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   negative zero (`b944a42e`, `result/CellText.java`, register S117 (S114 until S1.0)); the `0.00010` fix ruled, not built. The session
   that wrote this line (`session_01Vz1L3X6p56AZdTCQXUXYfE`) writes no more code: the next session opens with the
   start page's §12. **S1.0 done 2026-10-28** on `claude/wizardly-dirac-rw6tim` (GATES, the S1.0 entry: `main` at
-  `369bb176` merged, both sides kept; the branch's register rows S115 to S117 now). **S1.4 done 2026-10-28** (GATES,
+  `369bb176` merged, both sides kept; the branch's register rows S115 to S117 now). **2026-10-29: the user's upstream-fidelity tenet** (AGENTS.md; the program's §8 item 12) **recorded; S1.4's two open
+  questions settled by it, awaiting the go** (the start page's §4). **S1.4 done 2026-10-28** (GATES,
   the S1.4 entry; one question open for the user, the midnight rule). Next on this line, in order: S1.5 (records: GATES
   entries for phases 1 to 4, the 51 writer differences to the user case by case, register rows, the program's §3),
   S1.6 (a draft PR on the user's word). (The S1.4 that was announced touched `result/`,

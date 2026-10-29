@@ -165,12 +165,31 @@ renumbering), IN_FLIGHT.
 written-precision fact `ExecutionPlan.Column.precision`, plan format 17, the writer's slot-word matches gone, the
 decoders' slot dispatch kept as their decode instruction; `ArchitectureTest.writersAreCarriageOnly`,
 `WriterCarriageGuardTest` with its register of 58 named representation operations, the result package a closed
-register in `JavaEvalLedgerTest`; the nits). **Open, the user's:** the midnight rule (`CellText.midnight`: an abstract
-Date at midnight in a TIMESTAMP slot written as its day in lite's own outputs; LEGACY writes the timestamp in full
-since `6811256b`), the one decision by a value's clock left in a writer, registered by name in the guard pending the
-ruling: keep it, or drop it (a LEAN spelling change: `2026-01-07` to `2026-01-07T00:00:00+0000`), or move it into
-the lowering (an abstract Date column carried as TEMPORAL_TEXT: a lane-measured change). And the tab's negative zero
-(item 4). Why: rule R3; the audit found the writers comparing values and choosing
+register in `JavaEvalLedgerTest`; the nits). **Its two open questions, settled by the upstream-fidelity tenet
+(2026-10-29, §5's first rule) and awaiting the user's go, each a LEAN spelling change (the standing rule: case by
+case):**
+- **A DateTime cell read from a TIMESTAMP, in lite's own outputs (LEAN JSON and CSV).** Upstream, read from the
+  sources 2026-10-29: legend-pure reads a SQL timestamp with all nine subsecond digits and prints them
+  (`DateFunctions.fromSQLTimestamp` -> `DateWithSubsecond.fromInstant(.., 9)`; its own test: `fromSQLTimestamp(..)
+  .toString()` is `2014-03-10T16:12:35.070004235+0000`, and a whole second `...T00:00:00.000000000+0000`); legend-engine
+  writes the same (`ValueTransformer`'s `yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ`, what LEGACY already writes). Neither prints
+  a DateTime as its day, ever. Lite's LEAN diverges twice, both the writer's own rules of 2026-10-27 (`12b89c7d`):
+  the fraction's trailing zeros trimmed (`CellText.pure`: `2024-01-02T10:30:00.5+0000`, and no fraction at a whole
+  second), and an abstract Date at midnight written as its day (`CellText.midnight`: `2026-01-07`). Exact upstream is
+  cheap: delete `trimmed()` and `midnight` from `CellText` (the guard's register shrinks by `trimmed` 2,
+  `toInstantFloor` 1 and the four clock reads, re-pinned with the date), so a TIMESTAMP cell writes
+  `2024-01-02T10:30:00.500000000+0000` and a midnight `2026-01-07T00:00:00.000000000+0000`, legend-pure's text; a
+  value carried at its written precision (WRITTEN) and a day (DAY) are untouched. Before and after, the expression
+  `|#>{...}#->select(~ts)` over a TIMESTAMP holding 2024-01-02 10:30:00.5: `2024-01-02T10:30:00.5+0000` ->
+  `2024-01-02T10:30:00.500000000+0000`; a Date column's midnight: `2026-01-07` -> `2026-01-07T00:00:00.000000000+0000`.
+  No register row once built (it restores upstream's text). **The go is the user's.**
+- **The tab's negative zero** (`datacube/src/format.ts`, `signDisplay: 'negative'`: `-0` is shown `0`, by the tab's own
+  probe of 2026-09-25 so a value rounded to zero, `-0.0012` at two places, reads no minus). No pinned upstream governs a
+  grid's display text (legend-studio's DataCube is not among the reference sources); the nearest upstream texts
+  disagree: legend-engine's JSON carries `-0.0`, legend-pure prints `0.0`. Recommendation: keep the display as it is
+  and ledger it as a display representation (a rounded negative shows no sign) -- or, if the user wants the sign, `-0`
+  only for a true negative zero. **The user's call.**
+Why: rule R3; the audit found the writers comparing values and choosing
 spellings by rules, unguarded. Build:
 1. One typed fact on the plan column for a temporal value's written precision, replacing the slot-name strings
    (`"TEMPORAL_TEXT"`, `"LITERAL"`) matched in `exec/JdbcDecode`, `result/RowDecode`, `result/CellText` and
@@ -219,11 +238,18 @@ function and its test); item 1 before item 3, so the guards land on writers that
 
 **S1.5 The missing records.** GATES entries for phases 1 to 4 (each commit's built, deleted, measured; the lanes' S1.1
 numbers are in GATES 2026-10-27's phase 5 entry, item 3); the 51 writer differences
-(`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`): classify each a correction or a spelling change, and
-put every spelling change to the user case by case (the ruling of 2026-10-28), with its expression, the old output and
-the new; the user's answer decides each (keep it with a register row, or revert it in code); register rows for
-the PCT message changes (`testBigFloatAbs`'s digits, the NaN refusals of `testArcCosineError`/`testArcSineError`); the
-program's §3 table brought up to date.
+(`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`), **classified by upstream's answer (the tenet of
+2026-10-29)**: for each, what legend-pure prints (`CompiledSupport.primitiveToString`, `PureDate.toString`) and what
+legend-engine serializes (its JSON `DEFAULT`, `ValueTransformer`; its CSV, `RelationalResultToCSVSerializer` --
+commons-csv `CSVFormat.DEFAULT` over the driver's own text, no header unless asked -- and `CSV_TRANSFORMED`, the same
+with `ValueTransformer`'s dates), read from the pinned sources or asked of the engine runner (the homework README §7);
+a difference whose new text is upstream's is a correction (recorded, no row); one whose new text is neither upstream's
+is put to the user case by case with its expression, upstream's text and lite's, and the user's answer decides each (a
+register row with the ruling, or a revert in code). LEAN's own spellings are measured the same way, the renderer's
+design (D6: Pure's print forms) read under the tenet: where legend-pure's print and legend-engine's serializer differ
+(a Float with an exponent: `0.00000025` against `2.5E-7`; a negative zero: `0.0` against `-0.0`, ruled S117), the user
+picks the twin per case. Register rows for the PCT message changes (`testBigFloatAbs`'s digits, the NaN refusals of
+`testArcCosineError`/`testArcSineError`); the program's §3 table brought up to date.
 
 **S1.6 A draft PR, with the user's word.** So CI runs on every OS (the local gate covers neither Windows, arm, macOS,
 the corpus lanes nor the product build: the 2026-10-26 incident). Template `.github/pull_request_template.md`. First run
@@ -337,6 +363,12 @@ updated for every renamed and deleted piece; every lane measured; the PR handed 
 ## 5. How we work (the user's rules; each learned the hard way)
 
 **Before code**
+- **Upstream first (the user, 2026-10-29; AGENTS.md's upstream-fidelity tenet).** Every decision is settled by one
+  question, asked first: can we do exactly as legend-pure and legend-engine do? Read their sources or ask the engine
+  runner (the homework README §7); never recall. Exact where possible; where exactness is too expensive, the closest
+  thing, posted to the user before it lands (the expression, upstream's answer, lite's) and a row of
+  `docs/SEMANTICS_REGISTER.md` with the ruling. This settles the questions the earlier rules leave open (a spelling
+  change, a midnight, a negative zero): upstream's answer is the default, the divergence the exception.
 - Measure first. A design argument without a number is an opinion.
 - Plan each step with the user and get agreement before writing code. Plain words, short sentences, one settled
   answer, a recommendation rather than a survey.
@@ -498,6 +530,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-28 | "what should we do about the negative zero? what is the right move", then "okay" to the answer | LEAN JSON and CSV write `-0.0`; Pure's `toString` stays `0.0` (S1.4 item 2, register S117) |
 | 2026-10-28 | "why are we running tests? did we change code? i thought we were building hand off doc?" | an answer is not a go (§5) |
 | 2026-10-28 | "keep the fix, fix the plan wording including adding that we need to fix 0.00010 .. then do a full read of the what you wrote - make sure we capture all the homewokr and detail and plans in detail for new sesison without any context - do not make any more code changes here" | `b944a42e` kept; the `0.00010` trailing zero ruled a defect to fix (S1.4 item 2); this session writes no more code; the handoff re-read whole and completed (S1.0, §12) |
+| 2026-10-29 | "wherever possible we should stick to upstream legend-pure and legend-engine as possible - every answer should be 'can we do exactly as pure/engine does, or as close to as possible where too expensive to be exact but with an explicit posting to me and a ledger for diverging' every decision should be settled with that tenet" (answering S1.4's report, its two open questions among them) | the upstream-fidelity tenet (AGENTS.md; §5's first rule; the register's header): exact upstream by default, a divergence only where too expensive, posted and ledgered; S1.4's open questions settled by it (§4, S1.4); S1.5's classification of the 51 writer differences is by upstream's answer |
 
 ## 11. Reading order
 

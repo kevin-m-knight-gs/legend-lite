@@ -3,7 +3,11 @@
 Created 2026-09-29 by plan rev H2 (rule 0b.13, `docs/EXECUTION_PLAN_2026_09_26.md`). Lite matches legend-pure's
 observable outcomes (accept/reject and error class, the chosen declaration where it changes lowering or result type, the
 result type and multiplicity) and legend-engine's rows. Where it deliberately does not, or where it matches the outcome
-with a different representation, the difference is a row here. A difference that is not a row is a defect.
+with a different representation, the difference is a row here. A difference that is not a row is a defect. **Since
+2026-10-29 (the user's upstream-fidelity tenet, AGENTS.md): lite does exactly what legend-pure and legend-engine do
+wherever possible; a divergence is taken only where exactness is too expensive, is posted to the user before it lands
+(the expression, upstream's answer, lite's), and is recorded here with the user's ruling.** A row nobody ruled is a
+defect.
 
 Rules for this file: one row per difference; each row names the evidence (file:line in lite and in the pinned trees
 `$(bazel info output_base)/external/+http_archive+legend_{pure,engine}_src`), who decided it and when, and the owner item

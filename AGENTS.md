@@ -50,6 +50,19 @@
 > `meta::pure::functions::` elements
 > (`LibraryPlatformNamespaceGuardTest`).
 >
+> **Upstream-fidelity tenet (the user, 2026-10-29):** wherever possible,
+> lite does EXACTLY what legend-pure and legend-engine do. Every decision
+> -- a spelling, an outcome, an error, a type, a rule -- is settled by one
+> question, asked first: "can we do exactly as pure/engine does?" Where
+> exactness is too expensive, lite does the closest thing, and that
+> divergence is POSTED to the user before it lands (case by case: the
+> expression, upstream's answer, lite's) and LEDGERED as a row of
+> `docs/SEMANTICS_REGISTER.md`. Upstream's answer is READ from the pinned
+> sources or ASKED of the engine runner
+> (`docs/result-boundary-homework/README.md` §7), never recalled or
+> guessed. A divergence that is not a row is a defect; a row the user did
+> not rule is a defect too.
+>
 > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
 > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
 > lowering rule each), PLATFORM SEMANTICS (Java, designed from the engine's

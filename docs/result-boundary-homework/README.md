@@ -229,6 +229,25 @@ external repository `$(bazel info output_base)/external/+http_archive+legend_pur
 Lite follows it for Pure's text (`FloatCanonText.ofText` in SQL) and departs for its own outputs' negative zero
 (register S117, the user's ruling).
 
+**What legend-pure and legend-engine say about a date's text (read from the pinned sources, 2026-10-29, for the
+upstream-fidelity tenet):**
+- legend-pure reads a SQL timestamp with all nine subsecond digits, always a `DateWithSubsecond`
+  (`DateFunctions.fromSQLTimestamp` -> `DateWithSubsecond.fromInstant(timestamp.toInstant(), 9)`, m4
+  `coreinstance/primitive/date/`), and its `toString` prints them all: its own `TestDateFunctions.testFromSQLTimestamp`
+  asserts `2014-03-10T16:12:35.070004235+0000`, and `assertConvertsInstant` a whole second as
+  `...T00:00:00.000000000+0000` (a `java.util.Date` three digits, `.000+0000`). A SQL DATE is a StrictDate, a day. A
+  DateTime never prints as a day.
+- legend-engine's JSON (`DEFAULT`) writes a `java.sql.Timestamp` as `yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ` and a
+  `java.sql.Date` as `yyyy-MM-dd` (`ValueTransformer`, read 2026-10-28 and again today); its CSV
+  (`RelationalResultToCSVSerializer`, `SerializationFormat.CSV`) is commons-csv `CSVFormat.DEFAULT` (comma, CRLF, quotes
+  only where needed) over `printRecords(resultSet)`, the driver's own text of each cell, with a header only when asked
+  (`withHeader`); `CSV_TRANSFORMED` (`RelationalResultToCSVSerializerWithTransformersApplied`) is the same with each
+  cell through the column's transformer and `ValueTransformer`'s two date spellings. The other formats:
+  `PURE_TDSOBJECT`, `PURE`, `RAW`, `ARROW_IPC`.
+- Lite's LEAN writers (`CellText.pure`) diverge from both on a TIMESTAMP cell: the fraction's trailing zeros trimmed
+  (`.5+0000`, none at a whole second) and an abstract Date at midnight written as its day -- the start page's S1.4,
+  settled by the tenet and awaiting the user's go; LEGACY (`CellText.engine`) matches `ValueTransformer` exactly.
+
 **How to ask it again (the recipe).** No server is needed: the engine runner's jars are the engine.
 1. `bazel build //tools/engine-runner:testable` (fetches `@maven_runner`, legend-engine 4.145.0 and its execution
    stack, about 600 MB of jars; clear `$(bazel info output_base)/sandbox/*` first if the disk allowance is tight).

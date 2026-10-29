@@ -482,6 +482,15 @@ the engine adapter's `getTDSResultFromProtocol` steps, then `stringToTDS`; the T
 is not the reference's own crossing, its reader holds a date at the millisecond, and its classes sit in jars the
 upstream pool does not list. So the PCT judges the JSON the server serves (three production defects found by it).
 
+**12. Upstream fidelity (2026-10-29).** "wherever possible we should stick to upstream legend-pure and legend-engine
+as possible - every answer should be 'can we do exactly as pure/engine does, or as close to as possible where too
+expensive to be exact but with an explicit posting to me and a ledger for diverging' every decision should be settled
+with that tenet." Recorded as AGENTS.md's upstream-fidelity tenet, the start page's first rule (§5) and the register's
+header: upstream's answer, read from the pinned sources or asked of the engine runner, is the default; a divergence is
+taken only where exactness is too expensive, posted to the user before it lands, and ledgered with the ruling. It
+settles S1.4's two open questions (the start page's §4) and governs S1.5's classification of the 51 writer differences
+and every track after.
+
 **11. Our own core tests are the LEAN twin of PCT and the corpus (2026-10-28).** "i would prefer not to delete the
 overlapping tests but use the exact same logic but with platform output that we think users would actually run/use
 instead of backwards compat mode - so its almost the platform twin of PCT/core-relational". Replaces step 7's "test
@@ -491,6 +500,13 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the upstream-fidelity tenet ruled** (§8 item 12; AGENTS.md; the start page's §5 first rule and §10;
+  the register's header): exact upstream by default, a divergence only where too expensive, posted and ledgered.
+  S1.4's two open questions settled by it and written up with their upstream evidence (the start page's §4, S1.4): a
+  TIMESTAMP cell in lite's own outputs spelled as legend-pure prints it (nine digits, never a day; the writer's trim
+  and midnight rules to go) and the tab's negative zero (no pinned upstream governs a grid's text; keep and ledger
+  recommended); both await the user's go, LEAN spelling changes being the user's case by case. S1.5's brief now
+  classifies the 51 writer differences by upstream's answer. Next: the go on the two, then S1.5.
 - **2026-10-28, S1.4 done: the writers carry, never decide** (GATES, the S1.4 entry). The `0.00010` trailing zero
   fixed in lite's own outputs (`1.0E-4` as `0.0001`, legend-pure's text; ruled); the plan column's fourth fact, its
   temporal cells' written precision (`ExecutionPlan.Precision`: WRITTEN, DAY, INSTANT; format 17), set by
