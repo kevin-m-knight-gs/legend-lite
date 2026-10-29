@@ -15346,3 +15346,58 @@ mostly copied what tests expect". Checked from the pinned sources; the decisions
    JSON:` 524 DuckDB, 523 SQLite, 523 MongoDB; the relation suite 460, 459, 459); `//datacube:python_execute_test`
    passes. The Postgres targets and the rest of `//gates:local` ran at S1.4's first landing (the entry above) and
    run again with S1.5's commit. The lanes are not reachable from this session (the S1.4 entry, item 5).
+
+## 2026-10-29 — the result boundary program's phases 1 to 4, recorded (S1.5: the entries 2026-10-27's commits never got)
+
+Phases 1 to 4 landed on 2026-10-27 without GATES entries (the homework README §1 found it); this entry records each
+commit's built, deleted and measured, from the commit itself. The lanes' per-test baselines (S1.1, six lane sessions
+against `7b8c89dc` and `b3311cd6`) are in the entry "2026-10-27 — the result boundary program's phase 5, first half",
+item 3.
+
+1. **Phase 1, `51688f36` — typed results end to end (step 1).** Built: `com.legend.result` (`ResultSink`, `Batch`,
+   `Batcher`, `Collector`); `ExecutionPlan.TdsResult.Shape` (RELATION, VALUE, OBJECTS); plan format 12; every root
+   planned as typed rows when no output format is asked (`PlanMaker`); `PlanRunner.stream` and `rows`; SQLite's root
+   decimal NULL kept NULL. Deleted: nothing. Measured: `TypedPlanTest` on every in-process database; `//core:core_tests`,
+   `//core:guardrails`, `//tools/deps:core_layering_test`.
+2. **Phase 2, `12b89c7d` — the writers at the edge (steps 3 and 5's JSON and CSV).** Built: `CellText` (Pure's print
+   forms and legend-engine's JSON tokens), `CsvWriter` (RFC 4180), `JsonRowsWriter`, `PureV1Writer`; `JdbcDecode`
+   keeps a Variant's JSON null. Deleted: nothing. Measured: the five DuckDB PCT suites through both the old wire and
+   the writers, 51 differences (`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`; classified by
+   upstream's answer 2026-10-29, `WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`); `//core:core_tests`,
+   `//core:guardrails`, `//tools/deps:core_layering_test`; the five DuckDB PCT suites.
+3. **Phase 3, `1b0305f7` — the served routes on typed plans (step 3).** Built: `Execution.run` (the one production
+   entry; the sink made before any statement runs); `PureV1Api.Runner` and `engineWriter`; the hosts' plan half
+   (`jsonPlan`, `jsonAnswer`, `HostRows`); `QueryService`'s CSV, JSON and streamed JSON on the writers; Postgres's
+   unbounded Decimal keeps its scale; `PlanMakerTest` and `PostgresArmTest` compare a parameterised plan with the
+   lets-written query through the writers. Deleted: `executeWire`, `executeStreaming`, `executeUpstream`; the
+   register's nine SQLite streamed-JSON rows (ceiling 35 -> 26, dated). Measured: `//core:core_tests`,
+   `//core:guardrails`, `//core:core_tests_architecture`, `//tools/deps:core_layering_test`; the eight Postgres
+   targets (unprivileged); `//datacube:python_execute_test`, `lite_planner_test`, `lite_planner_node_test`,
+   `typecheck_test`; `//wasm:differential_test`; `//python:engine_test`, `bindings_test`, `host_sql_test`.
+4. **Phase 3d, `53cf5b6d` — the database-written wires deleted (step 3).** Deleted: `WireRender` and its `Spelling`;
+   `Render`'s csv/json wires and date texts; `TypedQuery.Output` CSV/JSON/STREAMED_JSON and `wireSql`;
+   `ExecutionPlan.Format` CSV/JSON/JSON_PER_ROW; `KeyedPivot.Out` CSV/JSON; `PlanMaker.wire`, `keyedWire`, `objects`;
+   `Executor.wireText`, `streamWireRows`, `streamGraph`; `SqlFn.FLOAT_PRINT_ENGINE` and its arm in every dialect;
+   Snowflake's `floatPrintEngine`; `FloatPrintText`'s engine layout; `LiteralSpelling`'s engine text block;
+   `DateFmt.JSON_DATETIME`; `server/serial`; `WireRowsTest` (62 files, +412 -1,488). Kept: `lowering.TypedRows`. Plan
+   format 13. Measured: `//core:core_tests`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//core:mongodb_plan_test`; PCT DuckDB x5, channel B x5, H2, SQLite relation, discipline; the Postgres targets
+   unprivileged; datacube `lite_planner(_node)`, `python_execute`; python `engine`; wasm `differential`.
+5. **Phase 4, `b3311cd6` — the PCT reads typed rows; the TDS text path deleted (step 4), with the phase 3 audit's
+   fixes.** Built: the PCT's relation as Pure's TDS text written in Java (`PureTdsText`; deleted again at S1.3 for
+   the engine crossing), a value's elements as the reference's instances (`ValueBridge.values`); `MongoDbDecode`'s
+   tagged cell, computed null and Decimal128 negative zero; `TdsChecker`'s `21d` as a Float; `CellText`'s nested
+   dates, times and floats; the engine envelope built before any statement runs (`ExecutionPlan.answerColumns`);
+   `HostRows` reading JSON-slot and tagged columns as the server does. Deleted: `pct_adapter.pure`'s value-from-text
+   readers, `PctShadowPlan` and its switch, the unused legacy route; `TdsTextWrap`, `KeyedPivot.Out`, `Render`'s
+   tdsText family, `LiteralSpelling`'s text carrier (`pureValueText`, `Layouts`), `ExecutionPlan`'s `TextResult`,
+   `Format`, `ResultType`, `Relation`, `Value`, `Keyed.format`, `Fixed.name`, `TypedQuery.Output`, `PlanRunner.run`
+   (text), `TextSink`, `RowsSink`, `ExecuteOptions.tdsText`, `StatementExecutor.executeTdsText`,
+   `ExecutionResult.TdsText` (59 files, +938 -2,214). Plan format 14. Pins: `testBigFloatAbs` (DuckDB, SQLite) prints
+   the double's shortest digits (register S120, 2026-10-29); arcCos/arcSin's NaN message (DuckDB, MongoDB; register
+   S119); MongoDB's `testAdjustBy{Days,Hours,Minutes,Weeks}BigNumber` unpinned (pass). `PlanMakerTest`'s register
+   26 -> 18. Measured: `//core:core_tests`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//core:mongodb_plan_test`; PCT DuckDB x5, H2, SQLite x5, MongoDB x5, channel B x5, discipline; the Postgres
+   targets unprivileged; datacube `duckdb`, `typed_values` (x3), `values`, `typecheck`, `lite_planner(_node)`,
+   `python_execute`, `wasm_differential`; engine-client `node_duckdb`; python `engine`, `host_sql`; wasm
+   `differential`. The server lanes' NaN and abs pins measured on their lanes at phase 5 (the entry above).

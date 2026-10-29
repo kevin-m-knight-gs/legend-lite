@@ -165,23 +165,25 @@ carries today.
 
 ## 3. Where things stand (honest)
 
-> **As of 2026-10-26, before phases 1 to 5.** The state today, the step-by-step map and what is left are
-> `docs/RESULT_BOUNDARY_START_HERE.md` §3 and §4; S1.5 brings this table up to date.
+> **Brought up to date 2026-10-29 (S1.5).** The live state, the step-by-step map, the commits and what is left are
+> `docs/RESULT_BOUNDARY_START_HERE.md` §3 and §4, kept current by every phase; this table is the program's own view of
+> its steps (§5), by step. The table of 2026-10-26 (the state before phases 1 to 5) is in git history (`d102b35c`).
 
-| Piece | State today | Step |
+| Step (§5) | State | Where |
 |---|---|---|
-| Three facts per column, typed tree in the plan JSON (format 10) | landed (2026-10-17/18; tagged slots 2026-10-23) | kept |
-| The typed seam: `ExecutionPlan.TdsResult`, `PlanRunner.rows`, `JdbcDecode`/`RowDecode` by the plan's facts | landed; used by the typed callers and `TaggedSelectionTest` | step 1 makes it the only result |
-| `ExecutionPlan.TextResult` with `Format {CSV, JSON, JSON_PER_ROW, TDS_TEXT}`; `TypedQuery.Output` as a planning input | live: PCT (`TDS_TEXT`), the served routes (`JSON_PER_ROW`, `JSON`, `CSV`) | steps 1 to 4 retire; deleted at step 4 |
-| `WireRender` (177 lines), `Render`'s text wires (in 1,360), `TdsTextWrap` (268), `FloatPrintText`'s engine layout (in 269), `LiteralSpelling.floatPrintJava` and `dateTimeTextEngine` (in 1,052), each dialect's `FLOAT_PRINT_ENGINE` arm, MariaDB's and MySQL's `floatLayout` | live | deleted at steps 3 and 4 |
-| `PureV1Api` builds the envelope in Java and takes the rows as the database wrote them (`Execution.executeWire`, a `List<String>` of lines) | live | step 3 |
-| `ValueBridge` builds Pure values, lists and class instances from typed values; a relation arrives as TDS text | live | step 4 adds the relation from typed rows |
-| `Executor` (1,195 lines, the old executor) and `ExecutionResult` (an in-memory result: columns and rows), produced by it and returned by `Execution.execute` | live; 101 test files and 28 main files use the type; one real route (`server/QueryService`), the channel B judges, loaders, and type references | step 7 |
-| `Fold.conformValueEgress` (re-types a value root's egress) | live | step 5 deletes with the text wires |
-| `LITERAL` slot, `LiteralText.parse`, the Any-kind carrier, mixed `sort` | live for lists | step 6 |
-| The Arrow IPC framer | live in the warehouse server, dependency-free, native-image-proven | step 5 shares it |
-| `CanonicalRenderSql` (1,085 lines) and each dialect's `FLOAT_CANON`: the database judge's canonical spellings | live (channel B) | stays (R10); simplifies per slot as carriers are typed |
-| A Float's String inside a query on Snowflake and BigQuery | the exact-digits expression (correct, ~5 KB per Float printed) | stays (R5); §8 item 3 measures the cheaper form |
+| 0. Measure first | half: the clouds' M5 to M8 (GATES 2026-10-26); M1 to M4 never recorded; the lanes' per-test baselines of S1.1 replaced them as the gate | GATES 2026-10-27, phase 5, item 3 |
+| 1. One result shape, the batch stream | done: `result/` (`ResultSink`, `Batch`, `Batcher`, `Collector`), `TdsResult.Shape`, `PlanRunner.stream` | `51688f36` |
+| 2. The shared Arrow framer | not started | track A |
+| 3. The legacy writer in Java; the SQL-written wires deleted | done: `CellText.engine`, `PureV1Writer`, `Execution.run`, every served route; `WireRender`, `Render`'s wires, the engine Float spellings, `server/serial` deleted | `12b89c7d`, `1b0305f7`, `53cf5b6d` |
+| 4. PCT and the corpus from typed rows | PCT done: a relation crosses as legend-engine's own adapter reads it (engine JSON), a value as the reference's instances; the TDS text path deleted. The corpus: not yet (track C, on track B) | `b3311cd6`; `ac4bb7d3`, `6811256b`, `4eaf1b07`, `d8ab8434` |
+| 5. The lean writers | JSON and CSV done (`JsonRowsWriter`, `CsvWriter`, `CellText.pure`/`pureJson`); the writers carry only, the precision fact on the plan column, the two guards (S1.4); Arrow not (track A); `Fold.conformValueEgress` not deleted (track L) | `12b89c7d`, `f58f37ed`, `d102b35c` |
+| 6. Mixed lists typed | not started | track L |
+| 7. The old executor goes | half: `exec.Executor` deleted, its effects plan nodes (phase 5); the old door (`Execution.execute*`, `StatementExecutor`, `ExecutionResult`) remains for the corpus, channel B, the service tests and core's 140 test files | `0fe63b42`, `f883d42b`; tracks B, T, C, D |
+| 8. The question parked for the user | parked (the engine-style SQL-text dialects) | -- |
+
+**The spellings, under the upstream-fidelity tenet (2026-10-29):** the 51 writer differences classified by upstream's
+answer, `docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`; the decisions, made and wanted,
+`docs/result-boundary-homework/DECISIONS_LOG.md`; the rows S117 to S120.
 
 ## 4. Step 0: measure first (one week, nothing built)
 

@@ -12,6 +12,8 @@ of the date given; search by name, not by line.
 | `wire-differences-2026-10-27.tsv` | the 51 differences between the old database-written wires and the new Java writers, PCT DuckDB, phase 2 (§4) |
 | `test-census-2026-10-28.tsv` | core's 140 test files still on the old door: 2,304 test methods classified (§5) |
 | `probes/*.txt` | every probe's and script's source, not compiled (the rule: never commit a probe as code) (§8) |
+| `WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md` | the 51 differences classified by upstream's answer, read from the pinned sources (S1.5) |
+| `DECISIONS_LOG.md` | every decision made or wanted, per phase, with its upstream evidence (the user, 2026-10-29) |
 
 ---
 
@@ -259,6 +261,24 @@ upstream-fidelity tenet):**
   trailing zeros trimmed and an abstract Date at midnight written as its day. Now a relation's cell keeps its nine
   digits (INSTANT) and a value root's the precision its digits show (MINIMAL, register S118); LEGACY
   (`CellText.engine`) matches `ValueTransformer` exactly. The decisions log D4 to D6.
+**Read for S1.5's classification (2026-10-29; the whole table is `WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`):**
+- a date's zone: legend-pure's `DateFormat.append` writes `+0000` inside its `hasMinute` branch, so an hour-only date
+  prints `2014-03-10T16` (`TestDateFormat:791`) and a minute `...T16:12+0000`; legend-engine's `PureDateSerializer`
+  writes `toString()`. Lite's LEAN wrote the zone from an hour on until S1.5 (`PureDateLiteral.DateWithHour.toString`
+  too); lite's SQL-side text of a minute-precision date carried as text writes none (`dateTimeTextOfText`; track T).
+- NaN: legend-pure has none (`acos(2.0)` fails by name); legend-engine's relational JSON writes a NaN or infinite
+  Float cell as `null` (`RelationalResultToJsonDefaultSerializer.processRow` -> the column's transformer, the identity
+  for a Float (`SetImplTransformers.buildTransformer`) -> `ExecutionResultObjectMapperFactory.convertPurePrimitiveToJson`,
+  `null` for `isNaN`/`isInfinite`); phase 2's `"NaN"` string in LEGACY named the engine without reading it. Register S119.
+- an instance's text: `CompiledSupport.pureToString(Object)` and `JavaCompiledCoreInstance.toString(es)` print
+  `ModelRepository.possiblyReplaceAnonymousId(getName())`: `Anonymous_StripedId` for every anonymous instance; a
+  packageable element prints its name (`AbstractCompiledLazyConcreteElement.toString(es)`: `getName()`). Lite prints
+  `@_` and the instance's id, and an element's path (the lowering's `Scalars.pureToString`): the user's (D16, D17).
+- a Pair: `Pair.toString()` in `anonymousCollections.pure` is `'<' first ', ' second '>'`; the engine's JSON of an
+  Eclipse `Pair` is `{"first":..,"second":..}` (`EclipsePairSerializer`). Lite's CSV and JSON match each.
+- the engine's CSV has no spelling of its own: `CSV` is commons-csv over the driver's text, `CSV_TRANSFORMED` the
+  value's `toString` with `ValueTransformer`'s two date forms; a Double there is Java's `E` form, legend-pure's print
+  the positional layout: the twin question D10 stays the user's.
 
 **How to ask it again (the recipe).** No server is needed: the engine runner's jars are the engine.
 1. `bazel build //tools/engine-runner:testable` (fetches `@maven_runner`, legend-engine 4.145.0 and its execution
