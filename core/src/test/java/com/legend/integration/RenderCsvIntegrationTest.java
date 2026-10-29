@@ -3,8 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 @DisplayName("RENDER toCSV Integration")
 class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
-    private final QueryService qs = new QueryService();
 
 
     @BeforeEach
@@ -70,9 +68,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
             """;
 
     private String csv(String query) throws SQLException {
-        ExecutionResult r = qs.execute(MODEL, query, "test::RT", connection);
-        return ((ExecutionResult.Scalar) assertInstanceOf(
-                ExecutionResult.Scalar.class, r)).value().toString();
+        Lean.Result r = Lean.run(MODEL, query, "test::RT", connection);
+        return r.one().toString();
     }
 
     @Test

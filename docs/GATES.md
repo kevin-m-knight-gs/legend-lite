@@ -15668,3 +15668,39 @@ helper with 23 call sites in seven of core's test files, and the §2 row is rest
    `//datacube:python_execute_test`) running as this commit is made: its results in the entry that follows.
 2. **Not measured:** the lanes (the S1.4 entry, item 5). The old door's remaining callers: core's tests (track T,
    next) and `QueryService`'s three materialized `execute`s (track D).
+
+## 2026-10-29 — track C's gate, measured at 643f1bbe; the track C audit
+
+The chain the track C entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB identical, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB exact); the nine Postgres
+targets as the unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4
+entry, item 5). The track C audit: the entry "the track C audit recorded" (33737fa2) and the decisions log D41. CI on
+PR #80 at `643f1bbe` (run 40818308003): `windows / parser_equivalence` died at Bazel's repository fetch (Maven Central
+403 on two pinned jars, before any test; commented on the PR), the run then superseded by the records push.
+
+## 2026-10-29 — track T, T-a: the LEAN reader; `AbstractDatabaseTest`, `CheckerResults` and the 28 subclasses on it
+
+The result boundary program's track T, first commit (the start page §4, its track T block; the decisions log D42; the
+ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`). The user's ruling (2026-10-28): the same
+queries and logic, judged on lite's own LEAN output.
+
+1. **The reader** (`core/src/test/java/com/legend/testing/Lean.java`, test code): `Lean.run(model, query, runtime,
+   connection)` runs the product's own route (`Execution.run`: plan, the plan's runner, `JsonRowsWriter`) and reads the
+   JSON back as a typed client does -- the columns the runner handed the writer (captured by the sink: a keyed plan's
+   exist only once its keys ran), each row's key the column's presented name (the writer's spelling), each cell decoded
+   by the product's own row decoder (`RowDecode.cell`; a tagged column by its declared type). `Result`: `shape()`,
+   `columns()` (name, Pure type, multiplicity), `rows()` (lists of cells), `rowCount()`, `one()`, `values()`, `json()`.
+2. **On it:** `AbstractDatabaseTest.executeRelation`/`executePureQuery`, `CheckerResults.collect`/`columnIndex`; the
+   28 subclasses rewritten mechanically (two passes; the forms `asCollection().values()`, `returnType().typeName()`,
+   `asGraph().json()`, `Row`, the service's materialized `execute`); `ExecutionResultIntegrationTest` rewritten from
+   the old door's variants to the answer's shapes and column types.
+3. **Measured locally** (as root): `//core:core_tests_integration` 2,232 of 2,232 (the first run on the reader
+   failed 42: 26 keyed-plan refusals, 5 presented-name misses, 11 date carriers; the second 10: the tagged column;
+   the third none -- each class a reader rule, no expectation moved); `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline` pass. The rest of the per-commit chain (`//core:core_tests`, `//core:mongodb_plan_test`;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets
+   unprivileged; `//datacube:python_execute_test`) running as this commit is made: its results in the entry that
+   follows.
+4. **Not measured:** the lanes. Left on the old door in core's tests: 174 call sites in 115 files (T-b, T-c, T-d).

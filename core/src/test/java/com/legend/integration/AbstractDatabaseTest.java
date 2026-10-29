@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
@@ -358,14 +358,14 @@ public abstract class AbstractDatabaseTest {
      * @return List of PersonResult
      */
     protected List<PersonResult> executePureQuery(String pureQuery) throws SQLException {
-        ExecutionResult result = executeRelation(pureQuery);
+        Lean.Result result = executeRelation(pureQuery);
         return convertToPersonResults(result);
     }
 
     /**
-     * Converts ExecutionResult to PersonResult list.
+     * Converts the answer to a PersonResult list.
      */
-    private List<PersonResult> convertToPersonResults(ExecutionResult result) {
+    private List<PersonResult> convertToPersonResults(Lean.Result result) {
         List<PersonResult> personResults = new ArrayList<>();
 
         for (var row : result.rows()) {
@@ -391,22 +391,15 @@ public abstract class AbstractDatabaseTest {
     }
 
     /**
-     * Executes a Pure query and returns an ExecutionResult.
-     * Uses QueryService for complete compile → plan → execute flow.
+     * Executes a Pure query on this test's connection and reads its answer as a client reads lite's JSON rows (the
+     * LEAN twin, track T, 2026-10-29: the product's own route -- plan, run, {@code JsonRowsWriter} -- never the old
+     * door): the plan's columns and the rows.
      *
      * @param pureQuery The Pure query to execute
-     * @return ExecutionResult containing column metadata and rows
+     * @return the answer: column metadata and rows
      */
-    protected ExecutionResult executeRelation(String pureQuery) throws SQLException {
-        try {
-            return queryService.execute(
-                    getCompletePureModelWithRuntime(),
-                    pureQuery,
-                    "test::TestRuntime",
-                    connection);
-        } catch (com.legend.error.LegendCompileException e) {
-            throw e; // core's compile-error surface reaches callers directly
-        }
+    protected Lean.Result executeRelation(String pureQuery) throws SQLException {
+        return Lean.run(getCompletePureModelWithRuntime(), pureQuery, "test::TestRuntime", connection);
     }
 
     // ==================== Database Setup ====================

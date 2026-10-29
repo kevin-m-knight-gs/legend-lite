@@ -405,6 +405,15 @@ Build:
 Gate: the census's 1,450 value tests pass on DuckDB with every moved expectation listed; then each lane at a recorded
 floor. Census: `python3 -I docs/result-boundary-homework/probes/test_census.py.txt`.
 
+- **T-a built 2026-10-29** (GATES, the T-a entry; the decisions log D42; the ledger
+  `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`): the reader `testing/Lean.java` (the product's route,
+  lite's JSON rows read back by the product's own row decoder; three rules: the ran plan's columns, presented names,
+  a tagged column by its declared type); `AbstractDatabaseTest`, `CheckerResults` and the 28 subclasses on it;
+  `ExecutionResultIntegrationTest` on the answer's shapes. 2,232 of 2,232 integration tests pass; no expectation
+  moved. Next: T-b, the integration package's remaining direct callers and the other packages' 75 files (174 call
+  sites in 115 files still name the old door or its result); T-c the helpers (`SqlParity`, `CypherParity`,
+  `IqParity`, `PlanCases`, `testing/Rows`); T-d the compile-only tests and the per-lane targets.
+
 ### Track C. The corpus, channel B and the service tests on track B
 
 Switch `PureTestRunner` (bodies and setups), `ChannelB`, `ServiceTestRunner` and the referee (`SqlReplayReferee`,

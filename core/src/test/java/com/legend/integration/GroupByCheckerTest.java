@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1420,7 +1421,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
     /** Collects results into a map keyed by the group column value. */
 
     /** Finds column index by name. */
-    private int columnIndex(com.legend.exec.ExecutionResult result, String name) {
+    private int columnIndex(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name())) return i;
         }

@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,8 +64,8 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     )->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            assertEquals(1L, result.rows().get(0).values().get(0));
-            assertEquals("Charlie", result.rows().get(2).values().get(1));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals("Charlie", result.rows().get(2).get(1));
         }
 
         @Test
@@ -84,8 +85,8 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     )->filter(x|$x.id > 2)->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(3L, result.rows().get(0).values().get(0));
-            assertEquals(4L, result.rows().get(1).values().get(0));
+            assertEquals(3L, result.rows().get(0).get(0));
+            assertEquals(4L, result.rows().get(1).get(0));
         }
 
         @Test
@@ -105,9 +106,9 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // sorted by id: 1=Alice, 2=Bob, 3=Charlie
-            assertEquals(1L, result.rows().get(0).values().get(0));
-            assertEquals(2L, result.rows().get(1).values().get(0));
-            assertEquals(3L, result.rows().get(2).values().get(0));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals(2L, result.rows().get(1).get(0));
+            assertEquals(3L, result.rows().get(2).get(0));
         }
 
         @Test
@@ -127,7 +128,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                       5, Erin
                       #->sort(ascending(~id))->limit(1)
                     )->sort(ascending(~id))""");
-            assertEquals(List.of(2L, 3L, 4L), result.rows().stream().map(r -> r.values().get(0)).toList());
+            assertEquals(List.of(2L, 3L, 4L), result.rows().stream().map(r -> r.get(0)).toList());
         }
     }
 
@@ -214,7 +215,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             // All 3 people combined from both filter branches, sorted by age ascending
             assertEquals(3, result.rows().size());
-            var ages = result.rows().stream().map(r -> r.values().get(1)).toList();
+            var ages = result.rows().stream().map(r -> r.get(1)).toList();
             assertEquals(java.util.List.of(28L, 30L, 45L), ages);
         }
     }
@@ -279,7 +280,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     )->rename(~name, ~fullName)->filter(x|$x.id > 1)->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(2L, result.rows().get(0).values().get(0));
+            assertEquals(2L, result.rows().get(0).get(0));
         }
     }
 
@@ -304,8 +305,8 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     )->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(1L, result.rows().get(0).values().get(0));
-            assertEquals(2L, result.rows().get(1).values().get(0));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals(2L, result.rows().get(1).get(0));
         }
 
         @Test
@@ -328,9 +329,9 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     )->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            assertEquals(1L, result.rows().get(0).values().get(0));
-            assertEquals(2L, result.rows().get(1).values().get(0));
-            assertEquals(3L, result.rows().get(2).values().get(0));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals(2L, result.rows().get(1).get(0));
+            assertEquals(3L, result.rows().get(2).get(0));
         }
 
         @Test
@@ -365,7 +366,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
         void testConcatIntLists() throws SQLException {
             var result = executeRelation(
                     "|[1, 2, 3]->meta::pure::functions::collection::concatenate([4, 5])");
-            var values = result.asCollection().values();
+            var values = result.values();
             assertEquals(5, values.size());
             assertEquals(1, ((Number) values.get(0)).intValue());
             assertEquals(5, ((Number) values.get(4)).intValue());
@@ -376,7 +377,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
         void testConcatStringLists() throws SQLException {
             var result = executeRelation(
                     "|['a', 'b']->meta::pure::functions::collection::concatenate(['c', 'd'])");
-            var values = result.asCollection().values();
+            var values = result.values();
             assertEquals(java.util.List.of("a", "b", "c", "d"), values);
         }
 
@@ -385,7 +386,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
         void testConcatMixedType() throws SQLException {
             var result = executeRelation(
                     "|[1, 2, 3]->meta::pure::functions::collection::concatenate(['a', 'b'])");
-            var values = result.asCollection().values();
+            var values = result.values();
             assertEquals(5, values.size());
             // Mixed: ints become longs, strings stay strings
             assertEquals("a", values.get(3));

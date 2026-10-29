@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,8 +61,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @DisplayName("a row's column read through ~col is the column")
         void readIsTheColumn() throws SQLException {
             var result = executeRelation(SCORES + "->extend(~twice:r|$r->read(~score)->toOne() * 2)->sort(ascending(~id))");
-            assertEquals(190, ((Number) result.rows().get(0).values().get(3)).intValue());
-            assertEquals(174, ((Number) result.rows().get(1).values().get(3)).intValue());
+            assertEquals(190, ((Number) result.rows().get(0).get(3)).intValue());
+            assertEquals(174, ((Number) result.rows().get(1).get(3)).intValue());
         }
 
         @Test
@@ -78,8 +78,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         void aWindowsRow() throws SQLException {
             var result = executeRelation(SCORES + "->extend(over([~id->ascending()]), ~before:{p,w,r|$p->lag($r)->read(~score)})"
                     + "->sort(ascending(~id))");
-            assertNull(result.rows().get(0).values().get(3));
-            assertEquals(95, ((Number) result.rows().get(1).values().get(3)).intValue());
+            assertNull(result.rows().get(0).get(3));
+            assertEquals(95, ((Number) result.rows().get(1).get(3)).intValue());
         }
 
         @Test
@@ -2309,7 +2309,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     // ========================================================================
 
     /** Finds column index by name. */
-    private int colIdx(ExecutionResult result, String name) {
+    private int colIdx(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name()))
                 return i;

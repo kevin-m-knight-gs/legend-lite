@@ -3,6 +3,7 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +60,7 @@ class CorrelatedRelationCheckerTest extends AbstractDatabaseTest {
     }
 
     private List<Object> ids(String query) throws SQLException {
-        return executeRelation(query).rows().stream().map(r -> r.values().get(0)).toList();
+        return executeRelation(query).rows().stream().map(r -> r.get(0)).toList();
     }
 
     @Test
@@ -90,7 +91,7 @@ class CorrelatedRelationCheckerTest extends AbstractDatabaseTest {
     @DisplayName("a map->toOne over a filter on a window column, at the query's root: no enclosing row to consult")
     void aRootMapToOneOverAWindowFilter() throws SQLException {
         var result = executeRelation("|" + WINDOWED + "->filter(r|$r.rn == 1)->map(r|$r.v)->toOne()");
-        assertEquals(10L, result.rows().get(0).values().get(0));
+        assertEquals(10L, result.rows().get(0).get(0));
     }
 
     @Test
@@ -104,7 +105,7 @@ class CorrelatedRelationCheckerTest extends AbstractDatabaseTest {
                 2, 7
                 #->extend(~[first:o|""" + WINDOWED + "->filter(r|$r.rn == 1)->map(r|$r.v)->toOne()])"
                 + "->select(~[id, first])->sort(ascending(~id))");
-        assertEquals(List.of(10L, 10L), result.rows().stream().map(r -> r.values().get(1)).toList());
+        assertEquals(List.of(10L, 10L), result.rows().stream().map(r -> r.get(1)).toList());
     }
 
     @Test
@@ -113,8 +114,8 @@ class CorrelatedRelationCheckerTest extends AbstractDatabaseTest {
         var result = executeRelation("|" + PEOPLE + "->extend(~[top:p|" + ORDERS
                 + "->filter(o|$o.person == $p.id)->groupBy(~[person], ~[m:o|$o.amount:y|$y->max()])"
                 + "->map(x|$x.m)->toOne()])->select(~[id, top])->sort(ascending(~id))");
-        assertEquals(List.of(7L, 9L), result.rows().subList(0, 2).stream().map(r -> r.values().get(1)).toList());
+        assertEquals(List.of(7L, 9L), result.rows().subList(0, 2).stream().map(r -> r.get(1)).toList());
         // no order: SQL's NULL
-        assertEquals(null, result.rows().get(2).values().get(1));
+        assertEquals(null, result.rows().get(2).get(1));
     }
 }
