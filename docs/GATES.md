@@ -15737,3 +15737,49 @@ D44; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, ba
 3. **Not measured:** the lanes. Left on the old door in core's tests: 85 files, 149 lines by the ledger's counting
    rule (T-b2 the other packages, T-c the helpers and the parity-lane files, T-d the compile-only tests and the
    per-lane targets).
+
+## 2026-10-29 — T-b's gate, measured at 9ca7482f: RED on one target that did not build; the rest green
+
+The chain the T-b entry above names, run as root in the cloud container after the commit, and CI on PR
+neema2/legend-lite#80 at the same head:
+
+1. **Green:** `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the
+   rosters regenerated and unchanged, both judges); the PCT lanes 21 of 21 (channel B x5 on DuckDB, `//pct:pct_h2`,
+   channel A x5 on DuckDB, SQLite and MongoDB: every one re-run, the main code having changed); eight of the nine
+   Postgres targets as the unprivileged user; `//datacube:python_execute_test`.
+2. **Red:** `//core:store_writes_postgres_test` FAILED TO BUILD, locally and in CI (`linux / core`, `windows / core`
+   on the PR): `SqlWritesExecutionTest` and `StoreWritesExecutionTest`, rewritten onto `Lean.run` in T-b, are compiled by
+   that target's own `srcs` with `:core` and `:test_backends` as deps, where `testing/Lean.java` lived in
+   `core_tests_lib`'s glob alone. The local gate did not catch it: the Postgres targets run in the chain's last group,
+   after the commit (the T-a pattern). Fixed with T-b2 (the entry that follows): the twin's reader joins `:test_cases`,
+   the helpers library every per-lane target depends on, and that target depends on it.
+3. **Not measured:** the lanes.
+
+## 2026-10-29 — Track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product bugs fixed
+
+The result boundary program's track T, third and fourth batches (docs/RESULT_BOUNDARY_START_HERE.md, track T; the
+decisions log D45, D46; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-b2 and T-c).
+
+1. **Built:** the root, exec, lowering, resolver, compiler, normalizer, sql/dialect and server packages (68 test files),
+   the six integration files the first counting rule missed (D45), the parity harnesses (`SqlParity.grid`,
+   `CypherParity.Lane`, `CypherValues`, `IqParity`, `ReservedNames`, `SqlStressOnPostgres`) and their eleven lane
+   tests (SQL, Cypher, IQ, the regress corpus, the island on Postgres, the arm, the connection leases, the project
+   rows) on the twin's reader; `Lean.value()`, `Lean.service`, `Lean.established`; `Program` typed as the old door
+   types, `Program.last(..., options)`; `JudgesOnPlansTest` through `Execution.runProgram`. **In main:**
+   `json/.../Json.java` (a float token's double from the token: negative zero kept), `result/RowDecode.java` and
+   `result/CellText.java` (an object's identity fields the writer dropped are not read back as null properties),
+   `server/QueryService.java` (`execute(model, query, runtime, sinkOf)`, the route the format door rides),
+   `lowering/TypedRows.java` (a slot column optional), `PlanMaker.java` and `JudgePlans.java` (the keyed route's schema
+   flattened), `executionplan/ColumnFacts.java` (javadoc). **Bazel:** `testing/Lean.java` and `testing/Program.java`
+   in `:test_cases`; `:store_writes_postgres_test` depends on it (T-b's gate).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`,
+   `//core:sql_parity_test`, `//core:cypher_parity_test`, `//core:cypher_parity_native_test`, `//core:iq_parity_test`
+   34 of 34 (the first runs failed 16 tests in four core packages and the three Cypher lanes' negative-zero cases: the
+   ledger names each and its rule or fix); the nine Postgres targets 9 of 9.
+   Then `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters regenerated and
+   unchanged, both judges); the PCT lanes 21 of 21 (every one re-run); `//datacube:python_execute_test` passes. The
+   whole per-commit chain green BEFORE the commit this time (T-b's gate ran its last group after, and missed a build
+   failure).
+3. **Not measured:** the lanes.

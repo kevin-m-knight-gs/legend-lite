@@ -377,15 +377,15 @@ public final class CypherValues {
     /** A cell of a lite result's column: a Variant's cell is its JSON text, the typed rows' carrier (since the result
      *  boundary program's phase 5, 2026-10-27: the old executor handed the driver's own JSON object), read as the JSON
      *  value it holds, a float's spelling kept; any other cell by {@link #ofCell(Object)}. */
-    public static Value ofCell(@com.legend.base.Nullable Object cell, com.legend.exec.Column column) {
-        if (cell instanceof String json && com.legend.compiler.element.type.PlatformTypes.isVariant(column.pureType())) {
+    public static Value ofCell(@com.legend.base.Nullable Object cell, com.legend.testing.Lean.Column column) {
+        if (cell instanceof String json && column.type().equals(com.legend.result.RowDecode.VARIANT)) {
             return ofJson(com.legend.exec.NonFiniteJson.parse(json));
         }
         return ofCell(cell);
     }
 
-    /** A row of a lite result as values, each cell by its column ({@link #ofCell(Object, com.legend.exec.Column)}). */
-    public static List<Value> ofRow(List<Object> cells, List<com.legend.exec.Column> columns) {
+    /** A row of a lite result as values, each cell by its column ({@link #ofCell(Object, com.legend.testing.Lean.Column)}). */
+    public static List<Value> ofRow(List<Object> cells, List<com.legend.testing.Lean.Column> columns) {
         List<Value> out = new java.util.ArrayList<>(cells.size());
         for (int i = 0; i < cells.size(); i++) {
             out.add(ofCell(cells.get(i), columns.get(i)));

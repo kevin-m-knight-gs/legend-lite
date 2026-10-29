@@ -10,7 +10,6 @@ import com.legend.test.StorelessRuntime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.Execution;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;

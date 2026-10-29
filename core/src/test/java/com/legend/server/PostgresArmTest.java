@@ -1,5 +1,7 @@
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -81,9 +83,9 @@ class PostgresArmTest {
         // the executor read a DATE through java.sql.Date, which drops a BC date's era: 44 BC came back as 44 AD
         // (2026-10-17, the #SQL{} island's regression-suite corpus); it re-fetches the cell as java.time
         loginRole();
-        var result = new QueryService().execute(ARM_MODEL.formatted(POSTGRES.connectionBody()),
+        var result = Lean.service(ARM_MODEL.formatted(POSTGRES.connectionBody()),
                 "#SQL{select make_date(-44, 3, 15) as d}#", "test::PgRuntime");
-        Object d = result.rows().get(0).values().get(0);
+        Object d = result.rows().get(0).get(0);
         assertTrue(d instanceof com.legend.values.PureDateLiteral.StrictDate date && date.year() == -43
                 && date.month() == 3 && date.day() == 15, String.valueOf(d));
     }

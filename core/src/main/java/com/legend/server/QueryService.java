@@ -87,9 +87,18 @@ public class QueryService {
             OutputStream out, OutputFormat format)
             throws SQLException, IOException {
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.run(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
-                com.legend.exec.PlanSessions.shared(), plan -> writer(plan, format, writer));
+        execute(pureSource, query, runtimeName, plan -> writer(plan, format, writer));
         writer.flush();
+    }
+
+    /** The route of {@link #execute(String, String, String, OutputStream, OutputFormat)} with the caller's own sink:
+     *  the query run on the connection the runtime declares, leased from the server's resolver, the plan sessions
+     *  shared, its rows handed to {@code sinkOf}'s sink as they arrive. Returns the plan that ran. */
+    public com.legend.executionplan.ExecutionPlan execute(String pureSource, String query, String runtimeName,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
+            throws IOException {
+        return com.legend.Execution.run(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
+                com.legend.exec.PlanSessions.shared(), sinkOf);
     }
 
     /** The JSON rows of {@link #execute(String, String, String, Connection, OutputStream, OutputFormat)}: written row

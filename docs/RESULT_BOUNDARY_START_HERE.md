@@ -422,6 +422,15 @@ floor. Census: `python3 -I docs/result-boundary-homework/probes/test_census.py.t
   other packages (85 files, 149 lines by the ledger's counting rule: lowering 16, exec 16, resolver 12, the root 13,
   ...); T-c the helpers (`SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/Rows`) and the parity-lane
   files; T-d the compile-only tests and the per-lane targets.
+- **T-b2 and T-c built 2026-10-29** (GATES, the T-b2/T-c entry; the decisions log D45, D46; the ledger, batch T-b2 and
+  T-c): the other packages' 68 files, the six integration files the first counting rule missed (the T-b audit, D45), the
+  parity harnesses and their eleven lane tests on the twin; `Lean.value()`, `Lean.service` (a new product entry,
+  `QueryService.execute(..., sinkOf)`), `Lean.established`; `Program` typed as the old door types; the reader in
+  `:test_cases` (the T-b gate's build failure fixed). Two product bugs the twin found, fixed in main: `Json.parse`'s
+  negative zero, `RowDecode`'s identity fields. By the census (`probes/old_door_census.py.txt`) 8 files, 23 lines remain,
+  every one track D's. Findings for F: the plan path's egress lower bound (Pure raises, the plan path writes `[]`: the
+  user to rule), the metamodel-store route, the API's unflattened typed columns. Next: T-d (the per-lane targets for
+  core's tests beside PCT's: DuckDB, SQLite, H2, MongoDB), then track D.
 
 ### Track C. The corpus, channel B and the service tests on track B
 

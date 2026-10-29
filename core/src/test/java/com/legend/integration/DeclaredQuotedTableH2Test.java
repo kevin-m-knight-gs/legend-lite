@@ -3,7 +3,6 @@
 
 package com.legend.integration;
 
-import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;

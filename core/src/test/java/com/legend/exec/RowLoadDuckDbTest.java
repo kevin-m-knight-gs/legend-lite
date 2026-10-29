@@ -1,5 +1,8 @@
 package com.legend.exec;
 
+import com.legend.testing.Program;
+
+import com.legend.testing.Lean;
 import com.legend.error.DataError;
 import com.legend.setup.RowLoad;
 import org.junit.jupiter.api.DisplayName;
@@ -121,9 +124,9 @@ class RowLoadDuckDbTest {
                 """;
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+            var r = Program.last(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
                     "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.test.StorelessRuntime.RUNTIME, c);
-            assertEquals("dbInc", ((ExecutionResult.Scalar) r).value());
+            assertEquals("dbInc", r.one());
             assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
                     "the seed's rows must take DuckDB's Appender");
         }

@@ -3,13 +3,13 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
+
 import com.legend.TypedQuery;
-import com.legend.exec.ExecutionResult;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
@@ -149,13 +149,13 @@ class CypherWritePlansTest {
         }
     }
 
-    /** The statement's rows by its execution ({@code Execution.execute}). */
+    /** The statement's rows by its execution, read as the twin reads lite's JSON rows ({@link Lean#run}). */
     private static List<String> executed(Connection session, String model, String cypher) throws Exception {
-        ExecutionResult r = new QueryService().execute(model, island(cypher), CypherGraph.RUNTIME, session);
+        Lean.Result r = Lean.run(model, island(cypher), CypherGraph.RUNTIME, session);
         List<String> rows = new ArrayList<>();
         for (var row : r.rows()) {
             List<String> cells = new ArrayList<>();
-            for (Object value : row.values()) {
+            for (Object value : row) {
                 cells.add(String.valueOf(value));
             }
             rows.add(String.join("|", cells));

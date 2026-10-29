@@ -157,6 +157,11 @@ public final class RowDecode {
                     Map<String, Object> out = new LinkedHashMap<>();
                     for (ExecutionPlan.Column f : fields(c)) {
                         Json.Node fv = o.fields().get(f.name());
+                        if (fv == null && CellText.synthetic(f.name())) {
+                            // an identity field the writer dropped (CellText.declared: an object is its declared
+                            // properties) is not read back as a null property (2026-10-29, the twin's reader)
+                            continue;
+                        }
                         out.put(f.name(), fv == null ? null : cell(fv, f));
                     }
                     return out;

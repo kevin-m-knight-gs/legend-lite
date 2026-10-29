@@ -242,6 +242,9 @@ final class JudgePlans {
         if (schema == null) {
             throw new IllegalStateException("TABULAR result without a relation root type: " + info.type().typeName());
         }
+        // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
+        // (flattened before any route, the keyed one included; its dynamic columns kept)
+        schema = TypedRows.flat(schema);
         if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
             return keyed(plan, schema, info, w, env);
         }
@@ -255,8 +258,6 @@ final class JudgePlans {
             plan = com.legend.sql.ScanOrder.stabilize(plan);
         }
         plan = withFrames(plan, env);
-        // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
-        schema = TypedRows.flat(schema);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
         PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.of(w.session(), env.trace()));
         List<Column> columns = new ArrayList<>(schema.columns().size());

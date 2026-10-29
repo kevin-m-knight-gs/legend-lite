@@ -3,7 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
@@ -69,7 +70,7 @@ class CypherDomainWritesTest {
 
     private static void cypher(TestBackend backend, CypherGraph.Inferred inferred, Connection c, String statement)
             throws Exception {
-        new QueryService().execute(CypherGraph.model(inferred, backend.connectionBody()), "#Cypher{USE "
+        Lean.run(CypherGraph.model(inferred, backend.connectionBody()), "#Cypher{USE "
                 + CypherGraph.DATASPACE + " " + statement + "}#", CypherGraph.RUNTIME, c);
     }
 

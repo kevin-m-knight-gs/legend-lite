@@ -37,11 +37,12 @@ public final class ColumnFacts {
     /**
      * The plan's columns for {@code pure}, the typed schema, over {@code lowered}'s outputs, in a result of
      * {@code shape} (a relation's cells, a value root's elements: the written-precision fact differs,
-     * {@link #precision}). A column is matched to its output by name. A column no output is named after is one of three things, each said in the column: a
-     * pivot's generated column (its slot the template's type, when the template carries one); a nested column the
-     * query flattens into prefixed outputs ({@code n1} as {@code n1_ID, n1_NAME}: no one slot); or, when no column
-     * at all matches by name and the counts agree, a value root's one output, which the wire names {@code value}
-     * (matched by position). Any other difference is a planner defect, refused by name.
+     * {@link #precision}). A column is matched to its output by name. A column no output is named after is one of two
+     * things, each said in the column: a pivot's generated column (its slot the template's type, when the template
+     * carries one); or, when no column at all matches by name and the counts agree, a value root's one output, which
+     * the wire names {@code value} (matched by position). Any other difference is a planner defect, refused by name
+     * (a row-struct column reaches here flattened, {@code TypedRows.flat}: until 2026-10-29 one unflattened passed
+     * with no slot, and the plan declared one column where the statement answered its parts).
      */
     public static List<ExecutionPlan.Column> columns(List<Pure> pure, SqlQuery lowered,
             ExecutionPlan.TdsResult.Shape shape) {

@@ -1,7 +1,8 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -80,10 +81,10 @@ class UnionJoinMappedPropertyTest {
             """;
 
     private static List<List<Object>> rows(Connection connection, String query) throws Exception {
-        var result = new QueryService().execute(MODEL, query, "ux::rt", connection);
+        var result = Lean.run(MODEL, query, "ux::rt", connection);
         List<List<Object>> out = new ArrayList<>();
         for (var row : result.rows()) {
-            out.add(new ArrayList<>(row.values()));
+            out.add(new ArrayList<>(row));
         }
         out.sort((x, y) -> String.valueOf(x).compareTo(String.valueOf(y)));
         return out;

@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.setup.RowLoad;
 import com.legend.testbackend.TestBackends;
@@ -71,7 +72,7 @@ class RowLoadH2Test {
         // text; DuckDB's bulk path is systemSeedIsBulk's
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = com.legend.Execution.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
+            var r = Lean.established(model, "|x::Firm.all()->project(~[name: f|$f.name,"
                     + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);
             assertEquals(List.of("Acme|2020-01-02|10", "O'Brien|null|null"), r.rows().stream()
                     .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());

@@ -73,7 +73,8 @@ final class PlanMaker {
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
         com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
-        Type.RelationType rowSchema = Type.schemaView(root.type());
+        // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns kept)
+        Type.RelationType rowSchema = Type.schemaView(root.type()) == null ? null : TypedRows.schema(root);
         if (dynamic != null && rowSchema != null && !rowSchema.dynamicColumns().isEmpty()
                 && com.legend.plan.ResultShape.of(l.root()) == com.legend.plan.ResultShape.TABULAR) {
             // a pivot no cast names: its columns are the data's, so its plan reads its keys first (the probe plan,

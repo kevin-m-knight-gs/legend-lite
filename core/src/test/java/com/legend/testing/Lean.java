@@ -52,6 +52,41 @@ public final class Lean {
         return Result.of(plan.answerShape(), sink.columns, out.toString());
     }
 
+    /** {@code query} over {@code model} on {@code runtime} as the query service runs it with no caller's connection
+     *  ({@code QueryService.execute(model, query, runtime, sinkOf)}, the route of its {@code execute(..., out,
+     *  format)}): on the connection the runtime declares, leased from the server's resolver, the plan sessions
+     *  shared -- the session the COMPILER decided, which is what a test of the server's sessions judges. Lite's JSON
+     *  rows, read back. */
+    public static Result service(String model, String query, @com.legend.base.Nullable String runtime) {
+        StringWriter out = new StringWriter();
+        Capturing sink = new Capturing(out);
+        ExecutionPlan plan;
+        try {
+            plan = new com.legend.server.QueryService().execute(model, query, runtime, p -> sink.of(p));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Result.of(plan.answerShape(), sink.columns, out.toString());
+    }
+
+    /** {@code query} over {@code model} on {@code runtime}, on the caller's connection {@code c}, the runtime's
+     *  DECLARED test data established on it first, as the engine-shaped API establishes a connection on every
+     *  acquisition ({@code QueryService.executeUpstream}: {@code Execution.Establish.DECLARED_SETUP}); a test of the
+     *  declared data's loading judges this route. Lite's JSON rows, read back. */
+    public static Result established(String model, String query, @com.legend.base.Nullable String runtime,
+            Connection c) {
+        StringWriter out = new StringWriter();
+        Capturing sink = new Capturing(out);
+        ExecutionPlan plan;
+        try {
+            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query), runtime,
+                    Sessions.given(c), PlanSessions.given(c), Execution.Establish.DECLARED_SETUP, p -> sink.of(p));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Result.of(plan.answerShape(), sink.columns, out.toString());
+    }
+
     /** The JSON rows writer with the columns the runner handed it kept: what the plan that RAN names and types. */
     private static final class Capturing implements ResultSink {
         private final StringWriter out;
@@ -124,16 +159,16 @@ public final class Lean {
                         throw new IllegalStateException("the row has no field for the column '" + c.name()
                                 + "' (it has " + o.fields().keySet() + ")");
                     }
-                    // a TAGGED column (a mixed selection, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) reaches the
-                    // writer as the one cell the session resolved from its tag and slot columns; its JSON token is
-                    // read by the column's declared Pure type (a Number: a whole number a Long, any other an exact
-                    // decimal; a Date: its text parsed), as the decoder reads any slotless cell
                     if (c.type().equals(RowDecode.VARIANT) && node instanceof Json.Str s) {
                         // lite's JSON rows write a Variant as a string holding its JSON (legend-engine's measured
-                        // form, CellText): the string's value is the variant's JSON text
+                        // form, CellText): the string's value is the variant's JSON text (rule 4)
                         cells.add(s.value());
                         continue;
                     }
+                    // a TAGGED column (a mixed selection, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) reaches the
+                    // writer as the one cell the session resolved from its tag and slot columns; its JSON token is
+                    // read by the column's declared Pure type (a Number: a whole number a Long, any other an exact
+                    // decimal; a Date: its text parsed), as the decoder reads any slotless cell (rule 3)
                     cells.add(RowDecode.cell(node, RowDecode.slotWord(c.slot()).equals("TAGGED")
                             ? new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), null, null, null) : c));
                 }
@@ -157,6 +192,20 @@ public final class Lean {
                         + columns.size() + " column(s)");
             }
             return rows.get(0).get(0);
+        }
+
+        /** The answer as a client reads a VALUE: a to-one column's one cell (null when no row was written: Pure's
+         *  {@code []}), a to-many column's cells in order; refused for any other shape. */
+        public @com.legend.base.Nullable Object value() {
+            if (shape != ExecutionPlan.TdsResult.Shape.VALUE || columns.size() != 1) {
+                throw new AssertionError("value() reads a VALUE answer's one column; this answer is " + shape
+                        + " of " + columns.size() + " column(s)");
+            }
+            Integer upper = columns.get(0).multiplicity().upper();
+            if (upper != null && upper <= 1) {
+                return rows.isEmpty() ? null : one();
+            }
+            return values();
         }
 
         /** Column 0 of every row (a collection answer). */
@@ -199,6 +248,9 @@ public final class Lean {
      */
     public static Result of(com.legend.exec.ExecutionResult side) {
         ExecutionPlan.Multiplicity one = new ExecutionPlan.Multiplicity(1, 1);
+        // the driver's Scalar is a to-one value (its null Pure's []), its Collection a to-many one
+        ExecutionPlan.Multiplicity optional = new ExecutionPlan.Multiplicity(0, 1);
+        ExecutionPlan.Multiplicity many = new ExecutionPlan.Multiplicity(0, null);
         return switch (side) {
             case com.legend.exec.ExecutionResult.Scalar s -> {
                 // the body driver's Scalar(null) is Pure's [] (an empty optional value): zero rows, as the plan path
@@ -210,7 +262,7 @@ public final class Lean {
                     rows.add(row);
                 }
                 yield new Result(ExecutionPlan.TdsResult.Shape.VALUE,
-                        List.of(new Column("value", s.returnType().typeName(), one)), List.copyOf(rows), "");
+                        List.of(new Column("value", s.returnType().typeName(), optional)), List.copyOf(rows), "");
             }
             case com.legend.exec.ExecutionResult.Collection c -> {
                 List<List<Object>> rows = new ArrayList<>(c.values().size());
@@ -220,12 +272,14 @@ public final class Lean {
                     rows.add(row);
                 }
                 yield new Result(ExecutionPlan.TdsResult.Shape.VALUE,
-                        List.of(new Column("value", c.returnType().typeName(), one)), List.copyOf(rows), "");
+                        List.of(new Column("value", c.returnType().typeName(), many)), List.copyOf(rows), "");
             }
             case com.legend.exec.ExecutionResult.Tabular t -> {
                 List<Column> columns = new ArrayList<>(t.columns().size());
                 for (com.legend.exec.Column c : t.columns()) {
-                    columns.add(new Column(c.name(), c.pureType().typeName(), one));
+                    // the side's column carries the typer's multiplicity where the judge had one; one otherwise
+                    columns.add(new Column(c.name(), c.pureType().typeName(), c.multiplicity() == null ? one
+                            : com.legend.plan.PlanColumns.multiplicity(c.multiplicity())));
                 }
                 List<List<Object>> rows = new ArrayList<>(t.rows().size());
                 for (com.legend.exec.Row r : t.rows()) {
@@ -234,10 +288,17 @@ public final class Lean {
                 yield new Result(ExecutionPlan.TdsResult.Shape.RELATION, List.copyOf(columns), List.copyOf(rows), "");
             }
             case com.legend.exec.ExecutionResult.Graph g -> {
-                List<List<Object>> rows = new ArrayList<>(1);
-                List<Object> row = new ArrayList<>(1);
-                row.add(g.json());
-                rows.add(row);
+                // one row per object, as the reader reads a graph fetch's JSON rows; json() the array as written
+                Json.Node parsed = Json.parse(g.json());
+                if (!(parsed instanceof Json.Arr items)) {
+                    throw new IllegalStateException("a graph side's JSON is an array of objects; got " + g.json());
+                }
+                List<List<Object>> rows = new ArrayList<>(items.items().size());
+                for (Json.Node item : items.items()) {
+                    List<Object> row = new ArrayList<>(1);
+                    row.add(Json.toCompact(item));
+                    rows.add(row);
+                }
                 yield new Result(ExecutionPlan.TdsResult.Shape.OBJECTS,
                         List.of(new Column("json", "String", one)), List.copyOf(rows), g.json());
             }

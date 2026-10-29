@@ -3,12 +3,12 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -26,14 +26,9 @@ class EmptyListAggregateTest {
 
     private static String scalar(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
-            if (r instanceof ExecutionResult.Scalar s) {
-                return String.valueOf(s.value());
-            }
-            if (r instanceof ExecutionResult.Collection col) {
-                return col.values().stream().map(String::valueOf).toList().toString();
-            }
-            throw new IllegalStateException("unexpected result for " + query + ": " + r);
+            Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
+            Object v = r.value();
+            return v instanceof List<?> l ? l.stream().map(String::valueOf).toList().toString() : String.valueOf(v);
         }
     }
 

@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -109,7 +111,7 @@ class ConnectionLeaseTest {
         String query = "|model::Person.all()->project(~[name: p|$p.firstName])";
 
         // 1. execute(pureSource, query, runtimeName) — QueryService:81
-        assertNotNull(qs.execute(duckModel, query, "test::TestRuntime"),
+        assertNotNull(Lean.service(duckModel, query, "test::TestRuntime"),
                 "3-arg execute returned no result");
 
         // 2. pure/v1 execute (E8) — PureV1Api.execute leases the runtime's connection

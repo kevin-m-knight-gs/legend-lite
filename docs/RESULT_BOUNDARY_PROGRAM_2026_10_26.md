@@ -511,6 +511,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
   once for the plan's columns and the judges' (`TypedRows.flat`); six files whose bodies only the program entry runs
   go through `Program`; 2,232 of 2,232. Findings queued to D and F: the plan path's missing metamodel-store route on
   a given session; `PureV1Api`'s positional tdsColumns. Next: the other packages (85 files by the counting rule).
+- **2026-10-29, track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product
+  bugs fixed** (GATES, the T-b2/T-c entry; the decisions log D45, D46; the ledger): `Json.parse`'s negative zero and
+  `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
+  sinkOf)`. 8 files, 23 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
+  egress lower bound). Next: T-d, then D.
 - **2026-10-29, track C built: the corpus runner, the service test runner and channel B on `Execution.runProgram`**
   (GATES, the track C entry; the decisions log D39): the body typed once, the session the caller's, nothing
   materialized returned to the corpus runner or channel B; the referee keeps `ExecutionResult` as the judges' side

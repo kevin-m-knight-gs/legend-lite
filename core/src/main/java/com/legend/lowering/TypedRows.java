@@ -4,6 +4,7 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
@@ -42,7 +43,11 @@ public final class TypedRows {
         for (Type.Column c : schema.columns()) {
             if (c.type() instanceof Type.RelationType sub) {
                 for (Type.Column sc : sub.columns()) {
-                    out.add(new Type.Column(c.name() + "_" + sc.name(), sc.type(), sc.multiplicity()));
+                    // the LEFT join answers NULL where no row matches: a slot column is optional whatever the
+                    // target column's own bound, as the lowering marks every slot output nullable
+                    Multiplicity m = sc.multiplicity() instanceof Multiplicity.Bounded b
+                            ? new Multiplicity.Bounded(0, b.upper()) : sc.multiplicity();
+                    out.add(new Type.Column(c.name() + "_" + sc.name(), sc.type(), m));
                 }
             } else {
                 out.add(c);

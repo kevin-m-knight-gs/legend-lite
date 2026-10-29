@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
+import com.legend.testing.Lean;
+
 import com.legend.resolver.ResolvedSql;
 import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.server.QueryService;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,10 +91,10 @@ class UnionTargetLeanJoinTest {
             """;
 
     private static List<List<Object>> rows(Connection connection, String query) throws Exception {
-        var result = new QueryService().execute(MODEL, query, "ul::rt", connection);
+        var result = Lean.run(MODEL, query, "ul::rt", connection);
         List<List<Object>> out = new ArrayList<>();
         for (var row : result.rows()) {
-            out.add(new ArrayList<>(row.values()));
+            out.add(new ArrayList<>(row));
         }
         out.sort((x, y) -> String.valueOf(x).compareTo(String.valueOf(y)));
         return out;

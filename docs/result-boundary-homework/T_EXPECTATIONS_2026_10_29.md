@@ -37,11 +37,16 @@ column names and types (`firstName`, `Integer`, `String`) and the one column a V
 (`[{"value": ...}]`) -- the same queries, the facts the product's output carries. Dropped: `Type.relationSchema(returnType)`
 non-null (the relation's shape is asserted as `RELATION`); the typed accessors' error (an old-door fact).
 
-**Counting rule for "left on the old door":** files under `core/src/test/java` whose text matches
-`Execution\.execute\(|Execution\.executeResolved\(|ExecutionResult` (`grep -rlE`), and the lines matching
-`Execution\.execute\(|Execution\.executeResolved\(|queryService\.execute\(` (`grep -rnE ... | wc -l`). At `39a2a657`:
-114 files, 142 + 89 = 231 lines by the audit's two greps (the T-a records said "174 call sites in 115 files" from a
-grep whose rule they did not state: corrected here, D43).
+**Counting rule for "left on the old door"** (revised with T-b2 after the T-b audit, D45): the census
+`docs/result-boundary-homework/probes/old_door_census.py.txt` (run from the repository root with `python3 -I`): every
+line under `core/src/test/java` that names the old door or its result -- `Execution.execute(`,
+`Execution.executeResolved(`, `ExecutionResult`, or the query service's MATERIALIZED execute by any receiver
+(`qs.execute(`, `queryService.execute(`, `service.execute(`, `new QueryService().execute(`); a line of the service's
+writer or stream doors (an `OutputFormat` or an `out` argument) is not the old door; a file counts when it has such a
+line. The rule the T-b records first stated (two greps, one of them without the service's receivers) missed 25 call
+sites in six integration files whose results were `var`s (the T-b audit's finding 1), and its figures for `39a2a657`
+("114 files, 142 + 89 = 231 lines") were not what it yields: by that rule `39a2a657` has 115 files and 174 lines, the
+T-a records' own numbers (finding 2). By the census: at `9ca7482f` (T-b) 101 files, 461 lines.
 
 ## Batch T-b (2026-10-29): the integration package's remaining 31 files; `testing/Program.java` -- 2,232 tests
 
@@ -67,10 +72,15 @@ an OBJECTS answer. The body driver's `Scalar(null)` is Pure's `[]`: ZERO rows, a
 | CypherNativeEndsTest, CypherIslandIntegrationTest | `theNodesAtAWrittenRelationshipsEndsAreItsStartAndItsEnd`; one test of the island | a Variant cell was the variant's JSON text | read as a JSON string token the decoder handed WITH its quotes | rule 4 (the reader): the string token's value; no value moved |
 | MetamodelMappingStoreTest, MetamodelQueryFunctionsTest | `classMappingByIdIsAQuery`, `extendsChainAsRows`, `classMappingsByClass` | the helper mapped the old door's `Scalar(null)` to `[]` (`v == null ? List.of() : List.of(v)`) | `Lean.of` first gave one row of a null cell, `[null]` | rule 5 (the view): `Scalar(null)` is zero rows, as the plan path writes it; the helpers now read `values()`; no value moved |
 
-The mechanical rewrite (`t-b-code.py`, the forms of T-a plus: a 3-argument `Execution.execute(model, query, c)` ->
-`Lean.run(model, query, null, c)`; `((Scalar) r).value()` -> `r.one()`; `.rows().get(i).values()` -> `.rows().get(i)`;
-`col.pureType().typeName()` -> `col.type()`) touched 31 files; the six files above were switched by hand to
-`Program.last` (the same model, body, runtime and connection; the reads unchanged). `ExecutionResultIntegrationTest`'s
+The mechanical rewrite (`docs/result-boundary-homework/probes/t-b-code.py.txt`, the forms of T-a plus: `((Scalar)
+r).value()` -> `r.one()`; `.rows().get(i).values()` -> `.rows().get(i)`; `col.pureType().typeName()` -> `col.type()`;
+and, unlisted until the T-b audit (its finding 13, every one value-neutral): `assertInstanceOf(ExecutionResult.Tabular
+.class, r)` -> `assertEquals(Shape.RELATION, r.shape())`; the three-argument `Rows.assertSameRows(expected, r.rows(),
+Row::values)` -> the two-argument one (the same multiset compare); `result.asTabular()` -> `result`;
+`com.legend.exec.Column::name` -> `Lean.Column::name`; two javadocs) put 24 files on `Lean.run`; the six files above
+went to `Program.last` by hand (the same model, body, runtime and connection; the two three-argument sites,
+`Execution.execute(model, query, c)`, as `Program.last(model, query, null, c)`); the 31st, `ExecutionResultIntegrationTest`,
+was already on `Lean.run` (T-a) and changed only by hand. `ExecutionResultIntegrationTest`'s
 `typedAccessorErrorMessage` (which judged the reader's refusal, not the product: the T-a audit) is replaced by
 `valueAnswerHasOneColumnNamedValue` (the one column `value` a VALUE answer is written with, `[{"value": ...}]`).
 
@@ -78,5 +88,43 @@ The mechanical rewrite (`t-b-code.py`, the forms of T-a plus: a 3-argument `Exec
 resolver 12, integration 6 (the parity-lane files `CypherParityTest`, `CypherParityNativeTest`, `SqlParityTest`,
 `StreamingIntegrationTest`, `CypherWritePlansTest`: T-c with the helpers; and `ExecutionResultIntegrationTest`, a false
 hit: its own class name matches `ExecutionResult`), compiler/spec 5, testcases 4, sql/dialect 3, server 3, normalizer
-3, compiler 2, the root package 13, and one each in testing (`Program`, which names `ExecutionResult` in a javadoc
-until D) and compiler/element.
+3, compiler 2, the root package 13, and one each in testing (`Lean`, whose view `Lean.of` takes the old result until D)
+and compiler/element.
+
+## Batch T-b2 and T-c (2026-10-29): the other packages, the six files the rule missed, the parity harnesses and lanes
+
+Reader rules added (the reader stays a reader of the product's output; the writer unchanged):
+
+- Rule 6: **`value()` is a VALUE answer as a client reads it** -- a to-one column's one cell (null when no row was
+  written, Pure's `[]`), a to-many column's cells in order; refused for any other shape. The old door's helpers
+  `r instanceof Scalar s ? s.value() : r instanceof Collection c ? c.values() : r` are this.
+- Rule 7: **`Lean.service(model, query, runtime)`** runs the query service's own route with no caller's connection
+  (`QueryService.execute(model, query, runtime, sinkOf)`, new in main: the route its `execute(..., out, format)` now
+  rides -- the runtime's connection leased from the server's resolver, the plan sessions shared); a test of the server's
+  sessions judges it. **`Lean.established(model, query, runtime, c)`** runs on the caller's connection with the
+  runtime's DECLARED test data established first, as the engine-shaped API establishes a connection on every
+  acquisition (`QueryService.executeUpstream`, `Execution.Establish.DECLARED_SETUP`); a test of the declared data's
+  loading judges it.
+- Rule 5 completed: `Lean.of` gives a scalar side [0..1], a collection side [0..*], a relation side the typer's
+  multiplicity where the judge had one, and a graph side one row per object (the T-b audit's finding 14).
+- `Program` types a body as the old door and the corpus runner type it (`Compiler.resolveQuery`: the names, the
+  statement splice, the desugars; then `queryResolved`), never by `Compiler.query` alone (the audit's finding 7);
+  `Program.last(..., options)` for a run under execute options (a judge mode, the substring correction).
+
+| File | Test | Old expectation | New expectation | Reason |
+|---|---|---|---|---|
+| (the root, exec, lowering, resolver, compiler, normalizer, sql/dialect, server packages: 68 files; the six integration files the first rule missed; the parity harnesses and their eleven lane tests) | -- | -- | -- | every expectation held on `Lean.run`, `Lean.service`, `Lean.established` or `Program.last` with the rules above and the two product fixes below; the mechanical forms of T-b plus: `((Scalar) X).value()` -> `X.one()` across lines; `((Collection) X).values()` -> `X.values()`; `((Tabular) X)` -> `X`; `assertInstanceOf(ExecutionResult.{Scalar,Collection,Tabular,Graph}.class, r)` -> `assertEquals(Shape.{VALUE,VALUE,RELATION,OBJECTS}, r.shape())`; `Type.Primitive.X, s.returnType()` -> `"X", s.columns().get(0).type()`; `col.pureType()` -> `col.type()`; `r instanceof Graph g ? g.json() : String.valueOf(r)` -> `r.json()`; `String.valueOf(r).contains("rows=[Row[values=[2]]]")` (an old-door toString) -> the row's value; the IQ, SQL and Cypher lanes' `service.execute(model, island, RUNTIME, session)` -> `Lean.run(...)`; `SqlParity.grid(Lean.Result)` (a to-one VALUE answer the count grid, as a Scalar was), `CypherValues.ofCell/ofRow(Lean.Column)` (a Variant by the column's type name) |
+| CypherParityTest, CypherParityNativeTest, CypherParityPostgresTest | the negative-zero cases (`tck/expressions/literals/Literals5/[9]`, `[10]`, `lite/basics/review_float_arithmetic_is_double`, `lite/exprtail/float_remainders_exact`) | the driver's `-0.0` | `0.0`: lite's JSON rows spell `-0.0`, and `Json.parse` computed a float token's double from its exact `BigDecimal`, which has no negative zero | **a bug in the product's JSON library fixed in main** (`json/.../Json.java`: the double from the token, `Double.parseDouble`); the writer unchanged; the lanes' PASS kept |
+| StructValueTest | `instanceRootIsOrderedMap` | the instance's declared properties in declaration order | the declared properties, then `__id`, `__type` as null properties: the writer drops an object's identity fields (`CellText.declared`), and `RowDecode`'s STRUCT branch read every field of the plan's slot back, the dropped ones as null | **a bug in the product's row decoder fixed in main** (`RowDecode`: an identity field the JSON does not carry is not materialized; `CellText.synthetic`); the writer unchanged |
+| MultiplicityStrictnessTest | `collectionEgressLowerBoundRaisesOnZeroRows` | Pure's error "Cannot cast a collection of size 0 to multiplicity [1..*]" from the judges' value lane on `->toOneMany()` over no row | the plan path writes `[]`: no egress bound is enforced on it | the test keeps the judges' answer (`Program.last`); the plan path's silence is a DIVERGENCE from legend-pure, which raises at `toOneMany` (D46, queued to track F: the egress lower bound enforced on the plan path as Pure enforces it, or ruled) |
+| LegacyTextTest (6), ResolveDeepEmptinessProbeTest (`classRootedFrameRead`), RowLoadDuckDbTest (`systemSeedIsBulk`), the assert-arm, verdict, instance-identity and `executeInDb` files (AssertErrorNativeTest, AssertVerdictSpliceTest, AssertVerdictsTest, InstanceIdentityTest, LiteralChannelTest, AuditTier1PipelineTest, ExecuteFrameTest, ExecuteInDbDuckDbTest, ExecuteInDbProbeCountTest, Phase1AuditTest, RawGridSchemaDuckDbTest, PctFunctionSuppressionTest, JudgesOnPlansTest) | -- | the old door | `Program.last` / `Execution.runProgram`: bodies only the program entry runs (the SQL-text natives `toSQLString`, which the plan path refuses as a read of a store the storeless runtime binds no connection to; the router's `execute` frame in a let; a system metamodel store read, D44; the assert arms and the effect natives, which ARE the body driver's judging) | the user's rule: a test of a verdict reads what the platform judged; no value moved |
+| RowLoadH2Test | `declaredCsvTestDataLoadsOnItsDatabase` | the old door established the runtime's declared test data on the connection | `Lean.run` (the query service's route on a given connection, `Establish.AS_GIVEN`) found no table | rule 7: `Lean.established`, the engine-shaped API's route, which establishes; no value moved |
+
+Not on the twin by design, left to track D (the census: 8 files, 23 lines): the judges' own vocabulary
+(`JudgesOnPlansTest` reads verdicts through `Execution.runProgram`; `AgreementArmTest` builds the arm's sides;
+`ConstantPlanParityTest` pins `LiteralFold`'s own result type), the guards' registers (`ArchitectureTest`,
+`JavaEvalLedgerTest`), two javadocs (`ExecutionResultIntegrationTest`, `StreamingIntegrationTest`), and `Lean.of`,
+the view of the body driver's side until D renames it.
+
+**By the census** (`probes/old_door_census.py.txt`): at `9ca7482f` 101 files, 461 lines; after T-b2 and T-c 8 files,
+23 lines, every one named above.

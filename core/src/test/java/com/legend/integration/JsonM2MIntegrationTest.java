@@ -127,7 +127,7 @@ class JsonM2MIntegrationTest {
     private String executeGraphFetch(String pureQuery) throws SQLException {
         var result = Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
         assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape(),
-                "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
+                "graphFetch/serialize answers OBJECTS, got: " + result.shape());
         return result.json();
     }
 
@@ -143,17 +143,16 @@ class JsonM2MIntegrationTest {
         var result = executeProject("""
                 model::Person.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])
                 """);
-        var tabular = result;
-        assertEquals(3, tabular.rows().size(), "Should have 3 persons from JSON");
+        assertEquals(3, result.rows().size(), "Should have 3 persons from JSON");
 
-        var colNames = tabular.columns().stream()
+        var colNames = result.columns().stream()
                 .map(Lean.Column::name).toList();
         assertTrue(colNames.contains("fullName"), "Should have fullName column");
         assertTrue(colNames.contains("age"), "Should have age column");
 
         // some row is John Smith's (no sort: not "the first", P3-11)
-        assertTrue(tabular.rows().stream().anyMatch(r -> "John Smith".equals(r.get(colNames.indexOf("fullName")))),
-                "a row with fullName John Smith: " + tabular.rows());
+        assertTrue(result.rows().stream().anyMatch(r -> "John Smith".equals(r.get(colNames.indexOf("fullName")))),
+                "a row with fullName John Smith: " + result.rows());
     }
 
     @Test
@@ -177,7 +176,6 @@ class JsonM2MIntegrationTest {
         var result = executeProject("""
                 model::Person.all()->filter(x|$x.age > 26)->project(~[fullName:x|$x.fullName])
                 """);
-        var tabular = result;
-        assertEquals(2, tabular.rows().size(), "Should have 2 persons with age > 26");
+        assertEquals(2, result.rows().size(), "Should have 2 persons with age > 26");
     }
 }

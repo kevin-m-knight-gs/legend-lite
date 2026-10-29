@@ -1,7 +1,6 @@
 package com.legend.integration;
 
 import com.legend.testing.Lean;
-import java.util.List;
 import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -93,21 +92,21 @@ public class GetCheckerTest {
                         PAYLOAD JSON
                     )
                     """);
-            // List<Object> 1: nested object with scalar fields
+            // Row 1: nested object with scalar fields
             stmt.execute("""
                     INSERT INTO T_EVENTS VALUES (
                         1, 'page_view',
                         '{"page": "/home", "count": 42, "user": {"name": "Alice", "id": 100, "tags": ["admin", "active"]}}'
                     )
                     """);
-            // List<Object> 2: object with array of objects
+            // Row 2: object with array of objects
             stmt.execute("""
                     INSERT INTO T_EVENTS VALUES (
                         2, 'purchase',
                         '{"items": [{"sku": "ABC", "price": 10, "qty": 2}, {"sku": "XYZ", "price": 25, "qty": 1}], "total": 45}'
                     )
                     """);
-            // List<Object> 3: simple object
+            // Row 3: simple object
             stmt.execute("""
                     INSERT INTO T_EVENTS VALUES (
                         3, 'purchase',

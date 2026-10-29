@@ -19,7 +19,9 @@ import java.util.List;
  * track B, B2) for the tests OF the body driver's judging -- the assert arms, the verdict channel, the effect natives,
  * instance identity (track T, 2026-10-29): the body typed once, run on the caller's connection, every verdict the
  * platform reports kept in order. A test of a VALUE reads the product's output instead ({@link Lean}); a test of a
- * verdict reads what the platform judged, exactly as the corpus runner does. Test code only.
+ * verdict reads what the platform judged, exactly as the corpus runner does: the body typed by the one front door
+ * ({@code Compiler.resolveQuery}, then {@code queryResolved}), as the old door and the corpus runner type it. Test
+ * code only.
  */
 public final class Program {
 
@@ -60,6 +62,12 @@ public final class Program {
         return run(model, body, runtime, c).side();
     }
 
+    /** {@link #last(String, String, String, Connection)} with the caller's execute {@code options}. */
+    public static Lean.Result last(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
+            ExecuteOptions options) {
+        return run(model, body, runtime, c, options).side();
+    }
+
     /** {@link #run(String, String, String, Connection)} with the caller's execute {@code options} (a judge mode). */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
             ExecuteOptions options) {
@@ -71,8 +79,16 @@ public final class Program {
                 verdicts.add(new Verdict(assertName, pass, detail));
             }
         };
-        Execution.ProgramReport report = Execution.runProgram(Compiler.query(ctx, body), runtime, Sessions.given(c),
-                listener, null, options);
+        // typed as the old door and the corpus runner type a body (Compiler.resolveQuery: the names, the statement
+        // splice, the desugars; then queryResolved), never by Compiler.query alone (the T-b audit's finding 7)
+        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
+        List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
+                        ? lf.body() : List.of(parsed);
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(statements,
+                new com.legend.model.ImportScope(List.of()), ctx);
+        Execution.ProgramReport report = Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime,
+                Sessions.given(c), listener, null, options);
         return new Report(List.copyOf(verdicts), report.last() == null ? null : Lean.of(report.last()));
     }
 }

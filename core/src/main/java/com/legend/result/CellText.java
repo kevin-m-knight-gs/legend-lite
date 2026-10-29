@@ -335,6 +335,11 @@ public final class CellText {
     private static final String SYNTHETIC_TYPE = "__type";
     private static final String SYNTHETIC_CANON = "__canon";
 
+    /** Whether {@code field} is one of the identity fields an object carries through the database. */
+    static boolean synthetic(String field) {
+        return field.equals(SYNTHETIC_ID) || field.equals(SYNTHETIC_TYPE) || field.equals(SYNTHETIC_CANON);
+    }
+
     /** A structure as a reader sees it (the lowering's {@code MixedEncoding.declaredOnly}, the same rule): an object
      *  its declared properties, its identity fields dropped -- its class alone where it declares none -- and every
      *  nested value the same. */
