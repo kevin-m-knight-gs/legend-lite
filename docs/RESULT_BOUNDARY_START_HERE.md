@@ -87,17 +87,18 @@ order; the steps are the program's §5):
 |---|---|---|---|
 | 0. Measure | (the clouds' M5 to M8, 2026-10-26) | GATES 2026-10-26 | half: M1 to M4 never recorded; the lanes' per-test baselines of S1.1 replaced them as the gate |
 | 1. Typed results, the batch stream | phase 1 | `51688f36` | done |
-| 2. The shared Arrow framer | -- | -- | not started (track A) |
+| 2. The shared Arrow framer | track A | `1e3065d4` | done 2026-10-29: `//arrow_ipc`, the warehouse delegating; no Arrow library in any product closure |
 | 3. The legacy writer in Java; the SQL-written wires deleted | phases 2, 3 | `12b89c7d`, `1b0305f7`, `53cf5b6d` | done |
 | 4. PCT from typed rows; the TDS text deleted | phase 4; S1.3 | `b3311cd6`; `ac4bb7d3`, `6811256b`, `4eaf1b07`, `d8ab8434` | done: a relation crosses as legend-engine's adapter reads it |
-| 5. The lean writers | phase 2 (JSON, CSV) | `12b89c7d` | JSON and CSV done; Arrow not (track A); `conformValueEgress` not deleted (track L) |
-| 6. Mixed lists typed | -- | -- | not started (track L) |
+| 5. The lean writers | phase 2 (JSON, CSV); track A (Arrow) | `12b89c7d`; `1e3065d4` | JSON, CSV and Arrow done; `conformValueEgress` not deleted (D51, the user's call) |
+| 6. Mixed lists typed | track L | `63ddd3f4`, `a93806d3`, `38f5e367` | done 2026-10-29: tagged lists; the LITERAL carrier deleted; plan format 19 |
 | 7. The old executor goes | phase 5; S1.2 | `0fe63b42`, `f883d42b` | done 2026-10-29 (track D): `exec.Executor` deleted (phase 5); the old door, the materialized result and the service's materialized `execute` deleted; `StatementExecutor` is `BodyDriver`, the judges' orchestration behind `Execution.runProgram`, every statement through its plan (track B) |
 | 8. Optional deletions | -- | -- | parked for the user (the engine-style SQL-text dialects) |
 
 **The audit's three stages** (2026-10-27, accepted with "keep it, and keep going"): stage 1 S1.1 to S1.3 done, S1.4 to
-S1.6 next (§4); stage 2 is tracks B, C and D; stage 3 is tracks L and A and the final audit (Z). The audit itself and
-what it found: the homework README §1.
+S1.6 next (§4); stage 2 is tracks B, C and D; stage 3 is tracks L and A and the final audit (Z). All three stages'
+work is on the branch as of `1e3065d4` (2026-10-29: tracks B, T, C, D, L, A and F landed; Z's audit running); the
+audit itself and what it found: the homework README §1.
 
 **The last measurements.**
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
@@ -131,6 +132,15 @@ what it found: the homework README §1.
   `//datacube:python_execute_test` (GATES, "B1a's gate" and "B1b's gate"). The second merge of `main` (`f4ce65b2`): the
   local gate with the parser-equivalence lane, 454 targets (GATES, "the second merge's gate recorded"); CI on PR #80
   green on every finished lane at that head (47 of 50 when the B1b push superseded the run).
+- Tracks T, C, D, L, A and F (2026-10-29; `L1` `63ddd3f4`, `L2` `a93806d3`, the L2 audit's fold `38f5e367`, tracks A
+  and F `1e3065d4`), each: the full local chain (GATES, each entry's "Measured locally before the commit"): `//json:tests`,
+  `//:generated`, `//gates:checks`, `//core:core_tests`, `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`,
+  `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine Postgres targets; the two
+  corpus gates and `//spec:judge_lanes`; the 21 PCT lanes; the five Postgres PCT lanes; the readers (`//engine-client`,
+  `//datacube`, `//wasm`, `//python:bindings_test`, `//warehouse:tests`, the Arrow gate and the two closure tests);
+  `//datacube:python_execute_test`; the unlaned-tests guard. `//python:engine_test` fails in the cloud container at the
+  headless host's V8 (a segmentation fault before the test body; CI judges it). CI on PR #80 at `38f5e367`: green on
+  every Linux, Windows and ARM lane; macOS lanes cancelled runner-less (infrastructure).
 
 **Who still entered through the old door** (measured 2026-10-28, before tracks C, T and D moved them and deleted
 the door; production: nobody):
