@@ -347,6 +347,18 @@ materialized `execute`s, `PureTestRunner`, `ServiceTestRunner`, `ChannelB`, and 
   `StatementExecutor` 2316 -> 2313, `GridProbe` 53 -> 46, `DynamicPivot` 112 -> 111, dated. Not yet (B1b): the
   `Connection` in `ExecEnv`, `WrappedSide`, `ESTABLISHED`, `wireMemo`, `SystemDatabase.Route`, the transaction
   bracket, the test-data generator; the `java.sql` guard on the driver and the judges.
+- **B1b built 2026-10-29** (GATES, the B1b entry; the decisions log D35): the `Connection` leaves the body driver, the
+  judges, the verdict batch, the referee's SPI and the generator's natives. `ExecEnv.session` (a `Sessions.Session`:
+  `statements(trace)`, `state()`, `version()`), `withSession`, `WrappedSide.session`; `SessionState` on the seam (the
+  seeds established, the wire-type memo, the write mark: the old `ESTABLISHED`, still keyed by the connection so a
+  shared lane keeps one state); `Statements.ownsTransaction`; `SystemDatabase.Route.session`; `VerdictBatch` by
+  session; `SqlReplayReferee` by session; `TestDataGenerator.generate`/`seedDataString` by session, their
+  `SQLException` a `DataError` at the generator's door. `Execution` is the one JDBC-aware caller (its execute entries
+  wrap the connection: `PlanSessions.session`). Guards: root's `java.sql` pin shrinks to `{Execution}`;
+  `ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc` names the thirteen; the JDBC census loses three files and
+  gains `SessionState`; the ledger re-pins `StatementExecutor` 2313 -> 2290. Not yet: B3 (typed sides), B2
+  (`Execution.runProgram`), B4 (the residue: the generator still runs JDBC inside `testdatagen` on the session it is
+  handed).
 
 ### Track T. Our core tests become the LEAN twin of PCT and the corpus
 

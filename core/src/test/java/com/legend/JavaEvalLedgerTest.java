@@ -776,7 +776,8 @@ class JavaEvalLedgerTest {
             // 2316 -> 2313 (2026-10-29, track B's B1a: the body driver's schema probes and seeds read its session
             // through the seam (ExecEnv.statements); its JDBC tunnel for the grid referee and its connection
             // parameter to lowerAndPrepare are gone)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2313),
+            // 2313 -> 2290 (2026-10-29, the result boundary program's track B, B1b: the Connection leaves the body driver -- its environment holds a session (Sessions.Session) and reaches the database through the seam's statements, state and version; the established-state class and its two statics moved to exec/SessionState; three unused Connection locals deleted; nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2290),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1226,6 +1227,12 @@ class JavaEvalLedgerTest {
                     // at the execution seam, ColumnProbe's own pattern; no
                     // value a verdict reads is computed here.
                     "WireTypes.java",
+                    // 2026-10-29 (the result boundary program's track B, B1b): what a body driver ESTABLISHED on a
+                    // session -- the seeds it ran by their sources, the reported column types per statement, the
+                    // write mark -- keyed weakly by the session's connection; the driver's own ESTABLISHED map and
+                    // its Established class, moved to the seam so the driver holds a session and no JDBC. A memo of
+                    // facts the database reported; no value a verdict reads is computed here.
+                    "SessionState.java",
                     // batch 83 (2026-09-06): the engine's execution-trace
                     // comment — the statement the database receives carries
                     // `-- "executionTraceID" : "<uuid>"` (the engine's

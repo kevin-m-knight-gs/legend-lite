@@ -75,19 +75,20 @@ public final class SystemDatabase {
 
     /** One engine's session, and the store's tables as it names them. */
     private static final class Session {
-        private final Connection connection;
+        private final Sessions.Session session;
         private final Map<String, String> renames;
 
-        private Session(Connection connection, Map<String, String> renames) {
-            this.connection = connection;
+        private Session(Sessions.Session session, Map<String, String> renames) {
+            this.session = session;
             this.renames = renames;
         }
     }
 
-    /** Where a query reading the system store runs: the session holding the graph's metamodel, and each store table
-     *  ({@code schema.table}) renamed as that session holds it -- none in a private in-process database, which holds
-     *  them as declared. */
-    public record Route(Connection connection, Map<String, String> renames) {
+    /** Where a query reading the system store runs: the session holding the graph's metamodel (one per engine, the
+     *  same object on every route, so the body driver's identity compare of two sides' sessions holds), and each
+     *  store table ({@code schema.table}) renamed as that session holds it -- none in a private in-process database,
+     *  which holds them as declared. */
+    public record Route(Sessions.Session session, Map<String, String> renames) {
         public Route {
             renames = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(renames));
         }
@@ -127,7 +128,7 @@ public final class SystemDatabase {
             s = open(engine, dialect, store, rowsOf, systemConnections);
             sessions.put(engine, s);
         }
-        return new Route(s.connection, s.renames);
+        return new Route(s.session, s.renames);
     }
 
     private Session open(com.legend.model.ConnectionDefinition.DatabaseType engine, SqlDialect dialect,
@@ -159,7 +160,8 @@ public final class SystemDatabase {
 
     private Session seed(Connection c, boolean inProcess, SqlDialect dialect, DatabaseDefinition store,
             Function<String, List<List<String>>> rowsOf) {
-        Statements session = PlanSessions.statementsOf(c, null);
+        Sessions.Session opened = PlanSessions.session(c);
+        Statements session = opened.statements();
         for (String setup : dialect.sessionSetup()) {
             try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
                 SetupRunner.send(session, setup);
@@ -184,7 +186,7 @@ public final class SystemDatabase {
                 }
             }
         }
-        return new Session(c, renames);
+        return new Session(opened, renames);
     }
 
     private static Connection openPrivate(com.legend.model.ConnectionDefinition.DatabaseType engine) {

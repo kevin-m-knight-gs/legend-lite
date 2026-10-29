@@ -106,8 +106,8 @@ final class DatabaseJudge {
         // literal evaluates anywhere; a planned side reads where its tables
         // are — the system database for a metamodel read)
         StatementExecutor.ExecEnv on = pe.side() != null && !pe.side().storeFree()
-                ? env.withConnection(pe.side().connection())
-                : pa.side() != null && !pa.side().storeFree() ? env.withConnection(pa.side().connection())
+                ? env.withSession(pe.side().session())
+                : pa.side() != null && !pa.side().storeFree() ? env.withSession(pa.side().session())
                 : env;
         StatementExecutor.WrappedSide we = pe.side() != null ? pe.side()
                 : constantSide(pe.answered(), eSpec, re, false, env, on);
@@ -117,7 +117,7 @@ final class DatabaseJudge {
                 : wa == null ? "host-value AssertVerdicts.side (actual): " + describe(pa.answered())
                 : re.declined() != null ? "side-e: " + re.declined()
                 : ra.declined() != null ? "side-a: " + ra.declined()
-                : we.connection() != wa.connection() && !we.storeFree() && !wa.storeFree()
+                : we.session() != wa.session() && !we.storeFree() && !wa.storeFree()
                         ? "sides on different databases"
                 : null;
         // leg 3.1b — a GRID AssertVerdicts.side (the tabular wrap): the statement compares
@@ -139,7 +139,7 @@ final class DatabaseJudge {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
                 return runVerdict(name, wantEqual, pq,
-                        env.withConnection(we.storeFree() ? wa.connection() : we.connection()));
+                        env.withSession(we.storeFree() ? wa.session() : we.session()));
             } else {
                 StatementExecutor.WrappedSide gw = gridE ? we : wa;
                 com.legend.exec.CanonRider pr = gridE ? ra : re;
@@ -169,13 +169,13 @@ final class DatabaseJudge {
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
                                     canonicalOrder);
                     return runVerdict(name, wantEqual, gq,
-                            env.withConnection(gw.storeFree() ? pw.connection() : gw.connection()));
+                            env.withSession(gw.storeFree() ? pw.session() : gw.session()));
                 }
             }
         }
         // a store-free side rides the store-reading side's database
         StatementExecutor.ExecEnv runOn = we != null && wa != null
-                ? env.withConnection(we.storeFree() ? wa.connection() : we.connection()) : env;
+                ? env.withSession(we.storeFree() ? wa.session() : we.session()) : env;
         int ie = -1;
         int ia = -1;
         if (why == null) {
@@ -212,13 +212,13 @@ final class DatabaseJudge {
             com.legend.sql.SqlQuery vq, StatementExecutor.ExecEnv runOn) {
         com.legend.exec.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
-            batch.defer(name, wantEqual, vq, runOn.connection());   // leg 3.4: judged at the flush
+            batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
         // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6)
         return verdictOf(name, wantEqual, com.legend.exec.VerdictBatch.executeOne(
                 name, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
-                runOn.connection(), JudgePlans.runner(runOn)));
+                runOn.session(), JudgePlans.runner(runOn)));
     }
 
     /** The verdict of one row ({@code verdict, expected, actual, unjudged,
@@ -413,7 +413,7 @@ final class DatabaseJudge {
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
                         delta.rows(false), timeDelta.rows(false)),
-                env.withConnection(w1.storeFree() ? w2.connection() : w1.connection()));
+                env.withSession(w1.storeFree() ? w2.session() : w1.session()));
     }
 
     static ExecutionResult databaseCondition(String name, TypedSpec cond, boolean wantTrue,
@@ -483,11 +483,11 @@ final class DatabaseJudge {
         if (w.declineReason() != null) {
             rider.decline(w.declineReason());
             return new StatementExecutor.WrappedSide(plan, spec.info(),
-                    com.legend.plan.ResultShape.COLLECTION, on.connection(), true);
+                    com.legend.plan.ResultShape.COLLECTION, on.session(), true);
         }
         rider.wrap(w.kinds(), w.many(), w.literalIndex());
         return new StatementExecutor.WrappedSide(w.plan(), spec.info(),
-                com.legend.plan.ResultShape.COLLECTION, on.connection(), true);
+                com.legend.plan.ResultShape.COLLECTION, on.session(), true);
     }
 
     static String describe(@com.legend.base.Nullable ExecutionResult r) {
@@ -544,9 +544,9 @@ final class DatabaseJudge {
                     : com.legend.lowering.VerdictSql.countRows(w.plan());
         }
         /** The environment a statement over this side runs in: the side's own
-         * connection when it reads a store, the body's otherwise. */
+         * session when it reads a store, the body's otherwise. */
         StatementExecutor.ExecEnv on(StatementExecutor.ExecEnv env) {
-            return side != null && !side.storeFree() ? env.withConnection(side.connection()) : env;
+            return side != null && !side.storeFree() ? env.withSession(side.session()) : env;
         }
     }
 

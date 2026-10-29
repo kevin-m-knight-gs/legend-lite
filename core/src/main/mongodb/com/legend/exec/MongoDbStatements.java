@@ -104,6 +104,12 @@ final class MongoDbStatements implements Statements {
                 + " changes a store is not designed for MongoDB");
     }
 
+    @Override
+    public boolean ownsTransaction() {
+        throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
+                + " changes a store is not designed for MongoDB");
+    }
+
     /** A MongoDB session describes no statement before running it: the body driver's schema probes (a raw grid's
      *  roster, a deferred relation's columns, a wire-decided kind) are not designed for MongoDB; refused by name. */
     @Override

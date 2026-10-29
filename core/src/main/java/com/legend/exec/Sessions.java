@@ -39,6 +39,28 @@ public final class Sessions {
             return new JdbcStatements(connection());
         }
 
+        /** The body driver's statements on this session: as {@link #statements()}, each query's execution-trace
+         *  stamp published to {@code trace} (an activity row records the comment its statement carried,
+         *  {@link ExecutionTrace}); as {@link #statements()} when {@code trace} is null. A session whose statements
+         *  carry no SQL comment refuses by name (track B's B1b, 2026-10-29: the driver holds a session, never a
+         *  connection, and reaches the database only through its statements). */
+        default Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
+            return new JdbcStatements(connection(), trace);
+        }
+
+        /** What a body driver established on this session ({@link SessionState}): the seeds it ran, the database's
+         *  reported column types per statement, whether a write ran since -- facts that live exactly as long as the
+         *  session's connection, however many times the connection is wrapped as a session (B1b). */
+        default SessionState state() {
+            return SessionState.of(connection());
+        }
+
+        /** The database server's version, as its driver reports it ({@link Sessions#version}): what a plan's target
+         *  is written for (B1b: the judges read it through the session). */
+        default String version() {
+            return Sessions.version(connection());
+        }
+
         @Override
         void close();
     }

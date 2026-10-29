@@ -44,6 +44,11 @@ public interface Statements {
      *  committed when it returns, rolled back when it throws. */
     <T> T inTransaction(java.util.function.Supplier<T> work);
 
+    /** Whether the session commits each statement itself, so a transaction is its holder's to open
+     *  ({@link Sessions#ownsTransaction}): a caller that turned autocommit off holds it, and an effect script's bracket
+     *  must not nest inside (the body driver asks through the seam, B1b, 2026-10-29). */
+    boolean ownsTransaction();
+
     /**
      * The columns {@code statement} answers: the statement run and its result's columns read, no row read (the
      * caller's text is a {@code LIMIT 0} probe: a schema read, never values -- the E1 probe discipline). The body

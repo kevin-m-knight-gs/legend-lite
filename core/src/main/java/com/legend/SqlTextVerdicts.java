@@ -1013,7 +1013,7 @@ final class SqlTextVerdicts {
             // equality — and the referee (the fetch replayed on the referee, rows
             // compared) is its APPEAL, run at the flush only when the row failed.
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.connection(), () -> tdgRowsNow(name, golden, ours, textEqual, referee,
+                    env.session(), () -> tdgRowsNow(name, golden, ours, textEqual, referee,
                             actualSide, letPrefix, specs, env));
             return ok();
         }
@@ -1036,12 +1036,12 @@ final class SqlTextVerdicts {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = hop == null
-                ? referee.verifyFetchTexts(env.connection(), golden, ours)
-                : referee.verifyFetchChain(env.connection(), hop.index(),
+                ? referee.verifyFetchTexts(env.session(), golden, ours)
+                : referee.verifyFetchChain(env.session(), hop.index(),
                         golden, ours, () -> fetchTranscript(
                                 com.legend.testdatagen.TestDataGenerationNatives
                                         .transcript(hop.source(), env.ctx(),
-                                                env.connection(), env.dialect(),
+                                                env.session(), env.dialect(),
                                                 StatementExecutor.viewSqlRenderer(specs, env))));
         }
         refereed(env, name, rv);
@@ -1367,7 +1367,7 @@ final class SqlTextVerdicts {
             // its APPEAL, run at the flush only when the row failed (a byte-equal text
             // needs none). No assert shape is routed around the batch any more.
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.connection(), () -> rowsLegNow(name, golden, ours, textEqual, referee,
+                    env.session(), () -> rowsLegNow(name, golden, ours, textEqual, referee,
                             rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                             letPrefix, specs, env, hook, query, goldenPlan, planBindings, temps));
             return ok();
@@ -1447,9 +1447,9 @@ final class SqlTextVerdicts {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = goldenPlan != null
-                ? referee.verifyPlan(env.connection(), goldenPlan, planBindings,
+                ? referee.verifyPlan(env.session(), goldenPlan, planBindings,
                         rows, mappingFqn, classFqn, facts, env.ctx())
-                : referee.verify(env.connection(),
+                : referee.verify(env.session(),
                         replaySqlOrNull != null ? replaySqlOrNull : golden,
                         rows, mappingFqn, classFqn, facts, env.ctx(),
                         temps.isEmpty()
@@ -1688,7 +1688,7 @@ final class SqlTextVerdicts {
         com.legend.exec.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.connection(), () -> fail(message.get()));
+                    env.session(), () -> fail(message.get()));
             return ok();
         }
         return textEqual ? ok() : fail(message.get());

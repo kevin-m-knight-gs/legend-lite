@@ -40,7 +40,7 @@ public final class TestDataGenerationNatives {
      * (S2 — deterministic reads over static test seeds, so per-statement
      * re-evaluation is sound). */
     public static TypedSpec foldCensus(TypedSpec stmt, ModelContext ctx,
-            java.sql.Connection conn, com.legend.sql.dialect.SqlDialect session,
+            com.legend.exec.Sessions.Session session, com.legend.sql.dialect.SqlDialect dialect,
             List<TypedSpec> letPrefix,
             com.legend.sql.dialect.SqlDialect engineText,
             TestDataGenerator.ViewSql viewSql) {
@@ -57,12 +57,12 @@ public final class TestDataGenerationNatives {
             if ("seedString".equals(g.flavor())) {
                 return com.legend.compiler.spec.CsvCensusChecker
                         .literalStrings(List.of(
-                                seedStringOrDataError(ctx, g, conn, session)),
+                                seedStringOrDataError(ctx, g, session, dialect)),
                                 g.info())
                         // a [1] string, not a collection — unwrap
                         .children().get(0);
             }
-            TestDataGenerator.Result r = transcript(g, ctx, conn, session, viewSql);
+            TestDataGenerator.Result r = transcript(g, ctx, session, dialect, viewSql);
             return com.legend.compiler.spec.CsvCensusChecker.literalTestData(
                     java.util.Objects.requireNonNull(r.dataCsvString(),
                             "generateTestData produced no csv"),
@@ -75,7 +75,7 @@ public final class TestDataGenerationNatives {
         List<TypedSpec> out = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec r = foldCensus(k, ctx, conn, session, letPrefix, engineText, viewSql);
+            TypedSpec r = foldCensus(k, ctx, session, dialect, letPrefix, engineText, viewSql);
             changed |= r != k;
             out.add(r);
         }
@@ -184,7 +184,7 @@ public final class TestDataGenerationNatives {
      * so a re-run yields the same fetch texts and rows. */
     public static TestDataGenerator.Result transcript(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx, java.sql.Connection conn, com.legend.sql.dialect.SqlDialect session,
+            ModelContext ctx, com.legend.exec.Sessions.Session session, com.legend.sql.dialect.SqlDialect dialect,
             TestDataGenerator.ViewSql viewSql) {
         List<ValueSpecification> ps = g.params();
         LambdaFunction query = (LambdaFunction) ps.get(0);
@@ -197,14 +197,10 @@ public final class TestDataGenerationNatives {
         for (int i = 3; i < ps.size(); i++) {
             classifyArg(ps.get(i), rowIds, dates, hash);
         }
-        try {
-            return TestDataGenerator.generate(ctx, query, mappingFqn,
-                    rowIds, dates[0], hash[0], conn, session, viewSql);
-        } catch (java.sql.SQLException e) {
-            // the seam: the TDG funnel's java.sql stops at this door
-            throw new com.legend.error.DataError(
-                    String.valueOf(e.getMessage()), e);
-        }
+        // the generator's JDBC stops at the generator's own door (track B's B1b, 2026-10-29): this class
+        // holds the session it was handed and no JDBC
+        return TestDataGenerator.generate(ctx, query, mappingFqn,
+                rowIds, dates[0], hash[0], session, dialect, viewSql);
     }
 
     /** Package-visible for the harness's DEFERRED plan-text arm (the
@@ -483,16 +479,10 @@ public final class TestDataGenerationNatives {
     private static String seedStringOrDataError(
             com.legend.compiler.element.ModelContext ctx,
             com.legend.compiler.spec.typed.TypedTestDataGen g,
-            java.sql.Connection conn, com.legend.sql.dialect.SqlDialect session) {
-        try {
-            return TestDataGenerator.seedDataString(ctx,
-                    (LambdaFunction) g.params().get(0),
-                    ((com.legend.protocol.spec.PackageableElementPtr)
-                            g.params().get(1)).fullPath(), conn, session);
-        } catch (java.sql.SQLException e) {
-            // the seam: the TDG funnel's java.sql stops at this door
-            throw new com.legend.error.DataError(
-                    String.valueOf(e.getMessage()), e);
-        }
+            com.legend.exec.Sessions.Session session, com.legend.sql.dialect.SqlDialect dialect) {
+        return TestDataGenerator.seedDataString(ctx,
+                (LambdaFunction) g.params().get(0),
+                ((com.legend.protocol.spec.PackageableElementPtr)
+                        g.params().get(1)).fullPath(), session, dialect);
     }
 }

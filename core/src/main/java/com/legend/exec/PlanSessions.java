@@ -75,26 +75,44 @@ public final class PlanSessions {
         return target -> borrowed(connection);
     }
 
-    /** A caller's own connection whose queries publish their execution-trace stamp to {@code trace} (the body
-     *  driver's session: an activity row records the comment its statement carried, {@link ExecutionTrace}); as
-     *  {@link #given(Connection)} otherwise. */
-    public static Source given(Connection connection, ExecutionTrace trace) {
+    /** A session the body driver holds, for a plan it runs on it: its statements publish each query's
+     *  execution-trace stamp to {@code trace} (an activity row records the comment its statement carried,
+     *  {@link ExecutionTrace}; {@link Sessions.Session#statements(ExecutionTrace)}), its state and version the
+     *  session's own, and the runner's close releases nothing -- the session is the body's (track B's B1b,
+     *  2026-10-29: until then the driver handed its {@code Connection} here). */
+    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
         return target -> new Sessions.Session() {
             @Override
             public Connection connection() {
-                return connection;
+                return session.connection();
             }
 
             @Override
             public Statements statements() {
-                return new JdbcStatements(connection, trace);
+                return session.statements(trace);
+            }
+
+            @Override
+            public SessionState state() {
+                return session.state();
+            }
+
+            @Override
+            public String version() {
+                return session.version();
             }
 
             @Override
             public void close() {
-                // the caller's
+                // the body's
             }
         };
+    }
+
+    /** A caller's own connection as a session: its database the caller's, never closed here. The execution front
+     *  door wraps each execute entry's connection so for the body driver, which holds no connection of its own (B1b). */
+    public static Sessions.Session session(Connection connection) {
+        return borrowed(connection);
     }
 
     /** The statements of a caller's own connection, for a reader that holds no plan -- the body driver's schema probes

@@ -207,7 +207,9 @@ public final class Execution {
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection);
+                runtimeFqn, dialectOf(ctx, runtimeFqn, connection),
+                // the driver holds a session, never a connection (track B's B1b, 2026-10-29)
+                com.legend.exec.PlanSessions.session(connection));
     }
 
     /** Listener overload — the runner's scoring seam: observes each
@@ -242,7 +244,9 @@ public final class Execution {
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options) {
         return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
+                runtimeFqn, dialectOf(ctx, runtimeFqn, connection),
+                // the driver holds a session, never a connection (track B's B1b, 2026-10-29)
+                com.legend.exec.PlanSessions.session(connection),
                 assertListener, replayReferee, options);
     }
 }

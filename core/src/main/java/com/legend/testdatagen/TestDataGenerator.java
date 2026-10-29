@@ -194,13 +194,15 @@ public final class TestDataGenerator {
         String render(String dbFqn, String viewName, Map<String, String> tableToTemp);
     }
 
-    /** The generator's run on the session {@code conn}, whose database {@code dialect} writes every statement: the
+    /** The generator's run on {@code session}, whose database {@code dialect} writes every statement: the
      *  fetches into its temp tables, their read-backs and the CSV envelope (the dialect program's Phase 3,
-     *  2026-10-16: until then this class wrote one SQL text it hoped both H2 and DuckDB would read). */
+     *  2026-10-16: until then this class wrote one SQL text it hoped both H2 and DuckDB would read). The generator
+     *  reads the session's JDBC connection itself (the fold's residue, the result boundary program's track B, D30);
+     *  a database failure is a {@code DataError} at this door (B1b, 2026-10-29: the natives class held the catch). */
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
             List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Connection conn, SqlDialect dialect, ViewSql viewSql) throws SQLException {
+            boolean hashStrings, com.legend.exec.Sessions.Session session, SqlDialect dialect, ViewSql viewSql) {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         // engine generateRelationColumnMap: column demand merges PER
@@ -220,6 +222,7 @@ public final class TestDataGenerator {
         // per-call temp-name counter (temps drop in finally, so names
         // never collide across sequential invocations)
         List<String> temps = new ArrayList<>();
+        Connection conn = session.connection();
         try (Statement statement = conn.createStatement()) {
             Session st = new Session(statement, dialect);
             for (ScanRelations.Rel r : roots) {
@@ -229,6 +232,8 @@ public final class TestDataGenerator {
             String csv = csvEnvelope(st, fetched, hashStrings);
             return new Result(List.copyOf(sqls), csv, null,
                     List.copyOf(fetches));
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         } finally {
             dropTemps(conn, dialect, temps);
         }
@@ -1119,13 +1124,13 @@ public final class TestDataGenerator {
      * QUOTE-BEARING identity. */
     public static String seedDataString(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            Connection conn, SqlDialect dialect) throws SQLException {
+            com.legend.exec.Sessions.Session session, SqlDialect dialect) {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         roots = roots.stream().map(r -> expandIfView(ctx, r, null))
                 .toList();
         StringBuilder out = new StringBuilder();
-        try (Statement statement = conn.createStatement()) {
+        try (Statement statement = session.connection().createStatement()) {
             Session st = new Session(statement, dialect);
             for (ScanRelations.Rel r : roots) {
                 Located loc = locate(ctx, r.db(), r.table());
@@ -1176,6 +1181,8 @@ public final class TestDataGenerator {
                 }
                 out.append(String.join(",\n", rows)).append("\n  ])\n");
             }
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
         return out.toString();
     }

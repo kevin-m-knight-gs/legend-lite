@@ -144,6 +144,11 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
+    public boolean ownsTransaction() {
+        return Sessions.ownsTransaction(c);
+    }
+
+    @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         try (PreparedStatement st = c.prepareStatement(stamped(statement))) {

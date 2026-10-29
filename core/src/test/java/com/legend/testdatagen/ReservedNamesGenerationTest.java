@@ -76,14 +76,14 @@ class ReservedNamesGenerationTest {
                     query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "order",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))),
-                    null, false, c, dialect, NO_VIEWS);
+                    null, false, com.legend.exec.PlanSessions.session(c), dialect, NO_VIEWS);
             assertFalse(order.sqls().isEmpty(), type.name());
             assertEquals("default\norder\nID,NAME\n1,a\n-----\n", order.dataCsvString(), type.name());
             TestDataGenerator.Result item = TestDataGenerator.generate(ctx,
                     query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("select", "T",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L))))),
-                    null, false, c, dialect, NO_VIEWS);
+                    null, false, com.legend.exec.PlanSessions.session(c), dialect, NO_VIEWS);
             assertEquals("select\nT\nID\n7\n-----\n", item.dataCsvString(), type.name());
         }
     }

@@ -15539,3 +15539,51 @@ deleted by phase 4 (`b3311cd6`). Commented on the PR (2026-10-29), then:
    `//gates:parser_equivalence`; the nine Postgres targets) was running when this commit was made (the stop hook asks
    for a commit at every pause): its results in the entry that follows, and CI's on the PR.
 4. **Not measured:** the lanes; CI on PR #80 is the merge's first run on every OS.
+
+## 2026-10-29 — the second merge's gate recorded (f4ce65b2): the boundary chain, the local gate with the parser-equivalence lane, the Postgres targets unprivileged, all green
+
+The chain the entry above left running (as root; the Postgres targets as the unprivileged user,
+docs/CLOUD_SESSIONS.md), at `f4ce65b2` with nothing uncommitted: `//wasm:boundary`, `//native:compiler`,
+`//wasm:planner_dir` build; `//engine-client:plan_runner_test`, `//wasm:round_trip_test`, `//pure-protocol:twins_test`,
+`//datacube:wasm_differential_test` 4 of 4; `bazel test --lockfile_mode=error //gates:local //gates:parser_equivalence`
+454 targets: 444 pass, 1 skipped (`//tools/guards:classpath_test`, arm64-only), 9 refused as root (the eight
+`*_postgres_test` targets and `//datacube:verify_app_test`, which starts its own Postgres 16) and 9 of 9 passing
+unprivileged. CI on PR #80 at `f4ce65b2` (run 40812138733): the lanes that were red (the `//wasm:boundary` builders on
+Linux, macOS, Windows and arm) green where finished at the time of this entry; the run's result on the PR.
+
+## 2026-10-29 — track B, B1b: the Connection leaves the body driver, the judges, the verdict batch, the referee's SPI and the generator's natives
+
+The result boundary program's track B, second commit (the start page §4, its track B block, B1 (b); the decisions log
+D35). After B1a the body driver sent nothing itself; after B1b it HOLDS no `java.sql.Connection` either: a
+`Sessions.Session`, reached only through the seam.
+
+1. **The seam.** `Sessions.Session.statements(trace)` (the driver's statements, each query's stamp to the body's
+   trace), `state()` (`SessionState`, new: the seeds established by their sources, the database's reported column
+   types per statement, the write mark -- the driver's `ESTABLISHED` map, moved; keyed weakly by the connection, so a
+   shared lane's connection keeps one state however often it is wrapped), `version()` (the judges' plan target);
+   `Statements.ownsTransaction()` (the effect script's bracket); `PlanSessions.of(session, trace)` (a plan run on the
+   body's session; `given(connection, trace)` deleted) and `PlanSessions.session(connection)` (the front door's wrap).
+   MongoDB refuses traced statements and the transaction mark by name.
+2. **Through it:** `ExecEnv.session`, `withSession`, `WrappedSide.session`, the transaction bracket and the effect
+   script's bracket, the established state, the wire memo, the write mark; `SystemDatabase.Route.session` (one
+   session object per engine, so the judge's identity compare of two sides holds); `VerdictBatch` groups deferred
+   verdicts by session; `SqlReplayReferee`'s five verify methods take the session (`ReplayReferee` in the harness
+   reads `session.connection()` where it runs JDBC); `TestDataGenerator.generate` and `seedDataString` take the
+   session, their `SQLException` a `DataError` at the generator's own door; `DatabaseJudge`, `JudgePlans`,
+   `BodyCompiler`, `SqlTextVerdicts` read `session()`. `Execution` is the one JDBC-aware caller. Three unused
+   `Connection` locals deleted.
+3. **Guards, dated:** `ArchitectureTest.rootJavaSqlSurfaceIsPinned` shrinks to `{Execution}`;
+   `ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc` (new) pins `StatementExecutor`, `BodyCompiler`, `HostJudge`,
+   `DatabaseJudge`, `JudgePlans`, `AssertVerdicts`, `SqlTextVerdicts`, `AgreementArm`, `VerdictArm`, `CsvLoad`,
+   `SeedSqlForms`, `AssertErrorNative`, `TestDataGenerationNatives` to no `java.sql` and no driver API; the JDBC
+   census loses `StatementExecutor`, `exec/VerdictBatch`, `testdatagen/TestDataGenerationNatives`; the ledger re-pins
+   `StatementExecutor` 2313 -> 2290; `SessionState.OF` registered as static state, `SessionState.dirty` as a mutable
+   field, `SessionState.java` in the funnel register and the JDBC census (it holds the key's type, sends nothing). `TenetRatchetTest` unchanged (the three files leaving the `java.sql` set held no
+   accessor spelling).
+4. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:guardrails`, `//core:census`, `//pct:pct_discipline` pass; the rest of the
+   chain (`//core:core_tests`, `//core:mongodb_plan_test`; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets unprivileged; `//datacube:python_execute_test`)
+   running as this commit is made (the stop hook asks for a commit at every pause): its results in the entry that
+   follows.
+5. **Not measured:** the lanes (the S1.4 entry, item 5). Not yet (B3): the judges' typed sides; (B2)
+   `Execution.runProgram`; (B4, D30) the generator's fold on the seam.

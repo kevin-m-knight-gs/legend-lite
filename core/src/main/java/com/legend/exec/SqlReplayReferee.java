@@ -37,7 +37,7 @@ public interface SqlReplayReferee {
      * ordered or chained text DECLINES with its named reason). The
      * platform arm consumes the outcome; seeds and session policy
      * live with the implementation (testing side). */
-    RowVerdict verifyFetchTexts(java.sql.Connection session,
+    RowVerdict verifyFetchTexts(Sessions.Session session,
             String goldenSql, String ourSql);
 
     /** The CHAINED generator-fetch verdict (batch 64 — the walk's
@@ -51,7 +51,7 @@ public interface SqlReplayReferee {
      * {@code transcript} (deterministic reads over static seeds; the
      * hop's text must match byte-exactly, a receipt). A hop without
      * temps is {@link #verifyFetchTexts}. */
-    RowVerdict verifyFetchChain(java.sql.Connection session, int hopIndex,
+    RowVerdict verifyFetchChain(Sessions.Session session, int hopIndex,
             String goldenSql, String ourSql,
             java.util.function.Supplier<FetchTranscript> transcript);
 
@@ -89,7 +89,7 @@ public interface SqlReplayReferee {
      * raw codes. Never throws for a comparison problem — every
      * non-answer is a DECLINED outcome with its counted reason.
      */
-    RowVerdict verify(java.sql.Connection session, String goldenSql,
+    RowVerdict verify(Sessions.Session session, String goldenSql,
             ExecutionResult ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
@@ -148,7 +148,7 @@ public interface SqlReplayReferee {
     /** {@link #verify} with the golden's temp tables materialized on the
      * referee session first; the default ignores them (a referee without
      * temp support declines through the missing table as before). */
-    default RowVerdict verify(java.sql.Connection session, String goldenSql,
+    default RowVerdict verify(Sessions.Session session, String goldenSql,
             ExecutionResult ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
@@ -167,7 +167,7 @@ public interface SqlReplayReferee {
      * the bindings, and the final Relational node's filled SQL replays;
      * its rows compare with ours. {@code bindings}: parameter name →
      * raw spellings (a scalar is one element). The default declines. */
-    default RowVerdict verifyPlan(java.sql.Connection session, String goldenPlan,
+    default RowVerdict verifyPlan(Sessions.Session session, String goldenPlan,
             java.util.Map<String, java.util.List<String>> bindings,
             ExecutionResult ours,
             @com.legend.base.Nullable String mappingFqn,

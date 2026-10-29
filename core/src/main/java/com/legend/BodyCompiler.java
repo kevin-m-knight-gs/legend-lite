@@ -67,7 +67,7 @@ public final class BodyCompiler {
             // TDG lane S1: the checker's census CARRIER folds to instance literals
             // before the statement is planned (orchestration owns testdatagen)
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(
-                    stmts.get(i), seg.env().ctx(), seg.env().connection(), seg.env().dialect(), letPrefix,
+                    stmts.get(i), seg.env().ctx(), seg.env().session(), seg.env().dialect(), letPrefix,
                     StatementExecutor.ENGINE_TEXT,
                     StatementExecutor.viewSqlRenderer(specs, seg.env()));
             StatementExecutor.establishContexts(stmt, seg.env());
@@ -234,7 +234,7 @@ public final class BodyCompiler {
          * the environment: the arms collect their statements instead of sending. */
         void collectEffect(TypedSpec stmt, List<TypedSpec> stmts, int i, List<TypedSpec> letPrefix,
                 Map<String, StatementExecutor.ExecFrame> execFrames) {
-            StatementExecutor.markWriting(env0.connection());
+            env0.session().state().markWriting();
             StatementExecutor.ExecEnv sinkEnv = env().withEffectSink(sink);
             if (effectFrom < 0) {
                 effectFrom = i + 1;

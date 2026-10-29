@@ -157,8 +157,9 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/PlanSessions.java",
             "core/src/main/java/com/legend/exec/BulkLoads.java",
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
-            "core/src/main/java/com/legend/exec/VerdictBatch.java",
-            "core/src/main/java/com/legend/StatementExecutor.java",
+            // 2026-10-29 (track B's B1b): VerdictBatch.java and StatementExecutor.java LEFT this register -- the
+            // body driver holds a session (Sessions.Session) and the deferred verdicts run on it through the plan
+            // runner; neither spells java.sql or a statement method
             // 2026-10-29 (track B's B1a): DynamicPivot.java LEFT this register -- the keys read as typed rows through
             // the body's session seam (KeyReader), a key typed by the database's report (Statements.columns)
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;
@@ -194,6 +195,10 @@ class JdbcSurfaceCensusTest {
             // LIMIT-0 metadata read goes through the session seam (Statements.columns)
             // leg 3.3: the wire-decided kinds read from the prepared statement's metadata
             "core/src/main/java/com/legend/exec/WireTypes.java",
+            // 2026-10-29 (track B's B1b): what a body driver established on a session, keyed weakly by the
+            // session's java.sql.Connection so the fact lives as long as the connection (the driver's ESTABLISHED
+            // map, moved to the seam); it holds the key's type and sends nothing
+            "core/src/main/java/com/legend/exec/SessionState.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure
             // interface (AssertListener precedent) whose SIGNATURE
             // names java.sql types (SQLException, the RefereeRows cell
@@ -214,11 +219,9 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/test/TestObserver.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
-            // TestDataGenerationNatives (TDG lane S2): pure ORCHESTRATION — threads the
-            // ambient connection through to TestDataGenerator's fetches
-            // (the database executes); no statements of its own
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java"
+            // 2026-10-29 (track B's B1b): TestDataGenerationNatives.java LEFT this register -- it hands the body's
+            // session to the generator and holds no JDBC; the generator's own java.sql stops at its door
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java"
     ));
 
 

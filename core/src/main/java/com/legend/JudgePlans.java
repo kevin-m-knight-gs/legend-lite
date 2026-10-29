@@ -58,7 +58,7 @@ final class JudgePlans {
                     new ExecutionPlan.Database.Declared(d.connections().get(0));
         };
         return new ExecutionPlan.Target(database,
-                PlanMaker.serversFor(decided.type(), com.legend.exec.Sessions.version(env.connection())),
+                PlanMaker.serversFor(decided.type(), env.session().version()),
                 List.of(), List.of());
     }
 
@@ -214,7 +214,7 @@ final class JudgePlans {
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
                 PlanMaker.sql(plan, env.dialect(), target(env)));
-        PlanRunner.Rows rows = run(node, PlanSessions.given(w.connection(), env.trace()));
+        PlanRunner.Rows rows = run(node, PlanSessions.of(w.session(), env.trace()));
         if (rows.rows().size() != 1) {
             throw new IllegalStateException("a graph fetch side's statement answered " + rows.rows().size()
                     + " rows: its objects' array is one row");
@@ -236,8 +236,7 @@ final class JudgePlans {
         if (lateBound) {
             // a raw grid (executeInDbToTDS) has no typed outputs: the database's reported columns frame it
             plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
-                    com.legend.exec.PlanSessions.statementsOf(w.connection(), env.trace()),
-                    StatementExecutor.wireMemo(w.connection()));
+                    w.session().statements(env.trace()), w.session().state().wireTypes());
             schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
         }
         if (schema == null) {
@@ -259,7 +258,7 @@ final class JudgePlans {
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
         schema = flattenStructColumns(schema);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
-        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.given(w.connection(), env.trace()));
+        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.of(w.session(), env.trace()));
         List<Column> columns = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
             columns.add(new Column(c.name(), c.type(), c.multiplicity()));
@@ -283,7 +282,7 @@ final class JudgePlans {
         ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
         PlanRunner.Rows rows;
         try {
-            rows = PlanRunner.rows(new ExecutionPlan(List.of(), keyed), Map.of(), PlanSessions.given(w.connection(), env.trace()));
+            rows = PlanRunner.rows(new ExecutionPlan(List.of(), keyed), Map.of(), PlanSessions.of(w.session(), env.trace()));
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
@@ -344,7 +343,7 @@ final class JudgePlans {
         ExprType info = w.shapeInfo();
         Type type = info.type();
         PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env),
-                PlanSessions.given(w.connection(), env.trace())));
+                PlanSessions.of(w.session(), env.trace())));
         long lower = info.multiplicity().requireBounded("result shape").lower();
         boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
         boolean anyRoot = PlatformTypes.isAny(type) || tdsNullRoot;

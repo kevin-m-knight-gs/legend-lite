@@ -79,6 +79,11 @@ class CodeShapeGuardrailTest {
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after
             "LazyRows.computed",
+            // a session's write mark (2026-10-29, the result boundary program's track B, B1b): set when a writing
+            // statement is about to run on the session, cleared when its seeds are re-established; the same
+            // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
+            // driver's nested Established.dirty before, moved to the seam
+            "SessionState.dirty",
             // the SEGMENT WALK's state object (block-compiler stage 3, 2026-09-21):
             // the open effect segment — its sink and the ordinals of the body's
             // statements it spans — and whether the last statement was a value;

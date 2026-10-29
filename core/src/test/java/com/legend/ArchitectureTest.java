@@ -1032,7 +1032,8 @@ final class ArchitectureTest {
      * env.withConnection(side.connection())}) depends on that class, not on
      * {@code java.sql}, and is not counted; "who handles a connection" is a
      * different property (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md
-     * §3.3). The funnel licenses {@code com.legend} ROOT, which
+     * §3.3). Since 2026-10-29 (B1b) those classes pass a SESSION along, and
+     * {@link #theBodyDriverAndTheJudgesHoldNoJdbc} pins them by name. The funnel licenses {@code com.legend} ROOT, which
      * contains StatementExecutor — the audit's S1 dispatcher. Until the
      * orchestration/exec-seam split (backlogged), root's JDBC surface is
      * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
@@ -1047,8 +1048,11 @@ final class ArchitectureTest {
             // 2026-10-04 C2a: Compiler LEFT the pin -- the planner, java.sql-free, in //core:planner (no
             // :exec); Execution, the execution front door, holds the execute entry points' Connection
             // parameters it took from Compiler (a move, not growth)
+            // 2026-10-29 (the result boundary program's track B, B1b): StatementExecutor LEFT the pin -- the body
+            // driver holds a session (Sessions.Session) and reaches the database only through its statements;
+            // Execution, the front door, keeps the execute entries' Connection parameters and wraps each as the
+            // driver's session (PlanSessions.session)
             .and().haveNameNotMatching("com\\.legend\\.(Execution"
-                    + "|StatementExecutor"
                     // THE EXCEPTION SEAM (user directive 2026-09-01):
                     // SQLException stops at the executor boundary —
                     // verdicts throw AssertFailed, data errors arrive
@@ -1061,9 +1065,33 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Execution, StatementExecutor} —"
+                    + " {Execution} —"
                     + " shrink-only (the exception seam landed"
-                    + " 2026-09-01; the carrier-type residue left 2026-09-22)")
+                    + " 2026-09-01; the carrier-type residue left 2026-09-22;"
+                    + " the body driver left 2026-10-29)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The body driver and the judges hold no JDBC (2026-10-29, the result boundary program's track B, B1b;
+     * docs/RESULT_BOUNDARY_START_HERE.md, the track B block).</strong> A test body is a sequence of plans: the driver
+     * ({@code StatementExecutor}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
+     * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
+     * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
+     * on {@code java.sql} or a driver's own API. The funnel above licenses root and {@code testdatagen} as packages;
+     * this rule names the classes the funnel would let through. The generator itself ({@code TestDataGenerator})
+     * still runs JDBC on the session it is handed: the fold's residue, named (the decisions log D30), not licensed
+     * here.
+     */
+    @Test
+    void theBodyDriverAndTheJudgesHoldNoJdbc() {
+        noClasses()
+            .that().haveNameMatching("com\\.legend\\.(StatementExecutor|BodyCompiler|HostJudge|DatabaseJudge"
+                    + "|JudgePlans|AssertVerdicts|SqlTextVerdicts|AgreementArm|VerdictArm|CsvLoad|SeedSqlForms"
+                    + "|AssertErrorNative|testdatagen\\.TestDataGenerationNatives)(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage(JDBC_AND_DRIVERS)
+            .as("B1b: the body driver, the judges and the generator's natives hold a session and no JDBC")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -1334,8 +1362,11 @@ final class ArchitectureTest {
                 // engine loads a LocalH2 connection's data when it opens the
                 // connection, once; this keys that fact on the session itself
                 // (WeakHashMap — the fact lives exactly as long as the
-                // connection) and re-seeds after a writing statement
-                "com.legend.StatementExecutor.ESTABLISHED",
+                // connection) and re-seeds after a writing statement.
+                // 2026-10-29 (track B's B1b): the map moved from the body driver
+                // (StatementExecutor.ESTABLISHED) to the session seam, the same
+                // weak map by the same key, read through Sessions.Session.state()
+                "com.legend.exec.SessionState.OF",
                 // the bare-name rule's table (L7 "resolve once", step 3, 2026-10-10): the names a bare
                 // call may mean at an arity, computed from static tables (the engine surface, the core
                 // import group, the forms, the catalog) and kept per (name, arity) once computed; never
