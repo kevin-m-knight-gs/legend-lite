@@ -15,6 +15,7 @@ export const REQUEST_KINDS = [
   'tableModel',
   'catalogColumnsSql',
   'planJson',
+  'executionPlan',
   'planModel',
   'pureV1',
   'executePlan',
@@ -40,6 +41,8 @@ export type RequestBody =
   | { readonly kind: 'catalogColumnsSql'; readonly schema: string; readonly table: string }
   // a query's protocol JSON planned against a model held
   | { readonly kind: 'planJson'; readonly handle: number; readonly lambda: string; readonly runtime: string }
+  // a query's protocol JSON planned against a model held as an execution plan (PlanJson's text): a program that writes
+  | { readonly kind: 'executionPlan'; readonly handle: number; readonly lambda: string; readonly runtime: string }
   // a query's protocol JSON planned against a model's text, none held (Query's and Studio's: each request its model)
   | { readonly kind: 'planModel'; readonly model: string; readonly lambda: string; readonly runtime: string }
   // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
