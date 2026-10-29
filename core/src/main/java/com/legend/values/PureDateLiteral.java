@@ -381,9 +381,9 @@ public sealed interface PureDateLiteral
             return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
+        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
+         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
+         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
@@ -393,9 +393,9 @@ public sealed interface PureDateLiteral
                     year, month, day, hour, minute, second);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
+        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
+         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
+         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
@@ -407,9 +407,9 @@ public sealed interface PureDateLiteral
                     year, month, day, hour, minute, second, subsecond);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
+        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
+         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
+         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 

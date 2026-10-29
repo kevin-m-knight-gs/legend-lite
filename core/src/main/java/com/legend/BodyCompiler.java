@@ -123,7 +123,7 @@ public final class BodyCompiler {
                 if (containsRawGrid(let.value())) {
                     TypedSpec stampedLet = com.legend.resolver.RawGridSchema.stamp(
                             stmts.subList(i, stmts.size()),
-                            StatementExecutor.gridReferee(seg.env().connection(), seg.env())).get(0);
+                            StatementExecutor.gridReferee(seg.env())).get(0);
                     if (stampedLet instanceof TypedLet sl) {
                         let = sl;
                         rhs = let.value();

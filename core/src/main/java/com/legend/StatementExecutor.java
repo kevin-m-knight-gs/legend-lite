@@ -197,6 +197,12 @@ final class StatementExecutor {
                     protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
+        /** The session's statements for a reader that holds no plan -- the schema probes and the seeds (track B's
+         *  B1a, 2026-10-29: the body driver reads its session through the seam, never JDBC itself). */
+        com.legend.exec.Statements statements() {
+            return com.legend.exec.PlanSessions.statementsOf(connection, trace);
+        }
+
         /** The same environment over the system database's {@code route}:
          * its session, and the store's tables as that session names them,
          * added to the table renames (a conflicting rename throws — never a
@@ -1338,16 +1344,9 @@ final class StatementExecutor {
     /** The executor's SchemaReferee: the LIMIT-0 probe with its checked
      * failure wrapped — F1.3 keeps the JDBC surface (its exception type
      * included) out of the resolver. */
-    static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(
-            java.sql.Connection connection, ExecEnv env) {
-        return (sql, writtenFor) -> {
-            try {
-                return com.legend.exec.GridProbe.probeTypedColumns(
-                        sql, writtenFor, connection, env.dialect());
-            } catch (java.sql.SQLException e) {
-                throw new IllegalStateException(e);
-            }
-        };
+    static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(ExecEnv env) {
+        return (sql, writtenFor) -> com.legend.exec.GridProbe.probeTypedColumns(
+                sql, writtenFor, env.statements(), env.dialect());
     }
 
     static ExecFrame buildFrame(
@@ -1957,7 +1956,7 @@ final class StatementExecutor {
         if (env.runtimeFqn() != null) {
             setups.addAll(com.legend.setup.CsvSeed.declaredSteps(env.runtimeFqn(), env.ctx(), env.dialect()));
         }
-        com.legend.exec.SetupRunner.run(setups, env.connection(), env.dialect(), env.options().recorder());
+        com.legend.exec.SetupRunner.run(setups, env.statements(), env.dialect(), env.options().recorder());
         state.done.add(key);
         state.dirty = false;
     }
@@ -2082,18 +2081,17 @@ final class StatementExecutor {
      * (split from executeTyped at the 250-line shape guard). */
     private static com.legend.sql.SqlQuery lowerAndPrepare(
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
-            com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection, boolean identity) {
-        return lowerAndPrepare(body, env, ctx, dialect, connection, identity, false);
+            com.legend.sql.dialect.SqlDialect dialect, boolean identity) {
+        return lowerAndPrepare(body, env, ctx, dialect, identity, false);
     }
 
     /** {@link #lowerAndPrepare(java.util.List, ExecEnv, ModelContext, com.legend.sql.dialect.SqlDialect,
-     *  java.sql.Connection, boolean)}; {@code named}: the query's columns named in its select, in its relation's
-     *  order (Lowerer.namedColumns: a staged table takes them by position). */
+     *  boolean)}; {@code named}: the query's columns named in its select, in its relation's
+     *  order (Lowerer.namedColumns: a staged table takes them by position). The two schema reads here (a static
+     *  pivot's keys, a deferred relation's columns) go through the session seam (track B's B1a, 2026-10-29). */
     private static com.legend.sql.SqlQuery lowerAndPrepare(
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
-            com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection, boolean identity, boolean named) {
+            com.legend.sql.dialect.SqlDialect dialect, boolean identity, boolean named) {
         com.legend.lowering.Lowerer lowerer = lowererFor(body, env, ctx, identity);
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
@@ -2104,7 +2102,7 @@ final class StatementExecutor {
                         env.tableReplace(),
                         env.postProcessors().extractCtes(),
                         env.postProcessors().nonExecutable()),
-                dialect, connection);
+                dialect, env.statements(), keyReader(env));
         // DEFERRED relation-toString (dynamic-pivot inners): the column
         // list exists only NOW, post-staticize. The LOWERING layer owns
         // the composition pass (invariant 6d — exec never calls the
@@ -2112,19 +2110,26 @@ final class StatementExecutor {
         // (a SCHEMA read, DynamicPivot's two-phase discipline).
         if (!lowerer.deferredTds().isEmpty()) {
             final var fDialect = dialect;
-            final var fConn = connection;
-            class ProbeFailed extends RuntimeException {
-                ProbeFailed(java.sql.SQLException c) { super(c); }
-            }
-            // the seam: ColumnProbe raises DataError (unchecked) itself —
-            // the ProbeFailed checked-exception tunnel is gone
+            final var fSession = env.statements();
+            // the seam: ColumnProbe reads the session's reported columns (Statements.columns) and raises DataError
+            // (unchecked) itself
             plan = com.legend.lowering.Render.resolveAllDeferredTds(
                     plan, lowerer.deferredTds(),
                     inner -> com.legend.exec.ColumnProbe.probe(
-                            inner, fDialect, fConn),
+                            inner, fDialect, fSession),
                     com.legend.exec.WireTypes::pureOfSqlType);
         }
         return named ? lowerer.namedColumns(plan) : plan;
+    }
+
+    /** A static pivot's key reader ({@link com.legend.exec.DynamicPivot.KeyReader}): the keys' query run as TYPED
+     *  rows on the body's session, as every statement the body sends is (phase 5; track B's B1a, 2026-10-29: the
+     *  pivot reads no JDBC itself). */
+    private static com.legend.exec.DynamicPivot.KeyReader keyReader(ExecEnv env) {
+        return (query, columns) -> JudgePlans.run(new com.legend.executionplan.ExecutionPlan.TdsResult(
+                com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, columns,
+                PlanMaker.sql(query, env.dialect(), JudgePlans.target(env))),
+                com.legend.exec.PlanSessions.given(env.connection(), env.trace())).rows();
     }
 
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
@@ -2165,7 +2170,7 @@ final class StatementExecutor {
         }
         ExecEnv planned = p.plannedEnv();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), planned, planned.ctx(), planned.dialect(),
-                planned.connection(), false, true);
+                false, true);
         // (each column named as the staged relation names it: the statements after read it by those names)
         String sql = planned.dialect().render(com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
                 com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
@@ -2390,7 +2395,7 @@ final class StatementExecutor {
         // late-bound grids: FIRST-query schema pin — staged compilation:
         // the resolver pass takes the probed roster through the referee
         body = com.legend.resolver.RawGridSchema.stamp(body,
-                gridReferee(connection, env));
+                gridReferee(env));
         // the from being executed IS the frame: its bound context carries the
         // post-processors, the connection's time zone and the options this
         // execution runs under (batch 120 — no static slot). The OUTERMOST
@@ -2553,7 +2558,7 @@ final class StatementExecutor {
         }
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
-                dialect, connection, identityLane);
+                dialect, identityLane);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive
@@ -2762,7 +2767,7 @@ final class StatementExecutor {
         ExecEnv penv = p.plannedEnv();
         TypedSpec root = p.plannedRoot();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), penv, penv.ctx(),
-                penv.dialect(), penv.connection(), hostSide ? identityLane : true);
+                penv.dialect(), hostSide ? identityLane : true);
         if (rider != null && rider.canonicalJsonKeys()) {
             // the verdict plan's JSON objects with keys SORTED — one IR
             // pass over the plan, the builders untouched
@@ -2783,7 +2788,7 @@ final class StatementExecutor {
             plan = com.legend.exec.WireTypes.reconcile(plan,
                     collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
                             : com.legend.plan.ResultShape.valueInfo(root.info()),
-                    penv.dialect(), penv.connection(), wireMemo(penv.connection()),
+                    penv.dialect(), penv.statements(), wireMemo(penv.connection()),
                     batch == null ? java.util.Map.of() : batch.frames());
         }
         return new BarePlan(null, plan, root,
@@ -2812,7 +2817,7 @@ final class StatementExecutor {
                 // leg 3.3: a raw grid (executeInDbToTDS) has no typed outputs —
                 // the database's reported columns frame it (WireTypes)
                 plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
-                        env.connection(), wireMemo(env.connection()));
+                        env.statements(), wireMemo(env.connection()));
                 schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
             }
             var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(plan, schema);

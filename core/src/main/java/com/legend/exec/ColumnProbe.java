@@ -10,9 +10,6 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,36 +24,30 @@ public final class ColumnProbe {
     private ColumnProbe() {
     }
 
+    /** The probe through the session seam ({@link Statements#columns}: track B's B1a, 2026-10-29; until then this
+     *  class ran the probe on a JDBC connection itself). */
     public static PlanProbe probe(SqlQuery plan,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn) {
+            com.legend.sql.dialect.SqlDialect dialect, Statements session) {
         SqlSelect probe = SqlSelect.starOf(new SqlSource.Subselect(plan,
                 "_pct_probe", null)).withLimit(0L);
-        try (var st = conn.prepareStatement(dialect.render(probe));
-                ResultSet rs = st.executeQuery()) {
-            var md = rs.getMetaData();
-            List<OutputCol> outs = new ArrayList<>(md.getColumnCount());
-            Map<String, String> typeNames = new LinkedHashMap<>();
-            for (int i = 1; i <= md.getColumnCount(); i++) {
-                // the driver's type name read by the dialect (the dialect program's Phase 4)
-                String driverType = md.getColumnTypeName(i);
-                String tn = dialect.wireTypeName(driverType);
-                SqlType slot = tn.equals("DATE") ? SqlType.Scalar.DATE
-                        : tn.startsWith("TIMESTAMP")
-                                ? SqlType.Scalar.TIMESTAMP
-                                : SqlType.Scalar.VARCHAR;
-                outs.add(new OutputCol(md.getColumnName(i), slot, true));
-                // typed by its dialect's typing reading; a name that does not say the type (Snowflake's NUMBER)
-                // types nothing, and the column is absent (PlanProbe.typeName refuses it)
-                String typing = dialect.typingWireName(driverType);
-                if (typing != null) {
-                    typeNames.put(md.getColumnName(i), typing);
-                }
+        List<Statements.Reported> reported = session.columns(dialect.render(probe));
+        List<OutputCol> outs = new ArrayList<>(reported.size());
+        Map<String, String> typeNames = new LinkedHashMap<>();
+        for (Statements.Reported r : reported) {
+            // the driver's type name read by the dialect (the dialect program's Phase 4)
+            String tn = dialect.wireTypeName(r.driverType());
+            SqlType slot = tn.equals("DATE") ? SqlType.Scalar.DATE
+                    : tn.startsWith("TIMESTAMP")
+                            ? SqlType.Scalar.TIMESTAMP
+                            : SqlType.Scalar.VARCHAR;
+            outs.add(new OutputCol(r.name(), slot, true));
+            // typed by its dialect's typing reading; a name that does not say the type (Snowflake's NUMBER)
+            // types nothing, and the column is absent (PlanProbe.typeName refuses it)
+            String typing = dialect.typingWireName(r.driverType());
+            if (typing != null) {
+                typeNames.put(r.name(), typing);
             }
-            return new PlanProbe(outs, typeNames);
-        } catch (java.sql.SQLException e) {
-            // the seam: java.sql stops at this probe's boundary
-            throw new com.legend.error.DataError(
-                    String.valueOf(e.getMessage()), e);
         }
+        return new PlanProbe(outs, typeNames);
     }
 }

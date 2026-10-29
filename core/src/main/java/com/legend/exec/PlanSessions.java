@@ -97,6 +97,12 @@ public final class PlanSessions {
         };
     }
 
+    /** The statements of a caller's own connection, for a reader that holds no plan -- the body driver's schema probes
+     *  and seeds (track B's B1a, 2026-10-29): as {@link #given(Connection, ExecutionTrace)}'s session gives them. */
+    public static Statements statementsOf(Connection connection, @com.legend.base.Nullable ExecutionTrace trace) {
+        return new JdbcStatements(connection, trace);
+    }
+
     /** A caller's own FRESH connection with {@code target}'s setup run on it now (a test's new database): the source
      *  of {@link #given} it, never closed here. */
     public static Source setUp(Connection connection, ExecutionPlan.Target target) {

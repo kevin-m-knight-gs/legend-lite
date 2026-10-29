@@ -15463,3 +15463,45 @@ on Linux, macOS, Windows and arm, the corpus lanes and the product build, which 
 2026-10-26 incident). Opened under the user's "keep going all the way until done with whole program" (the decisions log
 D11; a draft PR is not a merge; the merge is the user's). The session is subscribed to the PR's events; CI's results
 are recorded here as they land, red fixed before anything else.
+
+## 2026-10-29 — track B, B1a: the body driver's schema probes, seeds and static pivot on the session seam; the S1.5 audit's findings fixed
+
+The result boundary program's track B (the start page §4, its track B block: the design D29, the Java residue D30),
+first commit (the decisions log D33). The body driver sends nothing through JDBC of its own for its three schema
+probes, its seeds and its static pivot: the session seam (`exec/Statements`) answers them.
+
+1. **The seam.** `Statements.columns(statement)`: the statement RUN for its columns (the probes' `LIMIT 0` way, proven on
+   every lane; no row read); `Statements.describe(statement)`: the prepared statement's metadata, none where the driver
+   withholds it (the wire-type reader's prepare since leg 3.3, kept exactly so the judges' traffic does not change:
+   `ExecuteInDbProbeCountTest` counts it); `Statements.load(rows)`: the database's bulk loader where it has one. The
+   JDBC session implements the three; a MongoDB session refuses each by name (its schema probes are not designed; its
+   databases are the connector's own). `PlanSessions.statementsOf(connection, trace)` gives a caller's connection's
+   statements to a reader that holds no plan.
+2. **Through it:** `ColumnProbe.probe` (a deferred relation's columns), `GridProbe.probeColumns`/`probeNames`/
+   `probeTypedColumns` (a raw grid's roster, the resolver's referee), `WireTypes.staticized`/`reconcile` (a late-bound
+   grid's and a wire-decided kind's reported types, `describe`), `SetupRunner.run`/`send`/`load` (a context's declared
+   seeds, the system database's rows, `Execution`'s session setup), `DynamicPivot.staticize` (a static pivot's keys read
+   as TYPED rows through a `KeyReader` the body driver gives -- `PlanRunner.rows` on the body's session, the key's
+   literal from the typed decode; a key the lowering did not type, `Column.physical`, typed by the database's report
+   through `columns`). The body driver: `ExecEnv.statements()`, `gridReferee(env)`, `keyReader(env)`,
+   `lowerAndPrepare` without its connection parameter; `JudgePlans.tabular`'s late-bound grid the same.
+3. **Guards, dated:** the JDBC surface census loses `SetupRunner`, `GridProbe`, `ColumnProbe` and `DynamicPivot` (they
+   hold no JDBC); the ledger re-pins `StatementExecutor` 2316 -> 2313, `GridProbe` 53 -> 46, `DynamicPivot` 112 -> 111.
+   `WireTypesTest`, `RowLoadDuckDbTest`, `RowLoadH2Test`, `DynamicPivotKeyLiteralH2Test` and `PlanMakerTest` go through
+   the seam.
+4. **The S1.5 audit's findings** (an independent agent, 11 findings; the decisions log D31): G2 and D16 restated for
+   legend-pure's two runtimes (the interpreter's `@_` and a counter, compiled's `Anonymous_StripedId`); the user's
+   words of 2026-10-29 in the start page's §10 verbatim with their three readings (D32); three more hour-on zone sites
+   named in D18 and register S121 (pending: the four standing divergences); 30 -> 29 corrections, six questions; G4's
+   and G10's breakdowns; S119's and S120's lane texts; D26 restated to Pure's text path (the JSON path's nested dates
+   are D9's); the three date records' javadoc citations; a `ColumnFactsTest` pin for the carrier-before-type order.
+5. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:core_tests`, `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2` 12 of 12 (the rosters unchanged); the PCT lanes (channel B x5 on DuckDB, H2, channel A x5 on
+   DuckDB, SQLite and MongoDB), the nine Postgres targets and `//datacube:python_execute_test` were running when this
+   commit was made (the stop hook asks for a commit at every pause): their results in the entry that follows.
+6. **Not measured:** the lanes (the S1.4 entry, item 5); what the lanes must measure when they can (D33): a pivot key's
+   literal now comes from the typed decode, and the reported-type probe for an untyped key is a statement the pivot did
+   not send before. Not yet (B1b): the `Connection` in `ExecEnv` and `WrappedSide`, `ESTABLISHED`, `wireMemo`,
+   `SystemDatabase.Route`, the transaction bracket, the test-data generator; the `java.sql` guard on the driver and the
+   judges.

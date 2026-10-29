@@ -112,7 +112,8 @@ class JdbcSurfaceCensusTest {
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
             // holds no JDBC
-            "core/src/main/java/com/legend/exec/SetupRunner.java",
+            // 2026-10-29 (track B's B1a): SetupRunner.java LEFT this register -- it sends through the session seam
+            // (Statements.execute, Statements.load) and holds no JDBC
             // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12, the Statements seam): the plan runner's JDBC moved
             // here whole -- prepare, bind, execute, the one getString of the plan path (carriage, C1.2) -- so the
             // runner holds a plan and a session's Statements, never a connection; a connector's session gives its own
@@ -158,13 +159,15 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
-            "core/src/main/java/com/legend/exec/DynamicPivot.java",
+            // 2026-10-29 (track B's B1a): DynamicPivot.java LEFT this register -- the keys read as typed rows through
+            // the body's session seam (KeyReader), a key typed by the database's report (Statements.columns)
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;
             // moved from deleted ResultNav; split out of RawGridSchema at
             // the Invariant-7 staged-compilation move). (DbMetaData row
             // RETIRED: moved to compiler/spec/CatalogGrids — pure
             // SQL-text composition.)
-            "core/src/main/java/com/legend/exec/GridProbe.java",
+            // 2026-10-29 (track B's B1a): GridProbe.java LEFT this register -- its LIMIT-0 metadata read goes
+            // through the session seam (Statements.columns), as ColumnProbe's and DynamicPivot's do
             // (PureAsserts + TdsCompare rows RETIRED 2026-08-21, the
             // D-arc dividend: PureDateLiteral is THE wire temporal
             // carrier, so the comparison layer's java.sql value arms
@@ -187,7 +190,8 @@ class JdbcSurfaceCensusTest {
             // the wire's self-description, zero queries, zero decode;
             // the CanonicalDivergence pattern with a java.sql import
             "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
-            "core/src/main/java/com/legend/exec/ColumnProbe.java",   // PctProbe, renamed for what it does (2026-10-17)
+            // 2026-10-29 (track B's B1a): ColumnProbe.java (PctProbe until 2026-10-17) LEFT this register -- its
+            // LIMIT-0 metadata read goes through the session seam (Statements.columns)
             // leg 3.3: the wire-decided kinds read from the prepared statement's metadata
             "core/src/main/java/com/legend/exec/WireTypes.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure

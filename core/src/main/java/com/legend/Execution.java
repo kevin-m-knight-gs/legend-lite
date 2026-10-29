@@ -107,9 +107,10 @@ public final class Execution {
                 .forServer(com.legend.exec.Sessions.version(connection));
         // B6: session setup rides the connection-dialect resolution -- the ONE seam every
         // connection-bearing entry passes through; the dialect states the FACTS, the exec funnel executes
+        com.legend.exec.Statements session = com.legend.exec.PlanSessions.statementsOf(connection, null);
         for (String s : dialect.sessionSetup()) {
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
-                com.legend.exec.SetupRunner.send(connection, s);
+                com.legend.exec.SetupRunner.send(session, s);
             }
         }
         return dialect;

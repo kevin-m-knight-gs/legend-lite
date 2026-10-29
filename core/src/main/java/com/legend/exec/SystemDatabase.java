@@ -159,9 +159,10 @@ public final class SystemDatabase {
 
     private Session seed(Connection c, boolean inProcess, SqlDialect dialect, DatabaseDefinition store,
             Function<String, List<List<String>>> rowsOf) {
+        Statements session = PlanSessions.statementsOf(c, null);
         for (String setup : dialect.sessionSetup()) {
             try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
-                SetupRunner.send(c, setup);
+                SetupRunner.send(session, setup);
             }
         }
         Map<String, String> renames = new java.util.LinkedHashMap<>();
@@ -171,12 +172,12 @@ public final class SystemDatabase {
                 try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
                     if (inProcess) {
                         for (String stmt : Ddl.metamodelSeed(def, schema.name(), dialect)) {
-                            SetupRunner.send(c, stmt);
+                            SetupRunner.send(session, stmt);
                         }
-                        SetupRunner.load(c, dialect, Ddl.metamodelRows(def, schema.name(), r));
+                        SetupRunner.load(session, dialect, Ddl.metamodelRows(def, schema.name(), r));
                     } else {
                         for (String stmt : Ddl.metamodelTemporary(def, schema.name(), r, dialect)) {
-                            SetupRunner.send(c, stmt);
+                            SetupRunner.send(session, stmt);
                         }
                         renames.put(schema.name() + "." + def.name(), Ddl.systemTable(schema.name(), def.name()));
                     }

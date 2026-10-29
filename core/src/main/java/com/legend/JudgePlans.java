@@ -235,7 +235,8 @@ final class JudgePlans {
         boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
         if (lateBound) {
             // a raw grid (executeInDbToTDS) has no typed outputs: the database's reported columns frame it
-            plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(), w.connection(),
+            plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
+                    com.legend.exec.PlanSessions.statementsOf(w.connection(), env.trace()),
                     StatementExecutor.wireMemo(w.connection()));
             schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
         }

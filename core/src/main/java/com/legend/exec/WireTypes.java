@@ -12,12 +12,8 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlType;
 
-import java.sql.Connection;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -62,8 +58,8 @@ public final class WireTypes {
      * carries VARCHAR (its kind is the golden's to infer). {@code plan}
      * itself when the database reports nothing. */
     public static SqlQuery staticized(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,
-            Connection conn, Map<String, List<ReportedColumn>> memo) {
-        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan), s -> reported(s, conn));
+            Statements session, Map<String, List<ReportedColumn>> memo) {
+        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan), s -> reported(s, session));
         if (reported.isEmpty()) {
             return plan;
         }
@@ -80,22 +76,22 @@ public final class WireTypes {
      * database's reported types, or {@code plan} itself when nothing is
      * wire-decided or the plan is not a projection frame. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect, Statements session,
             Map<String, List<ReportedColumn>> memo) {
-        return reconcile(plan, plan, shapeInfo, dialect, conn, memo);
+        return reconcile(plan, plan, shapeInfo, dialect, session, memo);
     }
 
     /** With the frame definitions the plan may reference (leg 3.4 step 2):
      * the plan stays bare; the prepare sees them at the statement's head. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect, Statements session,
             Map<String, List<ReportedColumn>> memo, Map<String, SqlQuery> frames) {
         return reconcile(plan, com.legend.sql.FrameCtes.attach(plan, frames), shapeInfo,
-                dialect, conn, memo);
+                dialect, session, memo);
     }
 
     private static SqlQuery reconcile(SqlQuery plan, SqlQuery whole, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect, Statements session,
             Map<String, List<ReportedColumn>> memo) {
         if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
                 || ps.projections().size() != plan.outputs().size()) {
@@ -106,7 +102,7 @@ public final class WireTypes {
             return plan;
         }
         String sql = dialect.render(whole);
-        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, conn));
+        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, session));
         if (reported.size() != plan.outputs().size()) {
             return plan;
         }
@@ -180,24 +176,15 @@ public final class WireTypes {
     /** The database's reported type per column — a prepare, no execution;
      * a column outside the vocabulary reports null; a statement the
      * database cannot prepare raises the data error the verdict would have. */
-    private static List<ReportedColumn> reported(String sql, Connection conn) {
-        try (var st = conn.prepareStatement(sql)) {
-            ResultSetMetaData md = st.getMetaData();
-            if (md == null) {
-                return Collections.emptyList();
-            }
-            List<ReportedColumn> out = new ArrayList<>(md.getColumnCount());
-            for (int i = 1; i <= md.getColumnCount(); i++) {
-                out.add(new ReportedColumn(md.getColumnLabel(i),
-                        sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)),
-                        md.isNullable(i) != ResultSetMetaData.columnNoNulls));
-            }
-            return out;
-        } catch (SQLException e) {
-            // the seam: java.sql stops at this probe's boundary — a
-            // statement the database cannot prepare cannot judge either
-            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+    private static List<ReportedColumn> reported(String sql, Statements session) {
+        // the session seam (track B's B1a, 2026-10-29; until then a prepare on a JDBC connection here): the
+        // statement DESCRIBED, never run (Statements.describe) -- a statement the database cannot describe raises
+        // the data error the verdict would have; none reported where the driver withholds them, as before
+        List<ReportedColumn> out = new ArrayList<>();
+        for (Statements.Reported r : session.describe(sql)) {
+            out.add(new ReportedColumn(r.name(), r.type(), r.nullable()));
         }
+        return out;
     }
 
     /** JDBC's type code to the SQL vocabulary (the kinds
@@ -230,6 +217,12 @@ public final class WireTypes {
                     + "' (a column the database reports) -- add it to WireTypes.pureOfSqlType");
         }
         return t;
+    }
+
+    /** {@link #pureOfSqlType}'s name: the Pure primitive's name a plan column carries (track B's B1a, 2026-10-29: the
+     *  static pivot's key column, read on the exec side, which holds no {@code Type}). */
+    public static String pureTypeNameOf(String sqlType) {
+        return pureOfSqlType(sqlType).typeName();
     }
 
     /** {@link #pureOfSqlType}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted

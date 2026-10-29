@@ -45,10 +45,12 @@ class WireTypesTest {
                 Multiplicity.Bounded.ONE);
     }
 
-    private static void battery(Connection c, SqlDialect dialect) throws Exception {
-        c.createStatement().execute("create table t(\"id\" varchar(200))");
-        c.createStatement().execute("insert into t values ('7')");
+    private static void battery(Connection conn, SqlDialect dialect) throws Exception {
+        conn.createStatement().execute("create table t(\"id\" varchar(200))");
+        conn.createStatement().execute("insert into t values ('7')");
         Map<String, List<WireTypes.ReportedColumn>> memo = new HashMap<>();
+        // the session seam the reader goes through (track B's B1a, 2026-10-29)
+        Statements c = PlanSessions.statementsOf(conn, null);
         // a String-declared column stamped INTEGER (the store's declaration)
         // over a physical VARCHAR: reconciled to the wire
         SqlQuery r = WireTypes.reconcile(plan(SqlType.Scalar.INTEGER), grid(Type.Primitive.STRING),

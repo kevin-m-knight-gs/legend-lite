@@ -19,7 +19,7 @@ public final class SetupRunner {
 
     /** Runs a connection's setup steps on the session, as the engine does when it
      *  ESTABLISHES the connection; {@code recorder} is the referee's ledger (null = none). */
-    public static void run(List<Step> setups, java.sql.Connection connection,
+    public static void run(List<Step> setups, Statements session,
             com.legend.sql.dialect.SqlDialect dialect,
             com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder) {
         for (Step step : setups) {
@@ -28,7 +28,7 @@ public final class SetupRunner {
                     for (String stmt : com.legend.sql.RawSql.splitStatements(blob.text())) {
                         boolean query;
                         try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                            query = send(connection,
+                            query = send(session,
                                     new com.legend.setup.CsvSeed.Step.Sql(stmt, blob.writtenFor()).runOn(dialect));
                         }
                         if (recorder != null) {
@@ -40,7 +40,7 @@ public final class SetupRunner {
                 // referee's ledger records the one insert that lands the same rows
                 case Step.Rows rows -> {
                     try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                        load(connection, dialect, rows.load());
+                        load(session, dialect, rows.load());
                     }
                     if (recorder != null) {
                         recorder.recordExecuted(rows.text(dialect), false);
@@ -51,31 +51,22 @@ public final class SetupRunner {
     }
 
     /** One setup statement sent on {@code session} under the origin in force, counted as every statement is
-     *  ({@link StatementOrigin#sent}): whether it answered rows, which are not read. */
-    public static boolean send(java.sql.Connection session, String statement) {
+     *  ({@link StatementOrigin#sent}): whether it answered rows, which are not read. Through the session seam
+     *  ({@link Statements#execute}: track B's B1a, 2026-10-29; until then a JDBC statement here). */
+    public static boolean send(Statements session, String statement) {
         StatementOrigin.sent(statement);
-        try (java.sql.Statement st = session.createStatement()) {
-            return st.execute(statement);
-        } catch (java.sql.SQLException e) {
-            throw PlanSessions.dataError(e, session);
-        }
+        return session.execute(statement);
     }
 
-    /** {@code load}'s rows into their table on {@code session}: by the engine's bulk load where it has one, else as
-     *  the one insert the dialect writes. */
-    static void load(java.sql.Connection session, com.legend.sql.dialect.SqlDialect dialect,
+    /** {@code load}'s rows into their table on {@code session}: by the engine's bulk load where it has one
+     *  ({@link Statements#load}), else as the one insert the dialect writes. */
+    static void load(Statements session, com.legend.sql.dialect.SqlDialect dialect,
             com.legend.setup.RowLoad load) {
         if (load.rows().isEmpty()) {
             return;
         }
-        try {
-            BulkLoad bulk = BulkLoads.of(session);
-            if (bulk != null) {
-                BulkLoads.load(bulk, session, load.staged(dialect));
-                return;
-            }
-        } catch (java.sql.SQLException e) {
-            throw PlanSessions.dataError(e, session);
+        if (session.load(load.staged(dialect))) {
+            return;
         }
         send(session, dialect.render(load.values()));
     }

@@ -30,6 +30,8 @@ class ColumnFactsTest {
         for (Shape shape : Shape.values()) {
             assertEquals(Precision.WRITTEN, fact("DateTime", SqlType.Scalar.LITERAL, shape), shape.name());
             assertEquals(Precision.WRITTEN, fact("Date", SqlType.Scalar.LITERAL, shape), shape.name());
+            // the carrier decides before the type: a StrictDate written into a literal carrier is a written value
+            assertEquals(Precision.WRITTEN, fact("StrictDate", SqlType.Scalar.LITERAL, shape), shape.name());
         }
     }
 

@@ -74,10 +74,10 @@ class RowLoadDuckDbTest {
         RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of(), java.util.Set.of(), 7, rows());
         try (Connection bulk = duck(); Connection text = duck()) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            SetupRunner.load(bulk, DUCK, load);
+            SetupRunner.load(PlanSessions.statementsOf(bulk, null), DUCK, load);
             assertEquals(before + 1, Census.count(Census.Key.BULK_LOADS),
                     "DuckDB must load through its Appender, not the insert text");
-            SetupRunner.send(text, DUCK.render(load.values()));
+            SetupRunner.send(PlanSessions.statementsOf(text, null), DUCK.render(load.values()));
             assertEquals(contents(text), contents(bulk));
             assertEquals(4, contents(bulk).size());
         }
@@ -89,8 +89,8 @@ class RowLoadDuckDbTest {
         RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("v", "i"), java.util.Set.of(), 2,
                 List.of(List.of("x", "7"), List.of("y", "8")));
         try (Connection bulk = duck(); Connection text = duck()) {
-            SetupRunner.load(bulk, DUCK, load);
-            SetupRunner.send(text, DUCK.render(load.values()));
+            SetupRunner.load(PlanSessions.statementsOf(bulk, null), DUCK, load);
+            SetupRunner.send(PlanSessions.statementsOf(text, null), DUCK.render(load.values()));
             assertEquals(List.of("7|x|null|null|null|null|null", "8|y|null|null|null|null|null"),
                     contents(bulk));
             assertEquals(contents(text), contents(bulk));
@@ -102,8 +102,9 @@ class RowLoadDuckDbTest {
     void badCastFails() throws Exception {
         RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i"), java.util.Set.of(), 1, List.of(List.of("not a number")));
         try (Connection bulk = duck(); Connection text = duck()) {
-            assertThrows(DataError.class, () -> SetupRunner.load(bulk, DUCK, load));
-            assertThrows(DataError.class, () -> SetupRunner.send(text, DUCK.render(load.values())));
+            assertThrows(DataError.class, () -> SetupRunner.load(PlanSessions.statementsOf(bulk, null), DUCK, load));
+            assertThrows(DataError.class, () -> SetupRunner.send(PlanSessions.statementsOf(text, null),
+                    DUCK.render(load.values())));
             assertEquals(List.of(), contents(bulk));
         }
     }

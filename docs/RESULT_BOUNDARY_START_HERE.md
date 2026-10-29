@@ -30,8 +30,8 @@ measurements, every probe's source) is `docs/result-boundary-homework/README.md`
   draft PR #80 (S1.6, opened 2026-10-29 under the user's "keep going", D11; the merge the user's) runs CI on every
   OS: red there is work before anything else. Stage 1 is done: S1.4 corrected under the upstream-fidelity tenet
   (2026-10-29, D4 to D6; the midnight rule deleted; S118 posted), S1.5 done (the 51 differences classified by
-  upstream's answer, two moves toward upstream built, five questions posted with recommendations; the S1.4 audit's
-  findings fixed). After B: T (our core tests as the LEAN twin of PCT and the corpus), C (the corpus and channel B on
+  upstream's answer, two moves toward upstream built, six questions posted with recommendations, the sixth queued
+  for track T; the S1.4 audit's findings fixed; the S1.5 audit's findings fixed with track B's first commit). After B: T (our core tests as the LEAN twin of PCT and the corpus), C (the corpus and channel B on
   B), D (the deletions); L (mixed lists typed) and A (the Arrow writer) can run beside them. Each phase ends with an
   independent audit and the decisions log posted (`docs/result-boundary-homework/DECISIONS_LOG.md`).
 - **Who decides.** The user: rulings (§10 lists every one), pushes to `main`, PRs, merges, and **every change to
@@ -120,8 +120,9 @@ what it found: the homework README §1.
   `//core:census`, `//pct:pct_discipline` (28 of 28); PCT channel A, all five suites, on DuckDB, SQLite and MongoDB
   (engine-JSON crossings 524 / 523 / 523; the relation suite 460 / 459 / 459); `//datacube:python_execute_test`. Not
   the local gate (last run at S1.0's merge commit: the S1.4 audit caught a GATES sentence claiming otherwise).
-- S1.5's code commit (2026-10-29): GATES, the S1.5 entry (the local gate with the Postgres targets unprivileged, PCT
-  channel A on DuckDB, SQLite and MongoDB, the Python route).
+- S1.5's code commit (2026-10-29, `d314455a`): GATES, "S1.5's gate, measured at d314455a" (the local gate 446 targets,
+  436 pass, 1 skipped, the 9 Postgres targets unprivileged 9 of 9; PCT channel A on DuckDB, SQLite and MongoDB 16 of 16;
+  the Python route).
 
 **Who still enters through the old door** (measured 2026-10-28; production: nobody):
 
@@ -335,6 +336,17 @@ materialized `execute`s, `PureTestRunner`, `ServiceTestRunner`, `ChannelB`, and 
 - **Per commit:** `//core:core_tests`, the guards; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
   (the rosters unchanged); PCT channel B x5 on DuckDB identical per test; channel A exact on DuckDB, SQLite and
   MongoDB; the Postgres targets unprivileged; `//datacube:python_execute_test`. Order: B1a, B1b, B3, B2, then C.
+- **B1a built 2026-10-29** (GATES, the B1a entry; the decisions log D33): `Statements.columns` (a statement run for its
+  columns, the LIMIT-0 probe, no row read), `Statements.describe` (the prepared statement's metadata, none where the
+  driver withholds it: the wire-type reader's reading, kept as it was) and `Statements.load` (the bulk loader where the
+  database has one); `ColumnProbe`, `GridProbe`, `WireTypes`, `SetupRunner`, `SystemDatabase`'s seeding and
+  `Execution`'s session setup read and send through them; `DynamicPivot.staticize` takes the session and a
+  `KeyReader` (the keys as typed rows through `PlanRunner`, a key the lowering did not type typed by the database's
+  report); the body driver's `ExecEnv.statements()`; `gridReferee(env)`; `lowerAndPrepare` without its connection
+  parameter. The JDBC census loses `SetupRunner`, `GridProbe`, `ColumnProbe`, `DynamicPivot`; the ledger re-pins
+  `StatementExecutor` 2316 -> 2313, `GridProbe` 53 -> 46, `DynamicPivot` 112 -> 111, dated. Not yet (B1b): the
+  `Connection` in `ExecEnv`, `WrappedSide`, `ESTABLISHED`, `wireMemo`, `SystemDatabase.Route`, the transaction
+  bracket, the test-data generator; the `java.sql` guard on the driver and the judges.
 
 ### Track T. Our core tests become the LEAN twin of PCT and the corpus
 
@@ -594,6 +606,7 @@ counts after a route switch is not yet evidence (Databricks and Snowflake each h
 | 2026-10-28 | "why are we running tests? did we change code? i thought we were building hand off doc?" | an answer is not a go (§5) |
 | 2026-10-28 | "keep the fix, fix the plan wording including adding that we need to fix 0.00010 .. then do a full read of the what you wrote - make sure we capture all the homewokr and detail and plans in detail for new sesison without any context - do not make any more code changes here" | `b944a42e` kept; the `0.00010` trailing zero ruled a defect to fix (S1.4 item 2); this session writes no more code; the handoff re-read whole and completed (S1.0, §12) |
 | 2026-10-29 | "wherever possible we should stick to upstream legend-pure and legend-engine as possible - every answer should be 'can we do exactly as pure/engine does, or as close to as possible where too expensive to be exact but with an explicit posting to me and a ledger for diverging' every decision should be settled with that tenet" (answering S1.4's report, its two open questions among them) | the upstream-fidelity tenet (AGENTS.md; §5's first rule; the register's header): exact upstream by default, a divergence only where too expensive, posted and ledgered; S1.4's open questions settled by it (§4, S1.4); S1.5's classification of the 51 writer differences is by upstream's answer |
+| 2026-10-29 | "The standing rule is if changing to something that diverges from upstream not if change something in lite - but have you checked pct and core-relational? Are you sure it's always 9 digits expected? I feel like lite mostly copied what tests expect / Also no need to stop, just keep going all the way until done with whole program and all old ways to execute are deleted - do a deep audit after every phase and keep a log of decisions you made or wanted to so you can post me on decisions you made after each phase too with audit - don't stop keep going" (answering S1.4's correction report) | three readings, each recorded where it acts: (1) the 2026-10-28 rule ("every spelling change to me case by case") binds a change that DIVERGES from upstream; a move TOWARD upstream needs no asking (AGENTS.md's tenet paragraph; the decisions log D4, D13, D14 rest on it); (2) the nine-digit claim checked against the PCT and core_relational (S1.4 corrected: the homework README §7, D5); (3) the program continues without stopping between phases, an independent audit after each, a decisions log posted after each (`docs/result-boundary-homework/DECISIONS_LOG.md`; D11 reads "keep going" as the word for S1.6's DRAFT PR, never a merge). Added to this table 2026-10-29 by the S1.5 audit's finding 2 (the words were quoted only in the program's §9 until then) |
 
 ## 11. Reading order
 

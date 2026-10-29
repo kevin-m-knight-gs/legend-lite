@@ -205,7 +205,10 @@ class JavaEvalLedgerTest {
             // integer literal (a decode, not evaluation)
             // 111 -> 112 (2026-10-12, ClickHouse delivers an Int128 key, a sum of integers, as BigInteger): the same
             // rule's arm for that JDBC kind, the integral BigDecimal arm's twin (a decode, not evaluation)
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 112),
+            // 112 -> 111 (2026-10-29, track B's B1a: the static pivot reads its keys as typed rows through the body's
+            // session seam, DynamicPivot.KeyReader, and types a key the lowering did not by the database's report,
+            // Statements.columns; its own JDBC statement and result-set decode are gone)
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 111),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -230,7 +233,9 @@ class JavaEvalLedgerTest {
             // evaluation; it EXISTS to delete the Any-wildcard stamp so
             // late-bound cells type and the wire ledger burns.
             // 52 -> 53 (2026-09-20, statement-origin census): the column probe counts itself
-            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 53),
+            // 53 -> 46 (2026-10-29, track B's B1a: the probe reads the session's reported columns through the seam,
+            // Statements.columns; its own JDBC statement and metadata read are gone)
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 46),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -768,7 +773,10 @@ class JavaEvalLedgerTest {
             // sides' lines, nothing evaluated
             // 2419 -> 2316 (2026-10-27, the result boundary program's phase 5: the body driver's effects sent through
             // the plan runner, its value statements through JudgePlans, the canon rider off the value path)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2316),
+            // 2316 -> 2313 (2026-10-29, track B's B1a: the body driver's schema probes and seeds read its session
+            // through the seam (ExecEnv.statements); its JDBC tunnel for the grid referee and its connection
+            // parameter to lowerAndPrepare are gone)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2313),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

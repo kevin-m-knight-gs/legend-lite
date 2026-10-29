@@ -96,6 +96,49 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
+    public List<Reported> columns(String statement) {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
+            return reported(rs.getMetaData());
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e, c);
+        }
+    }
+
+    @Override
+    public List<Reported> describe(String statement) {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
+            java.sql.ResultSetMetaData md = st.getMetaData();
+            return md == null ? List.of() : reported(md);
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e, c);
+        }
+    }
+
+    private static List<Reported> reported(java.sql.ResultSetMetaData md) throws SQLException {
+        List<Reported> out = new java.util.ArrayList<>(md.getColumnCount());
+        for (int i = 1; i <= md.getColumnCount(); i++) {
+            out.add(new Reported(md.getColumnLabel(i), md.getColumnTypeName(i),
+                    WireTypes.sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)),
+                    md.isNullable(i) != java.sql.ResultSetMetaData.columnNoNulls));
+        }
+        return out;
+    }
+
+    @Override
+    public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+        try {
+            BulkLoad bulk = BulkLoads.of(c);
+            if (bulk == null) {
+                return false;
+            }
+            BulkLoads.load(bulk, c, rows);
+            return true;
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e, c);
+        }
+    }
+
+    @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
         return Sessions.inTransaction(c, work);
     }
