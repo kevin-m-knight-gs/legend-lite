@@ -502,6 +502,12 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the doors, 3-5** (the decisions log, "The doors", D61; GATES, the doors 3-5 entry): the user's ask
+  after Z ("close all the doors here as part of this PR so we know that it can be done"). The probes and the pivot's
+  key type as plan statements the runner runs (`PlanRunner.columns`, `describe`); the seeds, a program's session
+  statements and the system store's rows as setup steps it runs (`PlanRunner.setUp`; `SetupRunner` deleted); the
+  guard: outside the seam, no class calls a session's statements. Next: door 2 (the generator), door 1 (the last
+  statement streamed, `ProgramReport` deleted).
 - **2026-10-29, the DuckDB driver 1.5.6.0** (the decisions log D60; GATES, the D60 entry): core's pin 1.4.4.0 to
   1.5.6.0 on the user's ask, measured first on the jars (the pin's LIMIT shape correct on all three versions; the
   as-of defect of S126 gone from 1.5.5 on); the as-of test asserts the spec on every lane; the chain green on the bump

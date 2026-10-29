@@ -62,7 +62,7 @@ final class BodyDriver {
                 || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
             com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
             ExecEnv tx = env;
-            return tx.statements().inTransaction(
+            return tx.session().inTransaction(
                     () -> executeStatements(typedBody, new java.util.ArrayList<>(), specs, tx));
         }
         return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
@@ -178,11 +178,18 @@ final class BodyDriver {
                     protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
-        /** The session's statements, each query's stamp published to this environment's trace -- the schema probes,
-         *  the seeds, the transaction bracket (track B's B1a and B1b, 2026-10-29: the body driver reads and sends
-         *  through the seam, never JDBC itself, and holds no connection). */
-        com.legend.exec.Statements statements() {
-            return session.statements(trace);
+        /** The plan runner's source for this environment's session: the body's session, each query's
+         *  execution-trace stamp published to this environment's trace ({@link com.legend.exec.PlanSessions#of}) --
+         *  the one way the body driver reaches the database (the doors, 2026-10-29: the schema probes and the seeds
+         *  are plan statements the runner sends, the transaction bracket the session's own; track B's B1a and B1b had
+         *  them on the session's statements, and before that on a JDBC connection). */
+        com.legend.exec.PlanSessions.Source planSessions() {
+            return com.legend.exec.PlanSessions.of(session, trace);
+        }
+
+        /** Where a statement of this environment runs: the body's target ({@link JudgePlans#target}). */
+        com.legend.executionplan.ExecutionPlan.Target target() {
+            return JudgePlans.target(this);
         }
 
         /** The same environment over the system database's {@code route}:
@@ -1328,7 +1335,7 @@ final class BodyDriver {
      * included) out of the resolver. */
     static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(ExecEnv env) {
         return (sql, writtenFor) -> com.legend.exec.GridProbe.probeTypedColumns(
-                sql, writtenFor, env.statements(), env.dialect());
+                sql, writtenFor, env.planSessions(), env.target(), env.dialect());
     }
 
     static ExecFrame buildFrame(
@@ -1937,7 +1944,16 @@ final class BodyDriver {
         if (env.runtimeFqn() != null) {
             setups.addAll(com.legend.setup.CsvSeed.declaredSteps(env.runtimeFqn(), env.ctx(), env.dialect()));
         }
-        com.legend.exec.SetupRunner.run(setups, env.statements(), env.dialect(), env.options().recorder());
+        // the seeds as the plan side's setup steps (CsvSeed.planned: the one owner of their form, the plan's target
+        // takes the same), run by the plan runner on the body's session under the SEED origin, each recorded for the
+        // referee's ledger as it was asked (the doors, 2026-10-29; until then SetupRunner sent them on the session's
+        // statements)
+        java.util.List<com.legend.setup.CsvSeed.Planned> planned = com.legend.setup.CsvSeed.planned(setups,
+                env.dialect());
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+            com.legend.exec.PlanRunner.setUp(planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList(),
+                    env.target(), env.planSessions(), (i, rows) -> record(env, planned.get(i).text(), rows));
+        }
         state.establish(key);
     }
 
@@ -2050,7 +2066,7 @@ final class BodyDriver {
                         env.tableReplace(),
                         env.postProcessors().extractCtes(),
                         env.postProcessors().nonExecutable()),
-                dialect, env.statements(), keyReader(env));
+                dialect, env.planSessions(), env.target(), keyReader(env));
         // DEFERRED relation-toString (dynamic-pivot inners): the column
         // list exists only NOW, post-staticize. The LOWERING layer owns
         // the composition pass (invariant 6d — exec never calls the
@@ -2058,13 +2074,14 @@ final class BodyDriver {
         // (a SCHEMA read, DynamicPivot's two-phase discipline).
         if (!lowerer.deferredTds().isEmpty()) {
             final var fDialect = dialect;
-            final var fSession = env.statements();
-            // the seam: ColumnProbe reads the session's reported columns (Statements.columns) and raises DataError
-            // (unchecked) itself
+            final var fSessions = env.planSessions();
+            final var fTarget = env.target();
+            // the seam: ColumnProbe asks the plan runner for the probe's reported columns (PlanRunner.columns) and
+            // raises DataError (unchecked) itself
             plan = com.legend.lowering.Render.resolveAllDeferredTds(
                     plan, lowerer.deferredTds(),
                     inner -> com.legend.exec.ColumnProbe.probe(
-                            inner, fDialect, fSession),
+                            inner, fDialect, fSessions, fTarget),
                     com.legend.exec.WireTypes::pureOfSqlType);
         }
         return named ? lowerer.namedColumns(plan) : plan;
@@ -2734,7 +2751,7 @@ final class BodyDriver {
             plan = com.legend.exec.WireTypes.reconcile(plan,
                     collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
                             : com.legend.plan.ResultShape.valueInfo(root.info()),
-                    penv.dialect(), penv.statements(), penv.session().state().wireTypes(),
+                    penv.dialect(), penv.planSessions(), penv.target(), penv.session().state().wireTypes(),
                     batch == null ? java.util.Map.of() : batch.frames());
         }
         return new BarePlan(null, plan, root,
@@ -2763,7 +2780,7 @@ final class BodyDriver {
                 // leg 3.3: a raw grid (executeInDbToTDS) has no typed outputs —
                 // the database's reported columns frame it (WireTypes)
                 plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
-                        env.statements(), env.session().state().wireTypes());
+                        env.planSessions(), env.target(), env.session().state().wireTypes());
                 schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
             }
             var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(plan, schema);
@@ -2863,7 +2880,7 @@ final class BodyDriver {
         java.util.List<String> texts = entries.stream().map(com.legend.exec.EffectSink.Entry::executed).toList();
         // the dialect's bracket only when this send OWNS the transaction; inside a
         // caller's (the harness's attempt) the statements run bare and the caller unwinds
-        boolean bracketed = env.statements().ownsTransaction();
+        boolean bracketed = env.session().ownsTransaction();
         try {
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
                 sendRaw(env, bracketed ? env.dialect().script(texts) : String.join(";\n", texts) + ";");

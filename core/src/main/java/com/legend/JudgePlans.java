@@ -51,15 +51,20 @@ final class JudgePlans {
      * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#given}).
      */
     static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
-        com.legend.database.Target decided = Compiler.executesOn(env.ctx(), env.runtimeFqn());
+        return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.session().version());
+    }
+
+    /** {@link #target(BodyDriver.ExecEnv)} for the target the compiler {@code decided} and the session's server
+     *  {@code version}: the program entry's own session statements run on it too ({@link Execution#dialectOf}, the
+     *  doors, 2026-10-29). */
+    static ExecutionPlan.Target target(com.legend.database.Target decided, String version) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(d.connections().get(0));
         };
-        return new ExecutionPlan.Target(database,
-                PlanMaker.serversFor(decided.type(), env.session().version()),
-                List.of(), List.of());
+        return new ExecutionPlan.Target(database, PlanMaker.serversFor(decided.type(), version), List.of(),
+                List.of());
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three
@@ -236,7 +241,7 @@ final class JudgePlans {
         if (lateBound) {
             // a raw grid (executeInDbToTDS) has no typed outputs: the database's reported columns frame it
             plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
-                    w.session().statements(env.trace()), w.session().state().wireTypes());
+                    PlanSessions.of(w.session(), env.trace()), target(env), w.session().state().wireTypes());
             schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
         }
         if (schema == null) {

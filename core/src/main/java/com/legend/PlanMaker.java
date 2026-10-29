@@ -10,7 +10,6 @@ import com.legend.executionplan.ExecutionPlan;
 import com.legend.lowering.TypedRows;
 import com.legend.model.ConnectionDefinition;
 import com.legend.setup.CsvSeed;
-import com.legend.setup.RowLoad;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
@@ -420,7 +419,6 @@ final class PlanMaker {
                 .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
         boolean inProcess = dialect.inProcess();
-        boolean bulk = dialect.loadsRowsInBulk();
         List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
         List<String> session = new ArrayList<>();
         Map<String, String> renames = new java.util.LinkedHashMap<>();
@@ -434,14 +432,7 @@ final class PlanMaker {
                 }
                 List<List<String>> rows = MetamodelSeeds.rows(def.name(), l.ctx());
                 if (inProcess) {
-                    for (String statement : com.legend.setup.Ddl.metamodelSeed(def, schema.name(), dialect)) {
-                        setup.add(new ExecutionPlan.SetupStep.Statement(statement));
-                    }
-                    if (!rows.isEmpty()) {
-                        RowLoad load = com.legend.setup.Ddl.metamodelRows(def, schema.name(), rows);
-                        setup.add(bulk ? load.staged(dialect)
-                                : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
-                    }
+                    setup.addAll(com.legend.setup.Ddl.metamodelSteps(def, schema.name(), rows, dialect));
                 } else if (!dialect.temporaryTables()) {
                     inline.put(schema.name() + "." + def.name(), inlineRows(def, rows));
                 } else {
@@ -549,25 +540,7 @@ final class PlanMaker {
      * INSERT the database runs. A table of no rows is no step.
      */
     private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
-        boolean bulk = dialect.loadsRowsInBulk();
-        List<ExecutionPlan.SetupStep> out = new ArrayList<>(steps.size());
-        for (CsvSeed.Step step : steps) {
-            switch (step) {
-                case CsvSeed.Step.Sql blob -> {
-                    for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
-                        out.add(new ExecutionPlan.SetupStep.Statement(
-                                new CsvSeed.Step.Sql(statement, blob.writtenFor()).runOn(dialect)));
-                    }
-                }
-                case CsvSeed.Step.Rows rows -> {
-                    RowLoad load = rows.load();
-                    if (!load.rows().isEmpty()) {
-                        out.add(bulk ? load.staged(dialect)
-                                : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
-                    }
-                }
-            }
-        }
-        return out;
+        // the one owner of the steps' form (the doors, 2026-10-29): the body driver's seeds take the same
+        return CsvSeed.planned(steps, dialect).stream().map(CsvSeed.Planned::step).toList();
     }
 }

@@ -89,7 +89,15 @@ class RowLoadH2Test {
                 st.execute(DDL);
             }
             long before = Census.count(Census.Key.BULK_LOADS);
-            SetupRunner.load(PlanSessions.statementsOf(c, null), new com.legend.sql.dialect.H2Modern(), new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a"))));
+            // the one INSERT the plan side writes for a database with no bulk loader, run by the plan runner (the
+            // doors, 2026-10-29; SetupRunner's load until then)
+            RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a")));
+            PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
+                    new com.legend.sql.dialect.H2Modern().render(load.values()))),
+                    new com.legend.executionplan.ExecutionPlan.Target(
+                            new com.legend.executionplan.ExecutionPlan.Database.Platform(DatabaseType.H2),
+                            new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of()),
+                    PlanSessions.given(c), null);
             assertEquals(before, Census.count(Census.Key.BULK_LOADS));
             assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));
         }

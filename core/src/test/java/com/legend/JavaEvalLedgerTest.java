@@ -208,7 +208,10 @@ class JavaEvalLedgerTest {
             // 112 -> 111 (2026-10-29, track B's B1a: the static pivot reads its keys as typed rows through the body's
             // session seam, DynamicPivot.KeyReader, and types a key the lowering did not by the database's report,
             // Statements.columns; its own JDBC statement and result-set decode are gone)
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 111),
+            // 111 -> 113 (2026-10-29, the doors): the key's type probe is a plan statement of the body's target the
+            // plan runner runs (PlanRunner.columns: checked, the target's session statements run) -- two lines of
+            // parameters (the plan sessions, the target), no evaluation
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 113),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -235,7 +238,9 @@ class JavaEvalLedgerTest {
             // 52 -> 53 (2026-09-20, statement-origin census): the column probe counts itself
             // 53 -> 46 (2026-10-29, track B's B1a: the probe reads the session's reported columns through the seam,
             // Statements.columns; its own JDBC statement and metadata read are gone)
-            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 46),
+            // 46 -> 48 (2026-10-29, the doors): the LIMIT-0 probe is a plan statement of the body's target the plan
+            // runner runs (PlanRunner.columns) -- two lines of parameters, no evaluation
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 48),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -779,7 +784,11 @@ class JavaEvalLedgerTest {
             // 2313 -> 2290 (2026-10-29, the result boundary program's track B, B1b: the Connection leaves the body driver -- its environment holds a session (Sessions.Session) and reaches the database through the seam's statements, state and version; the established-state class and its two statics moved to exec/SessionState; three unused Connection locals deleted; nothing evaluated)
             // 2290 -> 2273 (2026-10-29, track B's B2: the back half takes the query typed once (TypedQuery: its body and its spec compiler) where it typed the resolved AST itself for each of three entries, two of them delegating; nothing evaluated)
             // StatementExecutor.java renamed BodyDriver.java 2026-10-29 (track D: named for what it is), the count kept
-            Map.entry("core/src/main/java/com/legend/BodyDriver.java", 2273),
+            // 2273 -> 2282 (2026-10-29, the doors): the seeds as the plan side's setup steps the plan runner runs
+            // (CsvSeed.planned, PlanRunner.setUp, the referee's recorder as the runner's listener), the environment's
+            // plan-sessions and target accessors in place of its statements accessor, the transaction bracket on the
+            // session -- plumbing to the one seam, nothing evaluated; exec.SetupRunner deleted with it
+            Map.entry("core/src/main/java/com/legend/BodyDriver.java", 2282),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1115,9 +1124,10 @@ class JavaEvalLedgerTest {
                     // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution
                     // plan boundary step 2's opening piece (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): CsvSeed.java, Ddl.java and RowLoad.java left the register (no JDBC, no
-                    // egress: they write text and rows); SetupRunner.java is CsvSeed.run, the half
-                    // that runs them on a connection
-                    "Column.java", "SetupRunner.java",
+                    // egress: they write text and rows); SetupRunner.java was CsvSeed.run, the half
+                    // that ran them on a connection -- deleted 2026-10-29 (the doors): the runner runs the
+                    // steps (PlanRunner.setUp)
+                    "Column.java",
                     // execution plan step 3 (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): THE RUNNER -- a plan's own statement run as the plan says, model-free
                     // (ArchitectureTest.theRunnerIsModelFree): PlanRunner binds the plan's slots and

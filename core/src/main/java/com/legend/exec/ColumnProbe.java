@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.OutputCol;
 import com.legend.sql.PlanProbe;
 import com.legend.sql.SqlQuery;
@@ -24,13 +25,15 @@ public final class ColumnProbe {
     private ColumnProbe() {
     }
 
-    /** The probe through the session seam ({@link Statements#columns}: track B's B1a, 2026-10-29; until then this
-     *  class ran the probe on a JDBC connection itself). */
-    public static PlanProbe probe(SqlQuery plan,
-            com.legend.sql.dialect.SqlDialect dialect, Statements session) {
+    /** The probe as a plan statement of {@code target}, run by the plan runner on a session of {@code sessions}
+     *  ({@link PlanRunner#columns}: the doors, 2026-10-29; track B's B1a put it on the session seam, and until then
+     *  this class ran the probe on a JDBC connection itself). */
+    public static PlanProbe probe(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,
+            PlanSessions.Source sessions, ExecutionPlan.Target target) {
         SqlSelect probe = SqlSelect.starOf(new SqlSource.Subselect(plan,
                 "_pct_probe", null)).withLimit(0L);
-        List<Statements.Reported> reported = session.columns(dialect.render(probe));
+        List<Statements.Reported> reported = PlanRunner.columns(ExecutionPlan.Sql.of(dialect.render(probe), target),
+                sessions);
         List<OutputCol> outs = new ArrayList<>(reported.size());
         Map<String, String> typeNames = new LinkedHashMap<>();
         for (Statements.Reported r : reported) {

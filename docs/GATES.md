@@ -16162,3 +16162,44 @@ limit". Measured on the jars before any pin moved (`docs/result-boundary-homewor
    `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
 4. **CI:** PR #80 runs every OS on the push (the Windows, ARM and macOS lanes fetch the 1.5.6.0 jar there).
 5. **Not measured:** the MariaDB lane (CI alone); DuckDB 1.5.6.0 on Windows, ARM and macOS before CI.
+
+## 2026-10-29 — The doors, 3-5: the probes, the seeds, a program's session statements and the system store's rows as plan statements the runner sends; SetupRunner deleted; the guard that the runner is the one caller of a session's statements
+
+The user's ask after track Z (2026-10-29): "I want to close all the doors here as part of this PR so we know that it
+can be done". The map and the design: the decisions log, "The doors" (D61); the start page §4, "The doors".
+
+1. **Built:** `exec/PlanRunner.columns` and `describe` (a schema probe as a plan statement of the body's target, no
+   slot, through the runner's one `opened(session, target)`: checked, the target's session statements run; a schema
+   read not counted as a statement sent, the probes that count themselves doing so by name as before) and `setUp`
+   (a statement step as an effect, a rows step through the session's bulk loader inside the runner, a database with
+   none refused by name; a listener per step for the referee's recorder); `executionplan/ExecutionPlan.Sql.of`;
+   `exec/Sessions.Session.inTransaction` and `ownsTransaction` (a session's own facts); `setup/CsvSeed.planned` (the
+   one owner of a seed step's plan form AND the text the recorder ledgers, the statement as its author wrote it;
+   `PlanMaker.setup` delegates) and `setup/Ddl.metamodelSteps` (the one owner of the system store's steps, shared by
+   `PlanMaker` and `SystemDatabase`); `ColumnProbe`, `GridProbe`, `WireTypes` and `DynamicPivot` take the plan sessions
+   and the target; the body driver's `ExecEnv.planSessions()` and `target()` in place of `statements()`, its seeds
+   through `PlanRunner.setUp` under SEED, its transaction bracket on the session; `JudgePlans.target(decided,
+   version)`; `Execution.dialectOf` on a session, its session statements the program's setup steps under SESSION;
+   `SystemDatabase.seed` through the runner under SYSTEM on `PlanSessions.given(c)`; `exec/SetupRunner` DELETED,
+   `PlanSessions.statementsOf` deleted (no caller). The guard
+   `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (outside `PlanRunner`, `PlanSessions`,
+   `Sessions`, `JdbcStatements` and `MongoDbStatements`, no class calls a method of `Statements` and none takes
+   `Sessions.Session.statements`; its second clause an explicit predicate, the generic `and` of an owner and a name
+   predicate having matched by name alone). Pins moved with dated notes: `EXEC_PLANNING_REFERENCES` loses `SetupRunner`;
+   the ledger's `EXEC_CLASSES` loses `SetupRunner.java`; the size pins `GridProbe` 46 to 48, `DynamicPivot` 111 to 113,
+   `BodyDriver` 2273 to 2282 (parameter and plumbing lines). The tests `RowLoadDuckDbTest`, `RowLoadH2Test`,
+   `WireTypesTest`, `DynamicPivotKeyLiteralH2Test` and `PlanMakerTest` on the runner. AGENTS.md names the guard
+   beside the tenet's two.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved: the seeds and the probes count as they did); the 21
+   PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the
+   container's segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`;
+   the product job's unlaned-tests guard empty.
+3. **CI:** PR #80 at `e7fc12ff` (the Z fold) and at `acaa063b` (the DuckDB bump): every check suite completed,
+   none failed (the PR subscription's events, 17:04Z and 18:20Z: DuckDB 1.5.6.0 fetched and green on every OS);
+   this push runs every OS in turn.
+4. **Not measured:** the MariaDB lane (CI alone).

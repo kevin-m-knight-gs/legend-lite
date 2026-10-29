@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
@@ -41,12 +42,13 @@ public final class DynamicPivot {
         List<List<Object>> rows(SqlQuery query, List<com.legend.executionplan.ExecutionPlan.Column> columns);
     }
 
-    /** {@code plan} with each dynamic pivot's keys spelled in, on a database with no native dynamic pivot:
-     *  {@code session} types a key the lowering did not ({@link Statements#columns}, a LIMIT-0 schema read), and
-     *  {@code reader} reads the keys' values as typed rows. */
+    /** {@code plan} with each dynamic pivot's keys spelled in, on a database with no native dynamic pivot: a key
+     *  the lowering did not type is typed by what the database reports for it (a LIMIT-0 schema read, a plan
+     *  statement of {@code target} the plan runner runs on a session of {@code sessions}: {@link PlanRunner#columns},
+     *  the doors, 2026-10-29), and {@code reader} reads the keys' values as typed rows. */
     public static SqlQuery staticize(SqlQuery plan,
             com.legend.sql.dialect.SqlDialect dialect,
-            Statements session, KeyReader reader) {
+            PlanSessions.Source sessions, ExecutionPlan.Target target, KeyReader reader) {
         if (!dialect.needsStaticPivot()) {
             return plan;
         }
@@ -58,7 +60,7 @@ public final class DynamicPivot {
                         return s;
                     }
                     return new SqlSource.Pivot(p.source(), p.on(),
-                            discover(p, dialect, session, reader), p.named(), p.usings(),
+                            discover(p, dialect, sessions, target, reader), p.named(), p.usings(),
                             p.alias(), p.outputs());
                 }
         }.rewrite(plan);
@@ -66,7 +68,7 @@ public final class DynamicPivot {
 
     /** The key's distinct non-null values, ascending, as literals. */
     private static List<SqlExpr> discover(SqlSource.Pivot p, com.legend.sql.dialect.SqlDialect dialect,
-            Statements session, KeyReader reader) {
+            PlanSessions.Source sessions, ExecutionPlan.Target target, KeyReader reader) {
         SqlExpr key = p.on().get(0);
         SqlSelect q = SqlSelect.starOf(p.source())
                 .withProjections(List.of(
@@ -83,7 +85,7 @@ public final class DynamicPivot {
         // is typed by what the database reports for it (a LIMIT-0 schema read, the probe this pivot always was); a
         // key the database reports in no kind of the vocabulary is refused by name (AGENTS.md invariant 4)
         com.legend.sql.SqlType keyType = key.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type()
-                : reportedType(q, dialect, session, key);
+                : reportedType(q, dialect, sessions, target, key);
         String slot = com.legend.executionplan.ColumnFacts.slot(keyType);
         com.legend.executionplan.ExecutionPlan.Column column = new com.legend.executionplan.ExecutionPlan.Column(
                 "v", WireTypes.pureTypeNameOf(slot), new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1),
@@ -118,9 +120,10 @@ public final class DynamicPivot {
     /** The database's own type for the key column of {@code q}, read as a schema (never values): the one column
      *  {@code v} of {@code SELECT * FROM (q) LIMIT 0}. */
     private static com.legend.sql.SqlType reportedType(SqlSelect q, com.legend.sql.dialect.SqlDialect dialect,
-            Statements session, SqlExpr key) {
+            PlanSessions.Source sessions, ExecutionPlan.Target target, SqlExpr key) {
         SqlSelect probe = SqlSelect.starOf(new SqlSource.Subselect(q, "_k", null)).withLimit(0L);
-        List<Statements.Reported> reported = session.columns(dialect.render(probe));
+        List<Statements.Reported> reported = PlanRunner.columns(ExecutionPlan.Sql.of(dialect.render(probe), target),
+                sessions);
         com.legend.sql.SqlType type = reported.size() == 1 ? reported.get(0).type() : null;
         if (type == null) {
             throw new IllegalStateException("a dynamic pivot's key carries no type fact and the database reports it in"

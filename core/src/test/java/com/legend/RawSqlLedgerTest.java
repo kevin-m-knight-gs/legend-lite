@@ -59,7 +59,7 @@ class RawSqlLedgerTest {
             // raw effects call it -- one site still
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: adaptRaw is in setup/CsvSeed.java now
-            // (exec.SetupRunner calls it); same file name, one site
+            // (CsvSeed.planned calls it; exec.SetupRunner did until the doors, 2026-10-29); same file name, one site
             // 2026-10-13 (the dialect program's Phase 1c, decision D2): CsvSeed.adaptRaw and the RawSqlAdapt pass are
             // gone. Raw text is translated only when its connection declares the engine's H2, and only through the
             // dialect that runs it (SqlDialect.raw -> fromEngineText): DuckDB's is the one h2ToDuckDb call (Postgres's

@@ -110,7 +110,8 @@ class JdbcSurfaceCensusTest {
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
             // origin; a Connection in, the database executes (moved from StatementExecutor, BodyDriver since 2026-10-29)
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
-            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
+            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() was exec.SetupRunner's (deleted 2026-10-29,
+            // the doors: PlanRunner.setUp runs the steps); CsvSeed (now setup/)
             // holds no JDBC
             // 2026-10-29 (track B's B1a): SetupRunner.java LEFT this register -- it sends through the session seam
             // (Statements.execute, Statements.load) and holds no JDBC

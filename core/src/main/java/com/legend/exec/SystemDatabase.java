@@ -1,6 +1,7 @@
 package com.legend.exec;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.DatabaseDefinition;
 import com.legend.setup.Ddl;
 import com.legend.sql.dialect.SqlDialect;
@@ -138,7 +139,7 @@ public final class SystemDatabase {
         Connection c = inProcess ? openPrivate(engine) : openSystem(engine, systemConnections);
         Session s = null;
         try {
-            s = seed(c, inProcess, dialect, store, rowsOf);
+            s = seed(c, engine, inProcess, dialect, store, rowsOf);
             closer.open.add(c);
             return s;
         } finally {
@@ -158,33 +159,37 @@ public final class SystemDatabase {
         }
     }
 
-    private Session seed(Connection c, boolean inProcess, SqlDialect dialect, DatabaseDefinition store,
-            Function<String, List<List<String>>> rowsOf) {
+    /** The store seeded on {@code c} as a plan's setup steps the plan runner runs on it ({@link PlanRunner#setUp},
+     *  the doors, 2026-10-29; until then {@code SetupRunner} sent each on the session's statements): the dialect's
+     *  session statements, then each table's DDL and rows ({@link Ddl#metamodelSteps}: for the database's bulk loader
+     *  where it has one, else its one INSERT) in process, or its temporary table on a server engine, read under its
+     *  system name through the renames. Under the SYSTEM origin. */
+    private Session seed(Connection c, com.legend.model.ConnectionDefinition.DatabaseType engine, boolean inProcess,
+            SqlDialect dialect, DatabaseDefinition store, Function<String, List<List<String>>> rowsOf) {
         Sessions.Session opened = PlanSessions.session(c);
-        Statements session = opened.statements();
+        List<ExecutionPlan.SetupStep> steps = new ArrayList<>();
         for (String setup : dialect.sessionSetup()) {
-            try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
-                SetupRunner.send(session, setup);
-            }
+            steps.add(new ExecutionPlan.SetupStep.Statement(setup));
         }
         Map<String, String> renames = new java.util.LinkedHashMap<>();
         for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (DatabaseDefinition.TableDefinition def : schema.tables()) {
                 List<List<String>> r = rows.computeIfAbsent(def.name(), rowsOf);
-                try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
-                    if (inProcess) {
-                        for (String stmt : Ddl.metamodelSeed(def, schema.name(), dialect)) {
-                            SetupRunner.send(session, stmt);
-                        }
-                        SetupRunner.load(session, dialect, Ddl.metamodelRows(def, schema.name(), r));
-                    } else {
-                        for (String stmt : Ddl.metamodelTemporary(def, schema.name(), r, dialect)) {
-                            SetupRunner.send(session, stmt);
-                        }
-                        renames.put(schema.name() + "." + def.name(), Ddl.systemTable(schema.name(), def.name()));
+                if (inProcess) {
+                    steps.addAll(Ddl.metamodelSteps(def, schema.name(), r, dialect));
+                } else {
+                    for (String stmt : Ddl.metamodelTemporary(def, schema.name(), r, dialect)) {
+                        steps.add(new ExecutionPlan.SetupStep.Statement(stmt));
                     }
+                    renames.put(schema.name() + "." + def.name(), Ddl.systemTable(schema.name(), def.name()));
                 }
             }
+        }
+        // the session's engine is the target's database: the one fact the runner checks a session against
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(engine),
+                new ExecutionPlan.Servers.Every(), List.of(), List.of());
+        try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
+            PlanRunner.setUp(steps, target, PlanSessions.given(c), null);
         }
         return new Session(opened, renames);
     }

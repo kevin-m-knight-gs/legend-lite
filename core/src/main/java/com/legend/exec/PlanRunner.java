@@ -118,6 +118,76 @@ public final class PlanRunner {
         return rows[0];
     }
 
+    /** A statement's columns as the database reports them, the statement RUN for them and no row read (the probes'
+     *  LIMIT-0 way, {@link Statements#columns}): on a session of {@code sessions}, checked against the statement's
+     *  target and given the target's session statements as any statement is (the doors, 2026-10-29: a probe is a plan
+     *  statement; until then each probe held the session's statements itself). A probe binds no slot. A schema read
+     *  is not counted as a statement sent ({@link StatementOrigin#sent}): the probes that count themselves do so by
+     *  name, as before. */
+    public static List<Statements.Reported> columns(ExecutionPlan.Sql sql, PlanSessions.Source sessions) {
+        return schema(sql, sessions, Statements::columns);
+    }
+
+    /** A statement's columns as the database DESCRIBES them, the statement prepared and never run
+     *  ({@link Statements#describe}); as {@link #columns} otherwise. */
+    public static List<Statements.Reported> describe(ExecutionPlan.Sql sql, PlanSessions.Source sessions) {
+        return schema(sql, sessions, Statements::describe);
+    }
+
+    private static List<Statements.Reported> schema(ExecutionPlan.Sql sql, PlanSessions.Source sessions,
+            java.util.function.BiFunction<Statements, String, List<Statements.Reported>> read) {
+        if (!sql.slots().isEmpty()) {
+            throw new IllegalStateException("a schema probe binds no slot: its text is the statement");
+        }
+        try (Sessions.Session session = sessions.open(sql.target())) {
+            return read.apply(opened(session, sql.target()), sql.statement());
+        }
+    }
+
+    /** How a setup step went, for a caller that records the steps it asked for (the referee's ledger): the step's
+     *  index and whether its statement answered rows. */
+    @FunctionalInterface
+    public interface Ran {
+        void ran(int step, boolean answeredRows);
+    }
+
+    /**
+     * A session's setup, step by step, on a session of {@code sessions} for {@code target}: a statement step as an
+     * effect ({@link #effect}); a rows step through the session's bulk loader ({@link Statements#load}), which the plan
+     * side chose where the database has one ({@code SqlDialect.loadsRowsInBulk}; a session whose database has none is
+     * a mismatch, refused by name, as {@link PlanSessions}'s own setup refuses it). The body driver's seeds (a
+     * context's declared test data), a program's session statements and the system metamodel store's rows come
+     * through here (the doors, 2026-10-29; until then {@code SetupRunner} ran them on the session's statements
+     * itself); a session the host opens is set up by its owner ({@link PlanSessions#setUp}). Counted under the
+     * caller's statement origin. No step streams to a sink, so none raises an {@code IOException} of its own.
+     */
+    public static void setUp(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
+            PlanSessions.Source sessions, @com.legend.base.Nullable Ran ran) {
+        for (int i = 0; i < steps.size(); i++) {
+            boolean answeredRows = switch (steps.get(i)) {
+                case ExecutionPlan.SetupStep.Statement s -> {
+                    try {
+                        yield effect(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+                case ExecutionPlan.SetupStep.Rows r -> {
+                    try (Sessions.Session session = sessions.open(target)) {
+                        if (!opened(session, target).load(r)) {
+                            throw new IllegalStateException("the setup has rows for a bulk loader, and the session's"
+                                    + " database has none (" + r.stagingTable() + ")");
+                        }
+                    }
+                    yield false;
+                }
+            };
+            if (ran != null) {
+                ran.ran(i, answeredRows);
+            }
+        }
+    }
+
     /** A typed answer on its way to a sink: the columns once the statement has answered (its first row, or its
      *  end), so a statement the database refuses has written nothing to the sink. */
     private static final class Streamed {
@@ -546,20 +616,28 @@ public final class PlanRunner {
         // the session's own statements (JDBC's, or a connector's: Statements), 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
-            Statements st = session.statements();
-            st.check(sql.target());
-            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-                for (String s : sql.target().session()) {
-                    StatementOrigin.sent(s);
-                    st.execute(s);
-                }
-            }
+            Statements st = opened(session, sql.target());
             String statement = statement(sql, checked);
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
             // each statement a second time, 2026-10-21)
             StatementOrigin.sent(statement);
             ask.of(st, statement, values);
         }
+    }
+
+    /** {@code session}'s statements for {@code target}: checked against it (the database, the server versions the
+     *  statements are written for), the target's session statements run. The one place a session's statements are
+     *  taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}). */
+    private static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
+        Statements st = session.statements();
+        st.check(target);
+        try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
+            for (String s : target.session()) {
+                StatementOrigin.sent(s);
+                st.execute(s);
+            }
+        }
+        return st;
     }
 
     /** {@code slot}'s parameter's checked value. */

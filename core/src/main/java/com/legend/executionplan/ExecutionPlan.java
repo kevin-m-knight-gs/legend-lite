@@ -375,6 +375,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                 com.legend.sql.@com.legend.base.Nullable SqlQuery tree) {
             this(statement, slots, target, tree, List.of());
         }
+
+        /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
+         *  statement's (the doors, 2026-10-29: every statement a body or a seed sends is a plan statement). */
+        public static Sql of(String statement, Target target) {
+            return new Sql(statement, List.of(), target, null, List.of());
+        }
     }
 
     /**

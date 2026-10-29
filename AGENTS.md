@@ -24,7 +24,11 @@
 > mechanical, with known limits (guards catch drift, not adversaries —
 > the audit's §3): `JavaEvalLedgerTest` (shrink-only pins on the
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
-> (JDBC only at the chartered seams) and
+> (JDBC only at the chartered seams),
+> `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
+> statement a session runs is the plan runner's: the probes, the seeds and
+> the system store's rows are plan statements it sends -- "the doors",
+> 2026-10-29) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the

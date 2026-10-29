@@ -77,7 +77,7 @@ class DynamicPivotKeyLiteralH2Test {
             }
         };
         SqlQuery out = DynamicPivot.staticize(SqlSelect.starOf(pivot), dialect,
-                PlanSessions.statementsOf(conn, null), reader);
+                PlanSessions.given(conn), target, reader);
         try (Statement st = conn.createStatement()) {
             st.execute("DROP TABLE T");
         }

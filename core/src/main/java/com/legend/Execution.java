@@ -92,7 +92,7 @@ public final class Execution {
     }
 
     /**
-     * THE dialect of a query that executes on {@code connection}: the database its runtime executes on
+     * THE dialect of a program that runs on {@code session}: the database its runtime executes on
      * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}), refined by the server's
      * version ({@code SqlDialect.forServer}), with its session setup run once. The session is only
      * CHECKED ({@code Sessions.check}): connected to another database than the one declared is refused,
@@ -100,18 +100,20 @@ public final class Execution {
      */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        com.legend.model.ConnectionDefinition.DatabaseType declared = Compiler.executesOn(ctx, runtimeFqn).type();
-        com.legend.exec.Sessions.check(connection, declared);
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(declared)
-                .forServer(com.legend.exec.Sessions.version(connection));
-        // B6: session setup rides the connection-dialect resolution -- the ONE seam every
-        // connection-bearing entry passes through; the dialect states the FACTS, the exec funnel executes
-        com.legend.exec.Statements session = com.legend.exec.PlanSessions.statementsOf(connection, null);
-        for (String s : dialect.sessionSetup()) {
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
-                com.legend.exec.SetupRunner.send(session, s);
-            }
+            com.legend.exec.Sessions.Session session) {
+        com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
+        com.legend.exec.Sessions.check(session.connection(), decided.type());
+        String version = session.version();
+        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(decided.type())
+                .forServer(version);
+        // B6: session setup rides the connection-dialect resolution -- the ONE seam every connection-bearing entry
+        // passes through; the dialect states the FACTS, the plan runner runs them as the program's setup steps on
+        // its target (the doors, 2026-10-29; until then SetupRunner sent them on the session's statements)
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
+            com.legend.exec.PlanRunner.setUp(dialect.sessionSetup().stream()
+                    .<com.legend.executionplan.ExecutionPlan.SetupStep>map(
+                            com.legend.executionplan.ExecutionPlan.SetupStep.Statement::new).toList(),
+                    JudgePlans.target(decided, version), com.legend.exec.PlanSessions.of(session, null), null);
         }
         return dialect;
     }
@@ -145,7 +147,7 @@ public final class Execution {
             com.legend.exec.Sessions.Session session, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
         ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session.connection());
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
         return new ProgramReport(BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee,
                 options));
     }

@@ -750,8 +750,11 @@ class PlanMakerTest {
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);
-            com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect),
-                    com.legend.exec.PlanSessions.statementsOf(today, null), dialect, null);
+            // the declared test data as the plan runner establishes it on a session (the doors, 2026-10-29)
+            com.legend.exec.PlanRunner.setUp(com.legend.setup.CsvSeed.planned(
+                    com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), dialect).stream()
+                    .map(com.legend.setup.CsvSeed.Planned::step).toList(),
+                    plan.answerSql().target(), com.legend.exec.PlanSessions.given(today), null);
             // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
             // test data was established on
             return new String[] {PlanCases.today(model, query, "s::RT", today, output),

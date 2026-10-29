@@ -61,6 +61,18 @@ public final class Sessions {
             return Sessions.version(connection());
         }
 
+        /** {@code work} in one transaction on this session ({@link Statements#inTransaction}: a caller's open one
+         *  joined): the body driver's bracket for a program that writes or stages rows (the doors, 2026-10-29: a
+         *  session's own fact, reached without its statements, which only the plan runner takes). */
+        default <T> T inTransaction(java.util.function.Supplier<T> work) {
+            return statements().inTransaction(work);
+        }
+
+        /** Whether a send on this session owns its transaction ({@link Statements#ownsTransaction}). */
+        default boolean ownsTransaction() {
+            return statements().ownsTransaction();
+        }
+
         @Override
         void close();
     }

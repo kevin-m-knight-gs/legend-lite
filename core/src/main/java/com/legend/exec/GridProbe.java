@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 
@@ -27,10 +28,10 @@ public final class GridProbe {
     }
 
     /** The grid's projection NAMES for the authored SQL. */
-    public static List<String> probeNames(String sql, String writtenFor, Statements session,
-            com.legend.sql.dialect.SqlDialect dialect) {
+    public static List<String> probeNames(String sql, String writtenFor, PlanSessions.Source sessions,
+            ExecutionPlan.Target target, com.legend.sql.dialect.SqlDialect dialect) {
         List<String> names = new ArrayList<>();
-        for (String[] c : probeColumns(sql, writtenFor, session, dialect)) {
+        for (String[] c : probeColumns(sql, writtenFor, sessions, target, dialect)) {
             names.add(c[0]);
         }
         return names;
@@ -42,11 +43,11 @@ public final class GridProbe {
      * otherwise — an upgrade over the old names-only stamp, never a
      * new wall. */
     public static List<com.legend.compiler.element.type.Type.Column>
-            probeTypedColumns(String sql, String writtenFor, Statements session,
-            com.legend.sql.dialect.SqlDialect dialect) {
+            probeTypedColumns(String sql, String writtenFor, PlanSessions.Source sessions,
+            ExecutionPlan.Target target, com.legend.sql.dialect.SqlDialect dialect) {
         List<com.legend.compiler.element.type.Type.Column> cols =
                 new ArrayList<>();
-        for (String[] c : probeColumns(sql, writtenFor, session, dialect)) {
+        for (String[] c : probeColumns(sql, writtenFor, sessions, target, dialect)) {
             // typed by the name its dialect reads the driver's into, where that name says the type
             String wire = dialect.typingWireName(c[1]);
             com.legend.compiler.element.type.Type t = wire == null ? null : WireTypes.pureOfSqlTypeOrNull(wire);
@@ -62,16 +63,18 @@ public final class GridProbe {
 
     /** The grid's projection (name, SQL type name) pairs — the SAME
      * LIMIT-0 metadata read, types included; the text written for the
-     * database {@code writtenFor} (decision D2). Through the session seam
-     * ({@link Statements#columns}: track B's B1a, 2026-10-29). */
+     * database {@code writtenFor} (decision D2). A plan statement of {@code target}, run by the plan runner on a
+     * session of {@code sessions} ({@link PlanRunner#columns}: the doors, 2026-10-29; on the session seam since
+     * track B's B1a). */
     public static List<String[]> probeColumns(String sql, String writtenFor,
-            Statements session, com.legend.sql.dialect.SqlDialect dialect) {
+            PlanSessions.Source sessions, ExecutionPlan.Target target, com.legend.sql.dialect.SqlDialect dialect) {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of(), writtenFor))
                 .withLimit(0L);
         StatementOrigin.count(StatementOrigin.PROBE);
         List<String[]> cols = new ArrayList<>();
-        for (Statements.Reported r : session.columns(dialect.render(probe))) {
+        for (Statements.Reported r : PlanRunner.columns(ExecutionPlan.Sql.of(dialect.render(probe), target),
+                sessions)) {
             cols.add(new String[] {r.name(), r.driverType()});
         }
         return cols;

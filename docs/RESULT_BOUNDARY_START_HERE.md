@@ -103,6 +103,7 @@ audit itself and what it found: the homework README §1.
 **The last measurements.**
 - The DuckDB driver bump (2026-10-29, D60; GATES, the D60 entry): the full local chain on 1.5.6.0 alone, green, no
   PCT or corpus pin flipped; the as-of test asserts the spec on every lane.
+- Doors 3, 4 and 5 (2026-10-29, D61; GATES, the doors 3-5 entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -620,6 +621,29 @@ optimization passes the user asked for after parity; the TeaVM bump to 0.16.0 th
 An audit against the tenets and the program (an independent agent, the code not the recollection); the documents
 updated for every renamed and deleted piece; every lane measured; the PR handed to the user to merge.
 
+**The doors (2026-10-29; the user: "I want to close all the doors here as part of this PR so we know that it can be
+done").** After track Z the program's work was complete but for the ways a statement could still reach a session
+without the plan runner. The seam: `exec/Statements` is the session seam, `PlanRunner.send` the one place a plan's
+statement meets it (the target's session, `check(target)`, the session statements, the count, the ask); a door is
+a class that reaches `Statements` or a JDBC connection around it. The map (the decisions log, "The doors"):
+
+| # | Door | How it reached the session | Through the runner |
+|---|---|---|---|
+| 1 | `Execution.ProgramReport.last` | not a session door: the body driver's last side MATERIALIZED (`TypedSide`) and handed to a caller, which spells its cells (the service test runner through `CellText.engine`; `testing/Program` through `Lean.of(TypedSide)`) | the last statement's answer STREAMED to a sink the caller hands (a planned statement through `PlanRunner.stream`; an answer the prelude or a fold gave, a graph array, a count: written through a `Batcher` as host rows); `ProgramReport` deleted; `TypedSide` leaves the public surface |
+| 2 | `testdatagen/TestDataGenerator` | its own JDBC on `session.connection()`: `Statement.execute` (CREATE TEMP TABLE AS, DROP), `executeQuery` + `rs.getObject` (the transcript rows, the seed-string rows, the CSV lines), `getMetaData` (the text columns) | effects (`PlanRunner.effect`), typed rows (`PlanRunner.rows` over a relation the database describes), reported columns (`PlanRunner.columns`) |
+| 3 | `exec/SetupRunner` (the body driver's seeds; `Execution.dialectOf`'s session statements; `SystemDatabase.seed`) | `Statements.execute` / `Statements.load` | `PlanRunner.setUp(steps, target, sessions, listener)`: a statement step as an effect, a rows step through the session's bulk loader inside the runner; the steps' form from the plan side's one owners (`CsvSeed.planned`, `Ddl.metamodelSteps`, shared with `PlanMaker`); `SetupRunner` deleted |
+| 4 | the probes: `ColumnProbe`, `GridProbe` (LIMIT-0 columns), `WireTypes.reported` (describe), `DynamicPivot.reportedType` (LIMIT-0 columns) | `Statements.columns` / `Statements.describe` | `PlanRunner.columns(Sql, sessions)` and `PlanRunner.describe(Sql, sessions)`: a probe is a plan statement of the body's target, checked as any other; a schema read is not counted as a statement sent (the probes that count themselves do so by name, as before) |
+| 5 | the guard | none | `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements`: outside `exec.PlanRunner`, the session owners (`PlanSessions`, `Sessions`) and the implementations (`JdbcStatements`, `MongoDbStatements`), no class calls a method of `Statements` and none takes a session's statements (`Sessions.Session.statements`); the transaction bracket (`inTransaction`, `ownsTransaction`) is the session's own; `ExecEnv.statements()` gone |
+
+- **Doors 3, 4 and 5 built 2026-10-29** (the decisions log D61; GATES, the doors 3-5 entry): `PlanRunner.columns`,
+  `describe` and `setUp`; `ExecutionPlan.Sql.of`; `Sessions.Session.inTransaction`/`ownsTransaction`;
+  `CsvSeed.planned` and `Ddl.metamodelSteps` (the one owners of a setup step's form, shared with `PlanMaker`); the
+  probes and the pivot take the plan sessions and the target; the body driver's `planSessions()`/`target()` in place
+  of `statements()`; `Execution.dialectOf` on a session; `SystemDatabase.seed` through the runner; `SetupRunner` and
+  `PlanSessions.statementsOf` deleted; the guard `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements`.
+- **Door 2 next** (the generator on plans), then **door 1** (the last statement streamed; `ProgramReport` deleted),
+  each with the chain, the records and an independent audit; then the decisions post.
+
 ## 5. How we work (the user's rules; each learned the hard way)
 
 **Before code**
@@ -811,7 +835,7 @@ the user's. Where a row names a register id, the row's text holds the expression
 | D9 | LEAN's nested dates (a struct's, a list's) keep the value's own precision with `+0000`; legend-engine's graph-fetch JSON writes nine digits and no zone | keep LEAN's (the lean writer is lite's own); ledger if the user wants the engine's |
 | D10 | LEAN's Float with an exponent: legend-pure's layout (`0.00000025`) or legend-engine's JSON (`2.5E-7`) | legend-pure's (the Float rule's shortest digits) |
 | D16 | an instance's text in CSV and `toString()` | the interpreter's (the PCT's reference): `@_` and a counter |
-| D30 | what the body driver keeps in Java (call frames, `assertError`, `$plan` navigation, `planToString`, `print`, the generator's fold) | keep as named residue (planning, carriage of an error, effects); the generator's JDBC on its session is the one to move |
+| D30 | what the body driver keeps in Java (call frames, `assertError`, `$plan` navigation, `planToString`, `print`, the generator's fold) | keep as named residue (planning, carriage of an error, effects); the generator's JDBC on its session is door 2 of "the doors" (§4), the user's ask of 2026-10-29 |
 | D36 / D37 | `ProgramReport.last`: the one materialized side a public entry returns (the service test runner's) | stream the last statement to a sink the runner hands (an hour in `BodyDriver`); then delete `TypedSide` from the public surface |
 | D51 | `Fold.conformValueEgress` (step 5's delete): add a written-digits fact at scalar roots and delete it, or keep it and strike the step | (a): the fact, then the delete |
 | D56 | switch the Python route and the tab to the new Arrow writer (changes the Python route's existing bytes: DuckDB's types to the plan's slots'; timestamp[us] to [ns]) | switch, with the bytes' change posted |

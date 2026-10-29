@@ -6,6 +6,7 @@ package com.legend.exec;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
@@ -58,8 +59,9 @@ public final class WireTypes {
      * carries VARCHAR (its kind is the golden's to infer). {@code plan}
      * itself when the database reports nothing. */
     public static SqlQuery staticized(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,
-            Statements session, Map<String, List<ReportedColumn>> memo) {
-        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan), s -> reported(s, session));
+            PlanSessions.Source sessions, ExecutionPlan.Target target, Map<String, List<ReportedColumn>> memo) {
+        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan),
+                s -> reported(s, sessions, target));
         if (reported.isEmpty()) {
             return plan;
         }
@@ -76,22 +78,22 @@ public final class WireTypes {
      * database's reported types, or {@code plan} itself when nothing is
      * wire-decided or the plan is not a projection frame. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Statements session,
+            com.legend.sql.dialect.SqlDialect dialect, PlanSessions.Source sessions, ExecutionPlan.Target target,
             Map<String, List<ReportedColumn>> memo) {
-        return reconcile(plan, plan, shapeInfo, dialect, session, memo);
+        return reconcile(plan, plan, shapeInfo, dialect, sessions, target, memo);
     }
 
     /** With the frame definitions the plan may reference (leg 3.4 step 2):
      * the plan stays bare; the prepare sees them at the statement's head. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Statements session,
+            com.legend.sql.dialect.SqlDialect dialect, PlanSessions.Source sessions, ExecutionPlan.Target target,
             Map<String, List<ReportedColumn>> memo, Map<String, SqlQuery> frames) {
         return reconcile(plan, com.legend.sql.FrameCtes.attach(plan, frames), shapeInfo,
-                dialect, session, memo);
+                dialect, sessions, target, memo);
     }
 
     private static SqlQuery reconcile(SqlQuery plan, SqlQuery whole, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Statements session,
+            com.legend.sql.dialect.SqlDialect dialect, PlanSessions.Source sessions, ExecutionPlan.Target target,
             Map<String, List<ReportedColumn>> memo) {
         if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
                 || ps.projections().size() != plan.outputs().size()) {
@@ -102,7 +104,7 @@ public final class WireTypes {
             return plan;
         }
         String sql = dialect.render(whole);
-        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, session));
+        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, sessions, target));
         if (reported.size() != plan.outputs().size()) {
             return plan;
         }
@@ -176,12 +178,14 @@ public final class WireTypes {
     /** The database's reported type per column — a prepare, no execution;
      * a column outside the vocabulary reports null; a statement the
      * database cannot prepare raises the data error the verdict would have. */
-    private static List<ReportedColumn> reported(String sql, Statements session) {
-        // the session seam (track B's B1a, 2026-10-29; until then a prepare on a JDBC connection here): the
-        // statement DESCRIBED, never run (Statements.describe) -- a statement the database cannot describe raises
-        // the data error the verdict would have; none reported where the driver withholds them, as before
+    private static List<ReportedColumn> reported(String sql, PlanSessions.Source sessions,
+            ExecutionPlan.Target target) {
+        // a plan statement of the target, DESCRIBED by the plan runner on a session of the source, never run
+        // (PlanRunner.describe: the doors, 2026-10-29; on the session seam since track B's B1a, until then a prepare
+        // on a JDBC connection here) -- a statement the database cannot describe raises the data error the verdict
+        // would have; none reported where the driver withholds them, as before
         List<ReportedColumn> out = new ArrayList<>();
-        for (Statements.Reported r : session.describe(sql)) {
+        for (Statements.Reported r : PlanRunner.describe(ExecutionPlan.Sql.of(sql, target), sessions)) {
             out.add(new ReportedColumn(r.name(), r.type(), r.nullable()));
         }
         return out;

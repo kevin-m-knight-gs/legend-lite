@@ -815,10 +815,9 @@ final class ArchitectureTest {
             // the plan side's fact (Databases.inProcess), read by the session owner; 3 -> 2 (2026-10-22, main's merge):
             // the connector answers it (main's Phase 5), and the plan side's is the dialect's
             java.util.Map.entry("Sessions", 2),
-            // 3 -> 4 (2026-10-27, the result boundary program's phase 5): the setup statements' bulk load moved here from
-            // the deleted Executor (its 7 references gone): the dialect writes the one insert a database with no bulk
-            // loader takes, as it did there; a net shrink of exec's reach
-            java.util.Map.entry("SetupRunner", 4),
+            // SetupRunner (4) left 2026-10-29 (the doors): deleted; the seeds, the session statements and the system
+            // store's rows are plan setup steps the runner sends (PlanRunner.setUp), their form the plan side's own
+            // (CsvSeed.planned, Ddl.metamodelSteps)
             java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
             // 4 -> 1 (2026-10-18, the plan path program's step 6): the batch sends its statements as plans through
@@ -1096,6 +1095,42 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("B1b: the body driver, the judges and the generator's natives hold a session and no JDBC")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The plan runner is the one caller of a session's statements (the doors, 2026-10-29; docs/RESULT_BOUNDARY_START_HERE.md,
+     * "the doors").</strong> {@code Statements} is the session seam (text in; rows, a count, reported columns or text
+     * out), and {@code PlanRunner} is the one place a statement meets it: every statement sent is a plan's, checked
+     * against its target (the database, the server versions it is written for), given the target's session
+     * statements and counted. The schema probes ({@code ColumnProbe}, {@code GridProbe}, {@code WireTypes},
+     * {@code DynamicPivot}) ask the runner ({@code columns}, {@code describe}); the seeds, a program's session
+     * statements and the system store's rows are setup steps it runs ({@code setUp}); the transaction bracket is the
+     * session's own ({@code Sessions.Session.inTransaction}). The session owners ({@code PlanSessions},
+     * {@code Sessions}) and the implementations ({@code JdbcStatements}, MongoDB's) are the seam itself. No other
+     * class calls a method of {@code Statements}, and none takes a session's statements
+     * ({@code Sessions.Session.statements}).
+     */
+    @Test
+    void theRunnerIsTheOneCallerOfTheSessionsStatements() {
+        String seam = "com\\.legend\\.exec\\.(PlanRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements)(\\$.*)?";
+        noClasses()
+            .that().haveNameNotMatching(seam)
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
+                            com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(
+                                    com.legend.exec.Statements.class))))
+            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a session's statements (Sessions.Session"
+                    + ".statements)") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    return call.getTarget().getOwner().isAssignableTo(com.legend.exec.Sessions.Session.class)
+                            && call.getTarget().getName().equals("statements");
+                }
+            })
+            .as("the doors: the plan runner is the one caller of a session's statements (Statements, "
+                    + "Sessions.Session.statements)")
             .check(CORE_PROD_CLASSES);
     }
 
