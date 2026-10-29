@@ -173,10 +173,10 @@ carries today.
 |---|---|---|
 | 0. Measure first | half: the clouds' M5 to M8 (GATES 2026-10-26); M1 to M4 never recorded; the lanes' per-test baselines of S1.1 replaced them as the gate | GATES 2026-10-27, phase 5, item 3 |
 | 1. One result shape, the batch stream | done: `result/` (`ResultSink`, `Batch`, `Batcher`, `Collector`), `TdsResult.Shape`, `PlanRunner.stream` | `51688f36` |
-| 2. The shared Arrow framer | not started | track A |
+| 2. The shared Arrow framer | built (track A, 2026-10-29): `//arrow_ipc`, on java.base and `//base`; the warehouse delegates its framing byte for byte (its tests unchanged); no Arrow library in any product closure (`ArrowClosureTest`) | track A; GATES, the track A entry |
 | 3. The legacy writer in Java; the SQL-written wires deleted | done: `CellText.engine`, `PureV1Writer`, `Execution.run`, every served route; `WireRender`, `Render`'s wires, the engine Float spellings, `server/serial` deleted | `12b89c7d`, `1b0305f7`, `53cf5b6d` |
 | 4. PCT and the corpus from typed rows | PCT done: a relation crosses as legend-engine's own adapter reads it (engine JSON), a value as the reference's instances; the TDS text path deleted. The corpus: not yet (track C, on track B) | `b3311cd6`; `ac4bb7d3`, `6811256b`, `4eaf1b07`, `d8ab8434` |
-| 5. The lean writers | JSON and CSV done (`JsonRowsWriter`, `CsvWriter`, `CellText.pure`/`pureJson`); the writers carry only, the precision fact on the plan column, the two guards (S1.4); Arrow not (track A); `Fold.conformValueEgress` not deleted (track L) | `12b89c7d`, `f58f37ed`, `d102b35c` |
+| 5. The lean writers | JSON and CSV done (`JsonRowsWriter`, `CsvWriter`, `CellText.pure`/`pureJson`); the writers carry only, the precision fact on the plan column, the two guards (S1.4); Arrow built (track A, 2026-10-29: `ArrowWriter`, the server's ARROW_IPC execute; the Python route and the tab not switched, D56); `Fold.conformValueEgress` not deleted (track L, D51) | `12b89c7d`, `f58f37ed`, `d102b35c` |
 | 6. Mixed lists typed | not started | track L |
 | 7. The old executor goes | half: `exec.Executor` deleted, its effects plan nodes (phase 5); the old door (`Execution.execute*`, `StatementExecutor`, `ExecutionResult`) remains for the corpus, channel B, the service tests and core's 140 test files | `0fe63b42`, `f883d42b`; tracks B, T, C, D |
 | 8. The question parked for the user | parked (the engine-style SQL-text dialects) | -- |
@@ -525,6 +525,18 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 - **2026-10-29, track L, the L2 audit's fold** (GATES, the L2 audit entry; the decisions log D54; the register
   S123, S124): the flatten's numbering of a sorted star frame and of an ordered source; crossing numbers refused by
   name; `filter` over a mixed list; the cells' size; the gate over typed columns. Next: track A.
+- **2026-10-29, track A: the Arrow writer at the boundary** (GATES, the track A entry; the decisions log D55, D56):
+  `//arrow_ipc`, the warehouse's framer shared; `result/ArrowWriter`; the server's ARROW_IPC execute; the embedded
+  hosts' entry points; R9's closure guard; the pyarrow round-trip gate. Steps 2 and 5's Arrow half done; the
+  consumers' switch (Python's route, the tab) posted for the user (D56). Next: track F.
+- **2026-10-29, track A audited and folded** (the decisions log D57; GATES, the track A entry): eighteen findings,
+  two blockers (the union's type ids for the browser's reader; the decoders' 63-bit bound) fixed before the commit;
+  three questions posted (a day under a TIMESTAMP column, the JSON route's tenth subsecond digit, the server's Arrow
+  format against S28: register S125).
+- **2026-10-29, track F: the open findings** (the decisions log D58; GATES, the track F entry): built S116 (the
+  engine's `toVariant` of an empty), the H2 JSON parse (63 corpus tests gained), the tag in the batch; closed the
+  `concatenate` width, the `[0..1]` element and the unbounded Decimal by upstream's own rule; posted `asOfJoin`'s empty
+  right side (S126), the multi-key ordered list aggregate (sized), the lane twin and the typed kind. Next: track Z.
 - **2026-10-29, track T, T-d2: every integration test on the lanes; the floors re-measured** (GATES, the T-d2
   entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 270 and one not-run pin (H2's
   planner on a twenty-call chain), the platform 0 of 2,232; a test's own connection text re-spelled to the

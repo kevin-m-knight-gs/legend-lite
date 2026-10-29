@@ -16008,3 +16008,90 @@ register S123, S124; the homework README's findings).
    `//datacube:headless_test`, `//datacube:verify_flow_test`; `//parser-equivalence:parser_parity` (3,009 matched, the
    ratchet moved with it); the product job's unlaned-tests guard empty.
 3. **Not measured:** CI's lanes (PR #80 runs them on the push).
+
+## 2026-10-29 — Track A: the Arrow writer at the boundary; the warehouse's framer shared; no Arrow library in any product closure; the audit's eighteen findings folded
+
+The result boundary program's track A (docs/RESULT_BOUNDARY_START_HERE.md, track A; the decisions log D55, D56, D57;
+the program's steps 2 and 5, R9; the user's ruling of 2026-10-28, "yes keep arrow writer at the boundary in this
+program (but no arrow dependencies in compiler!)").
+
+1. **Built:** `//arrow_ipc` (`com.legend.arrowipc`: `FlatBuilder` moved from the warehouse server, `ArrowType`,
+   `ArrowField`, `ArrowIpc` -- the schema and record-batch messages, the end marker, the buffer helpers -- and
+   `ZstdFrame`, one zstd frame of raw blocks), on java.base and `//base`; the warehouse's `ArrowStreams` keeps its
+   DuckDB-type mapping and buffer layout and delegates the framing (`WarehouseArrowTest` unchanged, its pyarrow judge
+   the proof; the audit verified the same write sequence byte for byte). `result/ArrowWriter`: the result as one Arrow
+   IPC stream from the plan's columns (D55's types per kind: the slot's; a tagged column a dense union of its slots,
+   its member the batch's TAG since track F; the plan's facts as field metadata, the multiplicity in Pure's spelling;
+   a cell not its column's carrier, a decimal with more places than its slot, a date of no time of day under a
+   timestamp, an instant outside the nanosecond range, a tenth subsecond digit: refused by name; a non-numeric Pure
+   type over a numeric slot typed as the decoders carry it, text; a class-typed column's object as the JSON route
+   writes it). `PureV1Api.executeArrow`: the server's `?serializationFormat=ARROW_IPC` execute under upstream's schema
+   metadata, headers and zstd frame, the envelope from the plan's stated columns before any statement runs (the JSON
+   route's rule); `PureV1Api.arrowAnswer` for a host's rows; `Boundary.executeArrowAnswer`, the tab's
+   `executeArrowAnswerOrError`, the native `lite_execute_arrow_answer` (a binary answer folded as base64,
+   `Folded.BASE64`); `Answer` carries bytes and headers, `LegendHttpServer` writes them. The decoders' 63-bit bound
+   corrected (`[2^62, 2^63-1]` rode as a BigInteger; a long holds 63 bits beside its sign). Guards:
+   `//tools/deps:arrow_closure_test` (R9: no repository named for Arrow in the plan side's, the WebAssembly planner's,
+   the native library's or the native image's closure; the framer on java.base and `//base` alone),
+   `WarehouseClosureTest`, `ArchitectureTest.writersAreCarriageOnly` (`com.legend.arrowipc..` admitted),
+   `WriterCarriageGuardTest` (ArrowWriter's rows; `abs` in the vocabulary), `JavaEvalLedgerTest` (the result register's
+   `ArrowWriter.java` and `TaggedCell.java`), `tools/deps/core-layers.txt` (`result` and `pure_v1` reach `arrow_ipc`),
+   `CodeShapeGuardrailTest` (`ArrowWriter.encoders`). Gate: `//core:arrow_writer_test` (`result/ArrowWriterTest`,
+   pyarrow reading what the writer wrote against the JSON rows of the same batches, a union read member by member at
+   each member's own precision: `core/src/test/python/arrow_matches_rows.py`), in the core lane with the closure
+   test; `PureV1ApiTest`'s ARROW_IPC execute. NOT switched: Python's route and the tab (D56, the user's call). The
+   audit's three questions for the user: a day under a TIMESTAMP column (the JSON route spells its day, the Arrow
+   route refuses: D57 (4)); the JSON route's silent tenth subsecond digit (D57 (10)); the server's Arrow format
+   against S28's (register S125). The WebAssembly tab's class library has no `ByteArrayOutputStream.writeBytes`: the
+   framer writes through `write(b, 0, n)` (found by the first chain's PG group, `//datacube:verify_app_test`).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`, `//:generated` and `//gates:checks` (the arm64-only
+   classpath test skipped), `//core:core_tests` (every lane), `//core:core_tests_lanes` (the SQLite floor unmoved; the H2
+   floor shrank by one, the Cypher test above), `//core:guardrails` (two pins moved in the run and were re-measured:
+   RowDecode's `intValue` read once, ArrowWriter's `atLeast` 2 to 1 -- the union's carrier inference deleted),
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine
+   Postgres targets 9 of 9 (`//datacube:verify_app_test` builds the WebAssembly tab, the first chain's TeaVM
+   failure fixed); `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the H2 rosters and
+   registers regenerated: 63 tests gained, `bazel run //spec:update_rcorpus_h2`); the 21 PCT lanes 21 of 21 (the two
+   MongoDB lanes re-measured after the MongoDB decoder handed the tagged cell); the five Postgres PCT lanes 5 of 5;
+   `//core:arrow_writer_test` (ten cases, 0 differences), `//tools/deps:arrow_closure_test`,
+   `//tools/deps:warehouse_closure_test`, `//warehouse:tests`, `//engine-client:plan_runner_test`,
+   `//datacube:headless_test`, `//datacube:verify_flow_test`, the three `//wasm` tests, `//python:bindings_test`;
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. `//python:engine_test` fails in
+   this container at the headless host's V8 before `WarehouseOnPython`'s body (a segmentation fault, as at L2;
+   CI judges it). Three targets failed on the chain's first pass and were fixed and re-measured green in the same
+   tree: the two guard pins above, `TaggedSelectionTest` (reads the decoder directly: the carrier unwrapped), the
+   H2 lane's floor, the H2 corpus verdict's untriaged entry, the Arrow gate's helper (a null slot), the MongoDB
+   decoder.
+3. **Not measured:** CI's lanes (PR #80 runs them on the push); apache-arrow JS's reading of the union (the audit ran
+   it from the scratchpad against 17.0.0, the engine-client's pin; no gate reads it yet).
+
+## 2026-10-29 — Track F: the open findings, each against the pinned upstream first; S116 built, the H2 JSON parse (63 corpus tests gained), the tag in the batch
+
+The result boundary program's track F (docs/RESULT_BOUNDARY_START_HERE.md, track F; the decisions log D58; the
+homework README §9, every row updated).
+
+1. **Built:** `toVariant` of an empty value is JSON's null (S116 to outcome: the lowering coalesces `TO_VARIANT(x)` with
+   `CAST('null' AS JSON)`, the engine's `ifnull(to_json(x), 'null'::json)` by value, read from
+   `duckdbExtension.pure:286`; the PCT pins `toVariant([])->toString()` = `'null'`). The engine-parity H2 dialect
+   parses a cast to JSON (`H2.jsonParseCast`: `JSON '...'` for a literal, `(x FORMAT JSON)` for text, `CAST(NULL AS
+   JSON)` for a typed null; measured on 2.1.214 and 2.2.224, `H2Modern` inherits it): `fromJson` answered a JSON
+   string there; the H2 corpus roster moved 63 tests from failing to passing in host mode (`h2-fail-roster.txt` 358
+   to 295; the database-gained register's 63 lines for them removed, the unordered register gained 25, the untriaged register lost `testSimpleTypeMappingProjectNulls` (its two judges agree now) -- the expected
+   `^TDSNull()` cells and the CSV texts of those rows read through the same parse); the H2 lane's floor shrank by one
+   (`CypherNativeEndsTest#theNodesAtAWrittenRelationshipsEndsAreItsStartAndItsEnd` passes on H2 now: a written
+   relationship's ends read back as JSON). The tag in the batch
+   (`result/TaggedCell`, the decoders hand it, `Batch.tag` beside `Batch.get`, the Arrow union reads its member from
+   it; a bare carrier under a tagged column refused by name; no writer's spelling changed). A probe of the absent
+   to-many property (`GraphFetchCheckedIntegrationTest.anEmptyToManyPropertySerializesAsAnEmptyList`: `[]`, as Pure).
+   The `asOfJoin` test's comment and the two lane floors' reasons corrected (register S126; the probe
+   `probes/asof_empty_right.txt`).
+2. **Closed by upstream's own rule (no change):** the `concatenate` width mismatch (legend-pure's
+   `_RelationType.isCompatibleWith` compiles it too; the database refuses the union), the `[0..1]` collection element
+   (legend-pure's `InstanceValueValidator` refuses it too), `RootNumericTypes`' unbounded Decimal (by design).
+3. **Posted, not built:** `asOfJoin` against an empty right side (S126, a DuckDB defect pinned by the DuckDB test); the
+   multi-key ordered list aggregate for a mixed sort's ties and the rank struct's text order (sized: plan format 20,
+   ten dialect arms, the MariaDB lane CI alone runs); the lane twin of the mixed-list gate; a typed kind; the H2
+   planner's nesting; a BIT column; Snowflake's far-BC timestamp; `HostRows`' Arrow nested values; the PCT heap;
+   D46 and D51.
+4. **Measured locally before the commit:** the same chain as track A's entry above (one commit carries both).
+5. **Not measured:** CI's lanes (PR #80 runs them on the push); the MariaDB lane (CI alone).

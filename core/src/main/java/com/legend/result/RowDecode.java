@@ -68,13 +68,20 @@ public final class RowDecode {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = taggedSlot(c, ((Number) tag).intValue());
+                int index = ((Number) tag).intValue();
+                ExecutionPlan.Column slot = taggedSlot(c, index);
                 Json.Node held = row.fields().get(slot.name());
                 if (held == null) {
                     throw new IllegalStateException("the row's object has no field for the tagged column '"
                             + c.name() + "'s slot " + slot.name() + " (it has " + row.fields().keySet() + ")");
                 }
-                out.add(presented(cell(held, slot), slot));
+                Object value = cell(held, slot);
+                if (value == null) {
+                    throw new IllegalStateException("the row's tagged column '" + c.name() + "' names slot "
+                            + slot.name() + ", and that slot's column is null");
+                }
+                // the tag rides into the batch beside the carrier (TaggedCell; track F, 2026-10-29)
+                out.add(new TaggedCell(index, java.util.Objects.requireNonNull(presented(value, slot))));
                 continue;
             }
             out.add(cell(node, c));
@@ -278,7 +285,9 @@ public final class RowDecode {
             case Json.Str s -> new BigInteger(s.value().trim());
             default -> throw refused(node, c);
         };
-        return whole.bitLength() < 63 ? (Object) whole.longValue() : whole;
+        // a long holds a whole number of up to 63 bits beside its sign (bitLength counts the sign apart): until
+        // 2026-10-29 the bound was 63 exclusive, and [2^62, 2^63-1] rode as a BigInteger (the track A audit, finding 2)
+        return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
     }
 
     private static Object floating(Json.Node node, ExecutionPlan.Column c) {
@@ -417,6 +426,17 @@ public final class RowDecode {
         }
         return new ExecutionPlan.Column(ExecutionPlan.Column.taggedSlotColumn(c.name(), index),
                 f.substring(0, space), c.multiplicity(), f.substring(space + 1).trim(), null, null);
+    }
+
+    /** A tagged column's slots as columns, in order ({@link #taggedSlot}; the Arrow writer's union members, track A,
+     *  2026-10-29). */
+    public static List<ExecutionPlan.Column> taggedSlots(ExecutionPlan.Column c) {
+        int n = topLevel(inside(c, "TAGGED")).size();
+        List<ExecutionPlan.Column> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add(taggedSlot(c, i));
+        }
+        return out;
     }
 
     /** The fields of a struct column ({@code STRUCT<name slot, ...>}) as columns: each its name and its slot, its

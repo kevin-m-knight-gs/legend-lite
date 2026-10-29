@@ -37,6 +37,13 @@ public final class TabExports {
         return Folded.http(() -> Boundary.executeJsonAnswer(plan, rows));
     }
 
+    /** {@link Boundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
+     *  answered written by lite's Arrow writer, folded as base64 (track A, 2026-10-29). */
+    @JSExport
+    public static String executeArrowAnswerOrError(String plan, String rows) {
+        return Folded.http(() -> Boundary.executeArrowAnswer(plan, rows));
+    }
+
     // ---- planning and typing
 
     /** {@link Boundary#planSql}: the SQL alone, unfolded (a refusal is thrown). */

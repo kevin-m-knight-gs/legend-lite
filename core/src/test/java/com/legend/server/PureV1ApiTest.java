@@ -423,6 +423,77 @@ class PureV1ApiTest {
                 liteMeta.getString("legend.builder"));
     }
 
+    /**
+     * E8 in upstream's Arrow format, served (track A, 2026-10-29): one zstd frame (raw blocks, read back here by the
+     * frame's own layout) around an Arrow IPC stream that begins with a schema message carrying the engine's metadata
+     * ({@code arrowPlan}'s keys, the same builder as the JSON answer's) and ends with the end marker; upstream's
+     * headers. The values are {@code ArrowWriterTest}'s (pyarrow reads them); a graph fetch is answered in JSON, as
+     * {@code arrowPlan} refuses it.
+     */
+    @Test
+    void e8_executeArrow_isOneZstdFrameAroundAnArrowStreamWithTheEnginesMetadata() throws Exception {
+        String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
+                + ",\"model\":" + textModel()
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+                request, new QueryService()::executeUpstream);
+        assertEquals(200, a.status(), a.json());
+        assertEquals("application/json", a.contentType());
+        assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
+        byte[] frame = a.bytes();
+        assertTrue(frame != null && frame.length > 14, "a binary answer");
+        assertEquals(0x28, frame[0] & 0xFF);
+        assertEquals(0xB5, frame[1] & 0xFF);
+        assertEquals(0x2F, frame[2] & 0xFF);
+        assertEquals(0xFD, frame[3] & 0xFF);
+        byte[] stream = rawBlocks(frame);
+        // the stream: the continuation marker first, the end marker last
+        assertEquals(-1, stream[0]);
+        assertEquals(-1, stream[3]);
+        assertEquals(0, stream[stream.length - 1]);
+        assertEquals(-1, stream[stream.length - 8]);
+        String text = new String(stream, java.nio.charset.StandardCharsets.ISO_8859_1);
+        Json.Obj engineMeta = Json.parseObject(resource("upstream-api/e8-arrow-groupby-sort.json")).getObj("metadata");
+        for (String key : List.of("legend.builder", "legend.activities", "legend.columns")) {
+            assertTrue(text.contains(key), key);
+        }
+        // the builder is the JSON answer's, byte for byte, and the columns are the engine's
+        assertTrue(text.contains(Json.toCompact(Json.parseObject(execute(request).json()).getObj("builder"))),
+                "the schema carries the JSON answer's builder");
+        assertTrue(text.contains(engineMeta.getString("legend.columns")), "the engine's column names");
+        // the plan's facts ride as each field's metadata
+        assertTrue(text.contains("legend.type") && text.contains("legend.slot"), "the field metadata");
+
+        String trading = resource("upstream-api/query-app/trading.pure");
+        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
+                + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
+        PureV1Api.Answer graph = PureV1Api.executeArrow("{\"function\":" + fetch + ",\"model\":"
+                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", new QueryService()::executeUpstream,
+                PureV1Api.Models.COMPILED);
+        assertEquals(500, graph.status(), graph.json());
+        assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
+    }
+
+    /** The content of a zstd frame of raw blocks (RFC 8878: the magic, the frame header with an 8-byte content size
+     *  and a window descriptor, then blocks of a 3-byte header each), as the writer lays it out. */
+    private static byte[] rawBlocks(byte[] frame) {
+        int at = 4 + 1 + 1 + 8;
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        while (true) {
+            int header = (frame[at] & 0xFF) | ((frame[at + 1] & 0xFF) << 8) | ((frame[at + 2] & 0xFF) << 16);
+            boolean last = (header & 1) == 1;
+            int type = (header >>> 1) & 3;
+            int size = header >>> 3;
+            assertEquals(0, type, "a raw block");
+            out.write(frame, at + 3, size);
+            at += 3 + size;
+            if (last) {
+                break;
+            }
+        }
+        return out.toByteArray();
+    }
+
     /** The Arrow plan half runs only the models its host serves; a graph fetch has no Arrow answer. */
     @Test
     void e8_arrowPlan_refusesAModelItsHostDoesNotServe_andAGraphFetch() throws IOException {

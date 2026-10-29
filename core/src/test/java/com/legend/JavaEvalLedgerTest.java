@@ -1473,7 +1473,17 @@ class JavaEvalLedgerTest {
                     "CellText.java",
                     // the writers (phase 2, R4): legend-engine's exact answer (LEGACY), lite's JSON rows and CSV (LEAN),
                     // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
-                    "PureV1Writer.java", "JsonRowsWriter.java", "CsvWriter.java");
+                    "PureV1Writer.java", "JsonRowsWriter.java", "CsvWriter.java",
+                    // the Arrow writer (track A, 2026-10-29, docs/RESULT_BOUNDARY_START_HERE.md): a ResultSink that
+                    // lays each batch's typed cells into Arrow IPC buffers (the framer //arrow_ipc, a FlatBuffers
+                    // builder over base alone) -- one encoder per column kind, each a carriage of the carrier's own
+                    // bits (a long's eight bytes, a BigDecimal's unscaled value at the column's scale, a text's
+                    // UTF-8, a date's epoch days); nothing computed, a carrier an encoder cannot lay down refused
+                    // by name; its carriage register is WriterCarriageGuardTest's ArrowWriter.java rows
+                    "ArrowWriter.java",
+                    // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
+                    // slot index and the slot's carrier, a record of two fields and nothing computed
+                    "TaggedCell.java");
 
     /** The other funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen may touch JDBC

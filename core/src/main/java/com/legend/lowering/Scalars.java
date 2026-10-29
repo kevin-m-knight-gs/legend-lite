@@ -588,10 +588,14 @@ final class Scalars {
                     ? TaggedLists.hash(tl) : plain.apply(n, args));
         }
         // toVariant of an object is its declared properties: its identity and its class are the lowering's own
-        // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4)
+        // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4). Its Variant[1] of an EMPTY value is JSON's null, never SQL's
+        // (S116, 2026-10-29, upstream-exact: legend-engine's DuckDB spelling of toVariant is
+        // ifnull(to_json(x), 'null'::json), and the PCT pins toVariant([])->toString() = 'null'; until then lite's
+        // to_json(x) alone left an empty cell under a [1] type, the DataCube's frame row with no quantity)
         for (com.legend.model.FunctionId f : Pure.AT_VARIANT_CONVERT_TO_VARIANT) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TO_VARIANT,
-                    List.of(MixedEncoding.declaredOnly(args.get(0)))));
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                    new SqlExpr.Call(SqlFn.TO_VARIANT, List.of(MixedEncoding.declaredOnly(args.get(0)))),
+                    new SqlExpr.Cast(new SqlExpr.StringLit("null"), SqlType.Scalar.JSON))));
         }
         // startsWith/endsWith carry the pure [0..1]-overload guards
         // (stringExtension.pure: $source->isNotEmpty() && ...) — the

@@ -314,4 +314,21 @@ class GraphFetchCheckedIntegrationTest {
         assertTrue(json.contains("\"defects\":[],\"value\":{\"name\":\"Cid\",\"firm\":null}"),
                 "a null to-one child is skipped: " + json);
     }
+
+    /** A to-many property with NO values serializes as Pure's empty list, {@code []} (legend-engine's graph fetch
+     *  serialization of an empty to-many), never as {@code null}: the homework README §9's finding ('lite's JSON
+     *  writes an absent to-many property as null'), probed here at track F (2026-10-29) -- firm 2 has no address. */
+    @Test
+    void anEmptyToManyPropertySerializesAsAnEmptyList() throws SQLException {
+        Lean.Result r = Lean.run(NESTED_MODEL, """
+                test::Firm.all()
+                    ->graphFetch(#{test::Firm {legalName, addresses {street}}}#)
+                    ->serialize(#{test::Firm {legalName, addresses {street}}}#)
+                """, "test::NRT", conn);
+        String json = r.json();
+        assertTrue(json.contains("{\"legalName\":\"\",\"addresses\":[]}"),
+                "an empty to-many property is Pure's []: " + json);
+        assertTrue(json.contains("\"legalName\":\"Good Firm\",\"addresses\":[{\"street\":\"Main St\"}"),
+                "a to-many property's elements in order: " + json);
+    }
 }

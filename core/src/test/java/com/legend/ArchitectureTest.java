@@ -726,10 +726,12 @@ final class ArchitectureTest {
                     .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
                             .Predicates.resideInAnyPackage("com.legend.result..", "com.legend.executionplan..",
                                     "com.legend.values..", "com.legend.json..", "com.legend.base..",
-                                    "com.legend.error.."))))
+                                    "com.legend.error..",
+                                    // the Arrow IPC framer (track A, 2026-10-29): bytes in a layout, no value decided
+                                    "com.legend.arrowipc.."))))
             .as("the writers are carriage only (R3): com.legend.result reads the plan's column facts and the typed"
-                    + " batch -- executionplan, values, json, base, error -- and no compiler, lowering, sql, exec,"
-                    + " resolver, setup, plan or server class")
+                    + " batch -- executionplan, values, json, base, error, the Arrow framer -- and no compiler,"
+                    + " lowering, sql, exec, resolver, setup, plan or server class")
             .check(CORE_PROD_CLASSES);
     }
 

@@ -49,8 +49,8 @@ public final class Boundary {
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
                 (query, runtime, sinkOf) -> {
-                    throw new IllegalArgumentException("this engine answers execute in upstream's Arrow format: "
-                            + "ask with ?serializationFormat=ARROW_IPC");
+                    throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
+                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
                 }, HELD);
     }
 
@@ -91,6 +91,16 @@ public final class Boundary {
      */
     public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
         return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
+    }
+
+    /**
+     * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
+     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
+     * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
+     * (Folded.http).
+     */
+    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
+        return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
     }
 
     /** The models a host runs, from their JSON array of texts. */

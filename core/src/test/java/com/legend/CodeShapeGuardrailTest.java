@@ -119,6 +119,9 @@ class CodeShapeGuardrailTest {
             // stream announced them, and the cursor of what it has written (the first row's comma, the row count, a
             // graph fetch's first object) -- scoped to one result's stream, as the batcher's
             "CsvWriter.columns", "JsonRowsWriter.columns", "JsonRowsWriter.first", "PureV1Writer.columns",
+            // the Arrow writer's encoders, one per column, made when the columns are announced and read per batch
+            // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
+            "ArrowWriter.encoders",
             "PureV1Writer.order", "PureV1Writer.rows",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",

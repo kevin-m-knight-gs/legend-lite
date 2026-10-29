@@ -50,7 +50,16 @@ class TaggedSelectionTest {
 
     private static Object value(Connection c, String q) throws Exception {
         QueryPlan plan = query(q).plan("s::RT");
-        return JdbcDecodeCases.row(c, Databases.PLATFORM, plan.sql(), plan.columns()).get(0);
+        Object cell = JdbcDecodeCases.row(c, Databases.PLATFORM, plan.sql(), plan.columns()).get(0);
+        // the decoder hands a tagged column's cell with its tag (TaggedCell; track F, 2026-10-29): the carrier here
+        return cell instanceof com.legend.result.TaggedCell t ? t.value() : cell;
+    }
+
+    /** {@code q}'s one tagged cell as the decoder hands it: its slot and its carrier. */
+    private static com.legend.result.TaggedCell tagged(Connection c, String q) throws Exception {
+        QueryPlan plan = query(q).plan("s::RT");
+        return (com.legend.result.TaggedCell) JdbcDecodeCases.row(c, Databases.PLATFORM, plan.sql(), plan.columns())
+                .get(0);
     }
 
     /** {@code q}'s one typed cell through its plan, run on {@code c}. */
@@ -82,6 +91,8 @@ class TaggedSelectionTest {
     void theWinnerIsReadInItsOwnKind() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(new BigDecimal("3.0"), value(c, "|[1, 2.5, 3.0D]->max()"));
+            // the tag names the winner's slot (the third: Decimal DECIMAL(2,1)), read with the carrier
+            assertEquals(new com.legend.result.TaggedCell(2, new BigDecimal("3.0")), tagged(c, "|[1, 2.5, 3.0D]->max()"));
             assertEquals(2.5d, value(c, "|[1, 2.5]->max()"));
             assertEquals(3L, value(c, "|[1, 2.5, 3]->max()"));
             assertEquals(1L, value(c, "|[1, 2.5]->min()"));

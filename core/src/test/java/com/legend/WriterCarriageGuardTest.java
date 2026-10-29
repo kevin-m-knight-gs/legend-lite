@@ -55,7 +55,7 @@ class WriterCarriageGuardTest {
      *  built from another kind ({@code new BigDecimal(}), or a static read of one ({@code BigDecimal.valueOf},
      *  {@code Double.parseDouble}, {@code Double.isFinite} ...). */
     static final Pattern VOCABULARY = Pattern.compile(
-            "\\.(subtract|multiply|divide|remainder|pow|negate|signum|compareTo|setScale|stripTrailingZeros"
+            "\\.(subtract|multiply|divide|remainder|pow|negate|signum|abs|compareTo|setScale|stripTrailingZeros"
             + "|toBigInteger|toBigIntegerExact|bitLength|doubleValue|longValue|intValue|floatValue|scale"
             + "|getHour|getMinute|getSecond|getNano|getYear|getMonthValue|getDayOfMonth|isBefore|isAfter|plusDays"
             + "|minusDays|atLeast|toInstantFloor|presentedAt|trimmed)\\("
@@ -101,6 +101,23 @@ class WriterCarriageGuardTest {
                     Map.entry("getYear", 1),
                     Map.entry("getMonthValue", 1),
                     Map.entry("getDayOfMonth", 1)),
+            "ArrowWriter.java", Map.ofEntries(
+                    // Arrow's representation of a value held whole (track A, 2026-10-29): a decimal's unscaled digits
+                    // AT THE COLUMN'S SCALE (setScale adds zeros to a cell written at fewer places; a cell with more
+                    // is refused, never rounded: scale read twice to decide), the 128-bit fit (bitLength); a day as
+                    // days since the epoch and an instant as nanoseconds since it (Math.toIntExact, multiplyExact,
+                    // addExact: exact, an overflow refused by name); the written subsecond digits and a slot's (p, s)
+                    // read as the numbers they spell (Long.parseLong, Integer.parseInt)
+                    Map.entry("setScale", 1),
+                    Map.entry("scale", 2),
+                    Map.entry("bitLength", 1),
+                    Map.entry("Math.", 3),
+                    Map.entry("Long.parseLong", 2),
+                    Map.entry("Integer.parseInt", 2),
+                    // a date's own precision, carried in the value: whether it has a time of day (a timestamp's
+                    // cell), as CellText reads it (2 until track F, 2026-10-29: the union's member was inferred from
+                    // the carrier's precision; the batch's tag names it now, D58 (3))
+                    Map.entry("atLeast", 1)),
             "RowDecode.java", Map.ofEntries(
                     // a decode's carrier reads (the plan path program's step 6; moved here 2026-10-27): a JSON token as
                     // the number its slot says, one conversion each, nothing computed -- a long or a double from a

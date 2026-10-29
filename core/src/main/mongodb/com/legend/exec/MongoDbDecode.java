@@ -55,9 +55,17 @@ final class MongoDbDecode {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, ((Number) tag).intValue());
+                int index = ((Number) tag).intValue();
+                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, index);
                 BsonValue held = field(doc, slot);
-                out.add(held == null ? null : com.legend.result.RowDecode.presented(cell(held, slot), slot));
+                Object value = held == null ? null : cell(held, slot);
+                if (value == null) {
+                    throw new IllegalStateException("the document's tagged column '" + c.name() + "' names slot "
+                            + slot.name() + ", and that slot's field is null or absent");
+                }
+                // the tag rides into the batch beside the carrier (TaggedCell; track F, 2026-10-29)
+                out.add(new com.legend.result.TaggedCell(index, java.util.Objects.requireNonNull(
+                        com.legend.result.RowDecode.presented(value, slot))));
                 continue;
             }
             out.add(cell(v, c));

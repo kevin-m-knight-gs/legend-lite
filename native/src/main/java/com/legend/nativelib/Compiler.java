@@ -337,6 +337,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** That plan's answer in upstream's Arrow format from the rows the host's database answered
+     *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
+    @CEntryPoint(name = "lite_execute_arrow_answer")
+    static CCharPointer executeArrowAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
+        String a;
+        try {
+            String p = text(plan), r = text(rows);
+            a = Folded.http(() -> Boundary.executeArrowAnswer(p, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** The planner's boot layer built for a model now ({@code Boundary.warmModel}; the protocol's {@code warm}, C2). */
     @CEntryPoint(name = "lite_warm_model")
     static CCharPointer warmModel(IsolateThread thread, CCharPointer model) {

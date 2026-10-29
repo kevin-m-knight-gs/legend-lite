@@ -66,9 +66,29 @@ public final class PureV1Api {
     }
 
     /** An answer: HTTP status, a body, and its media type ({@code application/json} unless said). */
-    public record Answer(int status, String json, String contentType) {
+    public record Answer(int status, String json, String contentType, byte @com.legend.base.Nullable [] bytes,
+            Map<String, String> headers) {
+        public Answer {
+            headers = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(headers));
+        }
+
         public Answer(int status, String json) {
             this(status, json, "application/json");
+        }
+
+        public Answer(int status, String json, String contentType) {
+            this(status, json, contentType, null, Map.of());
+        }
+
+        /** A BINARY answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes, and the headers upstream sends
+         *  beside the media type; its {@code json} is empty. */
+        public static Answer bytes(int status, byte[] bytes, String contentType, Map<String, String> headers) {
+            return new Answer(status, "", contentType, bytes, headers);
+        }
+
+        /** The body as bytes: the binary body, else the text as UTF-8. */
+        public byte[] body() {
+            return bytes != null ? bytes : json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -137,7 +157,8 @@ public final class PureV1Api {
             case "/api/pure/v1/compilation/compile" -> compile(body);
             case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body, models);
             case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
-            case "/api/pure/v1/execution/execute" -> execute(body, runner, models);
+            case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
+                    ? executeArrow(body, runner, models) : execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
@@ -407,6 +428,122 @@ public final class PureV1Api {
                 return out.toString();
             });
         });
+    }
+
+    /**
+     * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}; the result boundary program's track A,
+     * 2026-10-29): the relation's rows as ONE Arrow IPC stream written by lite's own writer
+     * ({@code result/ArrowWriter}: the schema from the plan's columns, each batch a record batch, the plan's facts as
+     * each field's metadata), its schema carrying the metadata upstream's answer carries ({@code legend.builder},
+     * {@code legend.activities}, {@code legend.columns}: {@link #arrowPlan}'s), the stream wrapped as one zstd frame
+     * (raw blocks, our own: {@code arrowipc/ZstdFrame}) under upstream's headers (Content-Type application/json,
+     * x-legend-response-format FormatNotSet; measured 2026-10-08). A graph fetch is answered in JSON (as upstream's
+     * relational serializer answers relations only); a value's answer is unprobed.
+     */
+    public static Answer executeArrow(String body, Runner runner, Models models) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Answer run = answer(500, "COMPILATION", () -> {
+            Json.Obj request = request(body);
+            LambdaFunction lambda = ProtocolReader.lambda(
+                    boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
+            return ModelInput.of(request.getObj("model")).with(models, model -> {
+                com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
+                String runtime = runtimeOf(request, query.target());
+                try {
+                    runner.run(query, runtime, plan -> arrowWriter(query, plan, out));
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+                return "";
+            });
+        });
+        if (run.status() != 200) {
+            return run;
+        }
+        return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
+                Map.of("x-legend-response-format", "FormatNotSet"));
+    }
+
+    /** The Arrow writer of {@code plan}'s answer onto {@code out}, its schema metadata the engine's for the columns
+     *  the run announces ({@link #executeArrow}). */
+    public static com.legend.result.ResultSink arrowWriter(com.legend.TypedQuery query,
+            com.legend.executionplan.ExecutionPlan plan, java.io.OutputStream out) {
+        return switch (plan.answerShape()) {
+            case OBJECTS -> throw new IllegalArgumentException(
+                    "ARROW_IPC answers a relation query; a graph fetch under it is refused (upstream's answer unprobed)");
+            case RELATION -> {
+                java.util.function.Function<List<com.legend.executionplan.ExecutionPlan.Column>, Map<String, String>>
+                        metadata = columns -> {
+                            com.legend.result.PureV1Writer.Envelope e = envelope(query.resultType(),
+                                    plan.answerSql().statement(), columns);
+                            Map<String, String> m = new LinkedHashMap<>();
+                            m.put("legend.builder", e.builder());
+                            m.put("legend.activities",
+                                    Json.toCompact(List.of(activity(plan.answerSql().statement(), false))));
+                            m.put("legend.columns", Json.toCompact(e.names()));
+                            return m;
+                        };
+                List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
+                // the JSON route's rule (engineWriter; the phase 3 audit, 2026-10-27): the envelope from the plan's
+                // stated columns BEFORE any statement runs, so a column with no builder entry refuses before a write
+                // program changes anything; made from the announced columns only where the plan states none (a
+                // dynamic pivot's)
+                yield stated == null ? new com.legend.result.ArrowWriter(out, metadata)
+                        : new com.legend.result.ArrowWriter(out, metadata.apply(stated));
+            }
+            case VALUE -> throw unprobed(query);
+        };
+    }
+
+    /**
+     * Execute's answer in upstream's Arrow format for a host that ran {@link #jsonPlan}'s {@code run} statement
+     * itself (track A, 2026-10-29; the twin of {@link #jsonAnswer}): the plan half's answer and the host's rows (a
+     * JSON array of objects, each a column's name and its cell as the host's driver read it), decoded by the plan's
+     * columns and written by lite's Arrow writer under the plan's envelope, as one zstd frame. A graph fetch's plan
+     * is refused: ARROW_IPC answers relations.
+     */
+    public static Answer arrowAnswer(String plan, String rows) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Answer run = answer(500, "COMPILATION", () -> {
+            Json.Obj planned;
+            try {
+                planned = Json.parseObject(plan);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("the plan half's answer does not parse (" + e.getMessage()
+                        + "); it begins: " + head(plan), e);
+            }
+            if (!(planned.has("shape") && planned.get("shape") instanceof Json.Str shape
+                    && planned.has("resultColumns") && planned.get("resultColumns") instanceof Json.Arr resultColumns
+                    && planned.has("builder") && planned.get("builder") instanceof Json.Obj builder)) {
+                throw new IllegalArgumentException("the plan answers no shape, result columns or builder: it is not "
+                        + "jsonPlan's");
+            }
+            if (!shape.value().equals("RELATION")) {
+                throw new IllegalArgumentException("ARROW_IPC answers a relation query; a graph fetch is answered in JSON");
+            }
+            if (!(planned.has("columns") && planned.get("columns") instanceof Json.Arr names
+                    && planned.has("activities") && planned.get("activities") instanceof Json.Arr activities
+                    && planned.has("sql") && planned.get("sql") instanceof Json.Str sql)) {
+                throw new IllegalArgumentException("the plan answers no columns, activities or sql: it is not jsonPlan's");
+            }
+            List<com.legend.executionplan.ExecutionPlan.Column> columns =
+                    com.legend.executionplan.PlanJson.readColumns(Json.toCompact(resultColumns));
+            Map<String, String> metadata = new LinkedHashMap<>();
+            metadata.put("legend.builder", Json.toCompact(builder));
+            metadata.put("legend.activities", Json.toCompact(List.of(activity(sql.value(), false))));
+            metadata.put("legend.columns", Json.toCompact(names));
+            try {
+                com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out, metadata));
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return "";
+        });
+        if (run.status() != 200) {
+            return run;
+        }
+        return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
+                Map.of("x-legend-response-format", "FormatNotSet"));
     }
 
     /**

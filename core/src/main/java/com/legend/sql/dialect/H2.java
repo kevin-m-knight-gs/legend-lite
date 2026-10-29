@@ -1112,6 +1112,25 @@ public class H2 extends AnsiSqlRenderer {
         return writer.append("), JSON '[]')");
     }
 
+    /** A cast TO JSON is the PARSE intent (DuckDB's CAST parses; {@code fromJson(text)} lowers to it) -- but H2's
+     *  CAST from VARCHAR QUOTES the text as a JSON string instead (probed: {@code CAST('[10,20]' AS JSON)} is
+     *  {@code "[10,20]"}, a string). The parsing spellings: {@code JSON '...'} for a literal, {@code (x FORMAT JSON)}
+     *  for dynamic text. Until 2026-10-29 only {@link H2Modern} spelled them and this dialect's {@code fromJson}
+     *  answered a JSON STRING (the result boundary program's track F, the homework README §9): measured that day on
+     *  2.1.214 and 2.2.224, both spellings parse there too. TO_VARIANT keeps the quoting CAST
+     *  ({@link #variantConstruct}): that IS toVariant's string semantics. */
+    private SqlWriter jsonParseCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.value() instanceof SqlExpr.StringLit sl) {
+            return writer.append("JSON ").append(stringLit(sl.value()));
+        }
+        if (c.value() instanceof SqlExpr.NullLit) {
+            // a typed NULL stays SQL's NULL: (NULL FORMAT JSON) is JSON's null, not SQL's (measured 2.1.214:
+            // (CAST(NULL AS VARCHAR) FORMAT JSON) IS NULL is false)
+            return writer.append("CAST(NULL AS JSON)");
+        }
+        return writer.append("(").expr(c.value(), 0).append(" FORMAT JSON)");
+    }
+
     /** Boolean-to-text diverges: H2 CAST(bool AS VARCHAR) prints
      * 'TRUE', the reference 'true' (witnessed: assertEquals true vs
      * TRUE). A STRUCTURALLY BOOLEAN value casting to VARCHAR spells the
@@ -1120,6 +1139,9 @@ public class H2 extends AnsiSqlRenderer {
      * guessing a column's type. */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
+            return jsonParseCast(writer, c);
+        }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // the two rows host mode lost when the byte channel judged): a
         // value whose TYPE FACT is BOOLEAN takes the reference spelling

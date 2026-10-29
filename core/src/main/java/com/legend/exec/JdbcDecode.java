@@ -76,8 +76,16 @@ final class JdbcDecode {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, ((Number) tag).intValue());
-                out.add(com.legend.result.RowDecode.presented(cell(rs, rs.findColumn(slot.name()), slot, driver), slot));
+                int index = ((Number) tag).intValue();
+                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, index);
+                Object value = cell(rs, rs.findColumn(slot.name()), slot, driver);
+                if (value == null) {
+                    throw new IllegalStateException("the row's tagged column '" + c.name() + "' names slot "
+                            + slot.name() + ", and that slot's column is null");
+                }
+                // the tag rides into the batch beside the carrier (TaggedCell; track F, 2026-10-29)
+                out.add(new com.legend.result.TaggedCell(index, java.util.Objects.requireNonNull(
+                        com.legend.result.RowDecode.presented(value, slot))));
                 continue;
             }
             out.add(cell(rs, i + 1, c, driver));
@@ -259,7 +267,8 @@ final class JdbcDecode {
             case String s -> new BigInteger(s.trim());
             default -> throw refused(v, c);
         };
-        return whole.bitLength() < 63 ? (Object) whole.longValue() : whole;
+        // 63 bits beside the sign fit a long (the track A audit's finding 2, 2026-10-29: 63 exclusive until then)
+        return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
     }
 
     private static Object floating(Object v, ExecutionPlan.Column c) {
@@ -473,7 +482,7 @@ final class JdbcDecode {
                 case Long l -> l;
                 case Integer n -> (long) n;
                 case Short n -> (long) n;
-                case BigInteger b -> b.bitLength() < 63 ? (Object) b.longValue() : b;
+                case BigInteger b -> b.bitLength() <= 63 ? (Object) b.longValue() : b;
                 case BigDecimal d -> d;
                 case Double d -> d;
                 case Float f -> Double.parseDouble(Float.toString(f));
@@ -506,7 +515,7 @@ final class JdbcDecode {
             case Long l -> l;
             case Integer n -> (long) n;
             case Short n -> (long) n;
-            case BigInteger b -> b.bitLength() < 63 ? (Object) b.longValue() : b;
+            case BigInteger b -> b.bitLength() <= 63 ? (Object) b.longValue() : b;
             case BigDecimal d -> d;
             case Double d -> d;
             case Float f -> Double.parseDouble(Float.toString(f));

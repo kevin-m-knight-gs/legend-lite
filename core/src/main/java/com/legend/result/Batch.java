@@ -18,6 +18,8 @@ import java.util.List;
  * {@code Boolean} as {@code boolean}s, every other kind as the cell the session decoded (an exact {@code BigDecimal},
  * a date literal, a text, a structure's map or list); an Integer past 63 bits is held exactly beside the {@code long}s.
  * Each cell is the session's carrier ({@code exec.Statements#rows}), carried as it is: nothing here converts a value.
+ * A tagged column's cell arrives as a {@link TaggedCell}, the slot index beside the slot's carrier (track F,
+ * 2026-10-29): {@link #get} is the carrier, {@link #tag} the slot.
  *
  * <p>A batch is immutable once built ({@link Builder#build}).
  */
@@ -58,6 +60,13 @@ public final class Batch {
     public @com.legend.base.Nullable Object get(int row, int column) {
         check(row);
         return vectors[column].get(row);
+    }
+
+    /** Row {@code row}'s tag of tagged column {@code column}: the slot index its cell is in ({@link TaggedCell}), or
+     *  -1 for a null cell; refused by name on a column that carries no tag. */
+    public int tag(int row, int column) {
+        check(row);
+        return vectors[column].tag(row, columns.get(column));
     }
 
     /** Row {@code row}'s cells, in column order (a collector's and a test's convenience). */
@@ -137,7 +146,7 @@ public final class Batch {
     }
 
     /** One column's cells: a typed array with a null mask. */
-    private abstract static sealed class Vector permits Longs, Doubles, Booleans, Cells {
+    private abstract static sealed class Vector permits Longs, Doubles, Booleans, Cells, TaggedCells {
         final boolean[] nulls;
 
         Vector(int capacity) {
@@ -145,6 +154,15 @@ public final class Batch {
         }
 
         static Vector of(ExecutionPlan.Column c, int capacity) {
+            if (RowDecode.slotWord(c.slot()).equals("TAGGED")) {
+                // a tagged column: the carrier and the tag apart (TaggedCell; track F, 2026-10-29)
+                return new TaggedCells(capacity);
+            }
+            if (c.multiplicity().upper() == null || c.multiplicity().upper() > 1) {
+                // a many-valued column (an ARRAY slot): each cell a list of its element type's carriers (track A,
+                // 2026-10-29: the Arrow writer's gate holds one; an Integer[*] column refused its lists here)
+                return new Cells(capacity);
+            }
             return switch (c.type()) {
                 case "Integer" -> new Longs(capacity);
                 case "Float" -> new Doubles(capacity);
@@ -160,6 +178,11 @@ public final class Batch {
         abstract @com.legend.base.Nullable Object get(int row);
 
         abstract void set(int row, @com.legend.base.Nullable Object cell, ExecutionPlan.Column c);
+
+        int tag(int row, ExecutionPlan.Column c) {
+            throw new IllegalStateException("column '" + c.name() + "' (" + c.type() + ", slot " + c.slot()
+                    + ") carries no tag: it is no tagged column");
+        }
 
         static IllegalArgumentException refused(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
             return new IllegalArgumentException("column '" + c.name() + "' (" + c.type() + ", slot " + c.slot()
@@ -285,6 +308,43 @@ public final class Batch {
             } else {
                 values[row] = cell;
             }
+        }
+    }
+
+    /** A tagged column: each cell's carrier in its slot's own kind, and the slot index beside it (the tag the decoders
+     *  read with the row: {@link TaggedCell}); a cell that is no tagged cell refused by name. */
+    private static final class TaggedCells extends Vector {
+        private final Object[] values;
+        private final int[] tags;
+
+        TaggedCells(int capacity) {
+            super(capacity);
+            values = new Object[capacity];
+            tags = new int[capacity];
+        }
+
+        @Override
+        @com.legend.base.Nullable Object get(int row) {
+            return nulls[row] ? null : values[row];
+        }
+
+        @Override
+        void set(int row, @com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
+            switch (cell) {
+                case null -> nulls[row] = true;
+                case TaggedCell t -> {
+                    values[row] = t.value();
+                    tags[row] = t.slot();
+                }
+                default -> throw new IllegalArgumentException("column '" + c.name() + "' (" + c.type() + ", slot "
+                        + c.slot() + "): a tagged column's cell carries its tag (TaggedCell); a bare "
+                        + cell.getClass().getSimpleName() + " " + cell + " does not");
+            }
+        }
+
+        @Override
+        int tag(int row, ExecutionPlan.Column c) {
+            return nulls[row] ? -1 : tags[row];
         }
     }
 

@@ -1,4 +1,4 @@
-package com.legend.warehouse.server.duck;
+package com.legend.arrowipc;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -8,8 +8,10 @@ import java.util.Arrays;
  * built back to front the way FlatBuffers' own builder is: tables with a
  * vtable each, strings, vectors of offsets, vectors of structs. Little-endian
  * throughout. Offsets are distances from the END of the buffer ({@link #offset}).
+ * (From the warehouse server's {@code duck/FlatBuilder}, moved here 2026-10-29 so the warehouse and core's writers
+ * share one framer: the result boundary program's track A, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md step 2.)
  */
-final class FlatBuilder {
+public final class FlatBuilder {
 
     private byte[] buf = new byte[256];
     /** The first used byte; data occupies {@code [head, buf.length)}. */
@@ -19,7 +21,7 @@ final class FlatBuilder {
     private int objectStart;
 
     /** The current position, as a distance from the end. */
-    int offset() {
+    public int offset() {
         return buf.length - head;
     }
 
@@ -72,35 +74,35 @@ final class FlatBuilder {
         for (int i = 0; i < 8; i++) buf[head + i] = (byte) (v >>> (8 * i));
     }
 
-    void addByte(int v) {
+    public void addByte(int v) {
         prep(1, 0);
         putByte(v);
     }
 
-    void addShort(int v) {
+    public void addShort(int v) {
         prep(2, 0);
         putShort(v);
     }
 
-    void addInt(int v) {
+    public void addInt(int v) {
         prep(4, 0);
         putInt(v);
     }
 
-    void addLong(long v) {
+    public void addLong(long v) {
         prep(8, 0);
         putLong(v);
     }
 
     /** A reference to something already written, as the unsigned distance forward to it. */
-    void addOffset(int target) {
+    public void addOffset(int target) {
         prep(4, 0);
         putInt(offset() - target + 4);
     }
 
     // -- tables --------------------------------------------------------------
 
-    void startTable(int fields) {
+    public void startTable(int fields) {
         vtable = new int[fields];
         objectStart = offset();
     }
@@ -109,37 +111,37 @@ final class FlatBuilder {
         vtable[field] = offset();
     }
 
-    void fieldByte(int field, int v) {
+    public void fieldByte(int field, int v) {
         addByte(v);
         slot(field);
     }
 
-    void fieldBool(int field, boolean v) {
+    public void fieldBool(int field, boolean v) {
         fieldByte(field, v ? 1 : 0);
     }
 
-    void fieldShort(int field, int v) {
+    public void fieldShort(int field, int v) {
         addShort(v);
         slot(field);
     }
 
-    void fieldInt(int field, int v) {
+    public void fieldInt(int field, int v) {
         addInt(v);
         slot(field);
     }
 
-    void fieldLong(int field, long v) {
+    public void fieldLong(int field, long v) {
         addLong(v);
         slot(field);
     }
 
-    void fieldOffset(int field, int target) {
+    public void fieldOffset(int field, int target) {
         addOffset(target);
         slot(field);
     }
 
     /** Ends the table and writes its vtable just before it; the table's offset. */
-    int endTable() {
+    public int endTable() {
         addInt(0);   // where the table points at its vtable
         int table = offset();
         int n = vtable.length;
@@ -154,7 +156,7 @@ final class FlatBuilder {
 
     // -- strings and vectors -------------------------------------------------
 
-    int string(String s) {
+    public int string(String s) {
         byte[] b = s.getBytes(StandardCharsets.UTF_8);
         addByte(0);
         startVector(1, b.length, 1);
@@ -164,14 +166,21 @@ final class FlatBuilder {
     }
 
     /** Offsets written back to front, so the vector reads them in the given order. */
-    int offsets(int[] targets) {
+    public int offsets(int[] targets) {
         startVector(4, targets.length, 4);
         for (int i = targets.length - 1; i >= 0; i--) addOffset(targets[i]);
         return endVector(targets.length);
     }
 
+    /** A vector of 32-bit integers (a Union's type ids), in the given order. */
+    public int ints(int[] values) {
+        startVector(4, values.length, 4);
+        for (int i = values.length - 1; i >= 0; i--) addInt(values[i]);
+        return endVector(values.length);
+    }
+
     /** A vector of structs of two longs each (Arrow's FieldNode and Buffer), in the given order. */
-    int longPairs(long[] firsts, long[] seconds) {
+    public int longPairs(long[] firsts, long[] seconds) {
         int n = firsts.length;
         startVector(16, n, 8);
         for (int i = n - 1; i >= 0; i--) {
@@ -193,7 +202,7 @@ final class FlatBuilder {
     }
 
     /** The finished buffer, rooted at {@code root}. */
-    byte[] finish(int root) {
+    public byte[] finish(int root) {
         prep(minAlign, 4);
         addOffset(root);
         return Arrays.copyOfRange(buf, head, buf.length);

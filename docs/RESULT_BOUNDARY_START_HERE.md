@@ -533,6 +533,28 @@ Python route (`ARROW_IPC`) and the tab. Guards: no `arrow` repository in the dep
 WebAssembly planner or the native image (R9). Gate: the warehouse's Arrow tests unchanged; a round-trip gate that
 Arrow and JSON carry the same values for every kind; DataCube's Python tests.
 
+- **Built 2026-10-29** (GATES, the track A entry; the decisions log D55, D56): `//arrow_ipc` (the framer, on java.base
+  and `//base`: `FlatBuilder`, `ArrowType`, `ArrowField`, `ArrowIpc`, `ZstdFrame`), the warehouse delegating its
+  framing; `result/ArrowWriter` (a column's Arrow type its slot's: D55's table; a tagged column a dense union; the
+  plan's facts as field metadata; every misfit refused by name); the server's `?serializationFormat=ARROW_IPC` execute
+  (`PureV1Api.executeArrow`: upstream's metadata, headers and zstd frame, raw blocks by our own `ZstdFrame`);
+  `PureV1Api.arrowAnswer` and the embedded hosts' entry points (`Boundary.executeArrowAnswer`, the tab's
+  `executeArrowAnswerOrError`, the native `lite_execute_arrow_answer`; a binary answer folded as base64). Guards:
+  `//tools/deps:arrow_closure_test` (R9), `WarehouseClosureTest`, `ArchitectureTest`, `WriterCarriageGuardTest`. Gate:
+  `//core:arrow_writer_test` (pyarrow against the JSON rows of the same batches), `PureV1ApiTest`'s Arrow execute.
+  NOT switched: Python's route and the tab still answer as before -- switching changes the Python route's existing
+  bytes (DuckDB's Arrow types to the plan's slots'; timestamp[us] to timestamp[ns, UTC]): posted, the user's call
+  (D56).
+- **Audited 2026-10-29** (an independent agent, eighteen findings; the decisions log D57, folded before the commit):
+  the union's type ids stated (apache-arrow JS read nothing without them); the decoders' 63-bit bound (a long holds
+  63 bits beside its sign; `[2^62, 2^63-1]` rode as a BigInteger); a non-numeric Pure type over a numeric slot typed
+  as the decoders carry it (text); a tenth subsecond digit refused, never truncated; a class-typed column's object as
+  the JSON route writes it; the envelope from the plan's stated columns before any statement runs; `legend.multiplicity`
+  in Pure's spelling; `abs` in the carriage guard's vocabulary; the gate's seven new cases, the judge reading a union
+  member by member. POSTED for the user: a DAY under a TIMESTAMP column (the JSON route spells its day, the Arrow
+  route refuses: D57 (4)); the JSON route's silent tenth digit (D57 (10)); the server's Arrow format against S28's
+  upstream format (register S125). The tag in the batch (D57 (5)) is track F's.
+
 ### Track F. The open findings
 
 Each with its evidence in the homework README §9: S116 (`toVariant()` of an empty value on DuckDB; the branch's S113 until S1.0; a new
@@ -552,6 +574,18 @@ the heap and ends the run: the H2 floor's one not-run pin). Added 2026-10-29 (tr
 groups sorts by a rank struct that SQLite and MariaDB order as text (pre-existing; a multi-key ordered list aggregate
 is the fix); an Any list holding an instance keeps the variant lane (an instance kind is undesigned; an
 enumeration's value is a kind since D50d).
+
+- **Worked 2026-10-29** (GATES, the track F entry; the decisions log D58; every finding read against the pinned
+  upstream sources first): BUILT -- S116, `toVariant` of an empty value is JSON's null (the engine's
+  `ifnull(to_json(x), 'null'::json)` by value); the engine-parity H2 dialect parses a cast to JSON (`H2.jsonParseCast`,
+  measured on 2.1.214 and 2.2.224; the H2 corpus roster moved 63 tests from failing to passing); the tag in the batch
+  (`result/TaggedCell`, `Batch.tag`, the Arrow union reads it). CLOSED by upstream's own rule -- the `concatenate`
+  width mismatch (legend-pure compiles it too), the `[0..1]` collection element (legend-pure refuses it too),
+  `RootNumericTypes`' unbounded Decimal (by design). RECORDED for the user -- `asOfJoin` against an empty right side
+  (register S126: the emulation answers the spec, DuckDB's own answer is a defect of its planner); the multi-key
+  ordered list aggregate for a mixed sort's ties and the rank struct's text order (sized: plan format 20, ten
+  dialect arms, the MariaDB lane); the lane twin of the mixed-list gate; a typed kind; the rest of the list as before.
+  NOT REPRODUCED -- the absent to-many property (the probe `anEmptyToManyPropertySerializesAsAnEmptyList` pins `[]`).
 
 ### Track P. The backlog from the plan path program
 

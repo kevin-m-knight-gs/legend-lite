@@ -13,6 +13,9 @@ load("//tools/mongodb:defs.bzl", "EMBEDDED_MONGODB_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/runfiles:defs.bzl", "executable_of")
+load("//tools/platforms:defs.bzl", "compatible_with")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stress_layout")
 
@@ -75,7 +78,9 @@ legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/valu
 legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
-legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//base", "//json", ":error", ":execution_plan", ":values"])
+# result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
+# pure_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
+legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
 # parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
@@ -268,7 +273,7 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql_dialect"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
@@ -516,6 +521,8 @@ legend_java_library(
         ":core",
         ":test_backends",
         ":test_cases",
+        # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
+        "//arrow_ipc",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
         # H2VersionPinTest reads org.h2.engine.Constants.VERSION
@@ -615,6 +622,7 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "differential",
     "guardrail",
     "stress",
+    "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
 [junit_test(
@@ -631,6 +639,38 @@ _CORE_TEST_EXCLUDED_TAGS = [
         ":drivers",
     ],
 ) for p in _CORE_TEST_PACKAGES]
+
+# THE ARROW WRITER'S ROUND-TRIP GATE (the result boundary program's track A, 2026-10-29): a batch of every kind
+# written as lite's Arrow stream and as its JSON rows, pyarrow (a standard Arrow reader, test-only: a py_binary on the
+# hermetic interpreter and the locked pip hub, as the warehouse's judge) reading the stream and comparing every value;
+# the platforms with a cp312 pyarrow wheel, skipped elsewhere (never a source build).
+py_binary(
+    name = "arrow_matches_rows",
+    testonly = True,
+    srcs = ["src/test/python/arrow_matches_rows.py"],
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
+    deps = ["@pypi//pyarrow"],
+)
+
+executable_of(
+    name = "arrow_matches_rows_executable",
+    testonly = True,
+    binary = ":arrow_matches_rows",
+)
+
+junit_test(
+    name = "arrow_writer_test",
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    size = "medium",
+    data = [
+        ":arrow_matches_rows",
+        ":arrow_matches_rows_executable",
+    ],
+    jvm_flags = ["-Dcore.arrow.comparator=$(rlocationpath :arrow_matches_rows_executable)"],
+    select = ["--select-class=com.legend.result.ArrowWriterTest"],
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
+    runtime_deps = [":core_tests_lib"],
+)
 
 # the root package's own classes: com.legend, less every package above
 junit_test(
@@ -1747,8 +1787,10 @@ legend_java_library(
         "//spec:gen_imports",
         "//spec:gen_natives",
     ],
-    # core's sources import the two modules below core (null annotations, the JSON codec)
+    # core's sources import the three modules below core (null annotations, the JSON codec, the Arrow IPC
+    # framer -- track A, 2026-10-29: the result package's ArrowWriter)
     deps = [
+        "//arrow_ipc",
         "//base",
         "//json",
     ],
