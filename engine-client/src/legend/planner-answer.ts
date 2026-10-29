@@ -15,6 +15,7 @@ export interface PlannerModule {
     tableModelOrError(table: string): string;
     catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonHeldOrError(handle: number, lambdaJson: string, runtime: string): string;
+    executionPlanJsonHeldOrError(handle: number, lambdaJson: string, runtime: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     // legend-engine's pure/v1 -- and lite's own /api/lite/v1/compilation/compile -- routed as legend-lite's server
     // routes them (PureV1Api), and execute's two halves for a host that runs the SQL (PureV1Api.jsonPlan, jsonAnswer):
@@ -40,6 +41,7 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'tableModel': return m.exports.tableModelOrError(r.table);
     case 'catalogColumnsSql': return m.exports.catalogColumnsSqlOrError(r.schema, r.table);
     case 'planJson': return m.exports.planJsonHeldOrError(r.handle, r.lambda, r.runtime);
+    case 'executionPlan': return m.exports.executionPlanJsonHeldOrError(r.handle, r.lambda, r.runtime);
     case 'planModel': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
     case 'pureV1': return m.exports.pureV1OrError(r.path, r.query, r.body);
     case 'executePlan': return m.exports.executeJsonPlanOrError(r.body, r.models);
