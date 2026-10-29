@@ -15655,8 +15655,10 @@ B2. `PureTestRunner` (the bodies with their listener and referee; the setups and
 `pct/.../channelb/ChannelB` enter through `Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime,
 Sessions.given(connection), listener, referee, options)`: the body typed once, the session the caller's (checked
 against the runtime's declared database as the old door checked it), nothing materialized returned to the corpus
-runner or channel B. Two stale javadoc links (`Compiler#executeResolved`) now name `Execution#runProgram`; the start
-page's §2 named a `testing/Rows.java` that does not exist (`SqlParity.Rows`). The referee keeps reading
+runner or channel B. Two stale javadoc links (`Compiler#executeResolved`) now name `Execution#runProgram`. (CORRECTED 2026-10-29 by the
+track C audit, D41: this entry and the commit message said the start page's §2 named a `testing/Rows.java` that does
+not exist; it exists, `testing/src/main/java/com/legend/testing/Rows.java` in the `//testing` module, an old-door
+helper with 23 call sites in seven of core's test files, and the §2 row is restored.) The referee keeps reading
 `ExecutionResult` as the judges' side until D renames it (D36). Nothing else changed: the plan path program's step 10
 (the 2,798 bodies through plan sequences, both judges) is this entry.
 
