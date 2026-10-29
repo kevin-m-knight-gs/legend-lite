@@ -5,7 +5,6 @@ package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.values.LiteralText;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 import org.bson.BsonDocument;
@@ -85,9 +84,8 @@ final class MongoDbDecode {
         }
         String type = c.type();
         switch (com.legend.result.RowDecode.slotWord(c.slot())) {
-            case "LITERAL" -> {
-                return LiteralText.parse(text(v, c));
-            }
+            // (the LITERAL spelling carrier's arm left with track L's L2, 2026-10-29: a mixed value is a tagged
+            // value, read in its slot)
             case "DECIMAL_TEXT" -> {
                 return com.legend.result.RowDecode.decimalText(text(v, c));
             }

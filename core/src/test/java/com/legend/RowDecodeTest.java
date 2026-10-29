@@ -82,8 +82,8 @@ class RowDecodeTest {
 
     @Test
     void theSlotsLabelIsTheDecodeInstruction() {
-        // a literal-spelled cell carries its own kind; a text-carried decimal or temporal parses
-        assertEquals(new BigDecimal("7.345"), one("Any", "LITERAL", "\"7.345D\""));
+        // a text-carried decimal or temporal parses (a literal-spelled cell's arm left with the spelling carrier,
+        // track L's L2, 2026-10-29)
         assertEquals(new BigDecimal("7.345"), one("Number", "DECIMAL_TEXT", "\"7.345D\""));
         assertEquals(PureDateLiteral.parse("2024-01-02T10:30"), one("Any", "TEMPORAL_TEXT", "\"2024-01-02T10:30\""));
     }

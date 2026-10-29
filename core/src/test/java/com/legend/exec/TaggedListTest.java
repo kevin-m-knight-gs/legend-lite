@@ -34,6 +34,7 @@ class TaggedListTest {
 
     private static final String MODEL = """
             Enum s::Colour { RED, GREEN }
+            Enum s::Alpha { Z }
             ###Relational
             Database s::DB ( Table T ( ID INTEGER PRIMARY KEY ) )
             ###Connection
@@ -164,8 +165,44 @@ class TaggedListTest {
             assertEquals(true, value(c, "|[s::Colour.RED, 1] == [s::Colour.RED, 1]"));
             assertEquals(false, value(c, "|[s::Colour.RED, 1] == ['RED', 1]"));
             // an enumeration's value sorts after every primitive (legend-pure's compareInt: a class outside the
-            // primitive comparison order is greater than any in it)
+            // primitive comparison order is greater than any in it); two enumerations' values by their NAMES alone
+            // (every enum value is one generated class comparing by getName(): EnumProcessor), never by their paths
             assertEquals(List.of(1L, "a", "RED"), values(c, "|['a', s::Colour.RED, 1]->sort()"));
+            assertEquals(List.of("RED", "Z"), values(c, "|[s::Alpha.Z, s::Colour.RED]->sort()"));
+        }
+    }
+
+    @Test
+    void equalityIsExactInKindScaleAndWrittenPrecision() throws Exception {
+        // the L1 audit's findings 1 and 2 (2026-10-29): a Decimal at another scale and a DateTime at another written
+        // precision are other kinds (BigDecimal.equals reads the scale; AbstractPureDate.equals the subsecond text)
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(false, value(c, "|[1.5D, 12.25D] == [1.5D, 99.99D]"));
+            assertEquals(true, value(c, "|[1.5D, 12.25D] == [1.5D, 12.25D]"));
+            assertEquals(false, value(c, "|[1.5D, 'a'] == [1.50D, 'a']"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00)"));
+            assertEquals(true, value(c, "|[%2014-01-01T00:00:00.000, 1]->contains(%2014-01-01T00:00:00.000)"));
+            assertEquals(false, value(c, "|[%2014-01-01T00:00:00.000, 1] == [%2014-01-01T00:00:00, 1]"));
+            // a mixed selection's winner is a member by element (finding 4: never a static false)
+            assertEquals(true, value(c, "|[1, 2.5]->contains([1, 2.5]->max())"));
+            assertEquals(true, value(c, "|[1, 2.5, 'a']->contains([1, 2.5]->max())"));
+            // against the empty list (finding 8) and against a computed list of one kind (finding 9)
+            assertEquals(false, value(c, "|[1, 'a'] == []"));
+            assertEquals(false, value(c, "|[1, 'a'] == ['x', 'y']->map(x | $x)"));
+            assertEquals(false, value(c, "|[1, 'a'] == ['1', 'a']->map(x | $x->size())->map(n | $n)"
+                    + "->filter(n | $n > 5)")); // the computed list is empty: two elements are not none
+        }
+    }
+
+    @Test
+    void mapAndAnEmptyElement() throws Exception {
+        try (Connection c = TestBackends.platform().open()) {
+            // map over a mixed list: the lambda's parameter is the element, in its kind (finding 7)
+            assertEquals(List.of("1", "a", "true"), values(c, "|[1, 'a', true]->map(x | $x->toString())"));
+            // (an element that may be empty, [$optional, 'a', ...], keeps its present positions
+            // (TaggedLists.presentPositions); the typer admits no [0..1] element in a collection literal today --
+            // "Collection element must have a multiplicity [1]" -- so no query reaches it: the homework README's
+            // findings)
         }
     }
 
@@ -188,6 +225,10 @@ class TaggedListTest {
         // .values, under == and under assertEquals): the cells in row-major order, each in its column's kind
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(true, program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
+            // a sorted relation keeps its order (the rows numbered by its own sort keys: finding 5)
+            assertEquals(true, Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
+                    CONN_LET.replace("order by A", "order by A desc") + "[2, 'y', 1, 'x'] == $rs.rows.values;}",
+                    StorelessRuntime.RUNTIME, c).one());
             assertEquals(false, program(c, "[1.0, 'x', 2, 'y'] == $rs.rows.values;"));
             assertEquals(false, program(c, "[1, 'x', 2] == $rs.rows.values;"));
             assertEquals(4L, program(c, "$rs.rows.values->size();"));

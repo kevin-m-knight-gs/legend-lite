@@ -556,8 +556,7 @@ public final class SqlTypeCensus {
         // the kind-faithful carriers: spelling TEXT is their physical
         // form on every backend (F10 proper + §4bZ-V B3 + the
         // disagree-9 burn's DECIMAL_TEXT — the registered pairs)
-        if ((label == SqlType.Scalar.LITERAL
-                || label == SqlType.Scalar.TEMPORAL_TEXT
+        if ((label == SqlType.Scalar.TEMPORAL_TEXT
                 || label == SqlType.Scalar.DECIMAL_TEXT)
                 && meta.equals("VARCHAR")) {
             return true;

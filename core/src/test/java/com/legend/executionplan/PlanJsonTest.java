@@ -136,14 +136,14 @@ class PlanJsonTest {
         // keyed result's per-key columns placed among its fixed ones; 17 since 2026-10-28: a column's written-precision
         // fact (the result boundary program's R2, the start page's S1.4 item 1); 18 since 2026-10-29: the fact's
         // MINIMAL value, a value root's instant
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":18,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":19,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v18 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v19 plan"), refused.getMessage());
     }
 
     @Test

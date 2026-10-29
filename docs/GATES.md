@@ -15929,3 +15929,41 @@ the program's step 6; docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B).
    `testJoinStringsTwiceWithAssociation`, `testAggregationFunctionWithEnum`, two enum projections (the variant lane on
    H2) and `testDayOfMonth` (the canon's digits).
 3. **Not measured:** CI's lanes (PR #80 runs them on the push).
+
+## 2026-10-29 — Track L, L2: the LITERAL spelling carrier deleted; the census reads zero
+
+The result boundary program's track L, L2 (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D52; the
+program's step 6, "Delete").
+
+1. **Built (deleted):** `SqlType.Scalar.LITERAL`; `values/LiteralText` and its test; the decoders' arms (`RowDecode`,
+   `JdbcDecode`, `MongoDbDecode`); the dialects' literal arms (eighteen files: the type-name switches, the text-cast
+   clauses, `CarrierStrategies`' marker strip, `EngineStyleH2`'s marker skip, `LateralExplodeToUnion`'s default
+   element type, the list's own now); the lowering's machinery (`MixedEncoding`: `rankedElems`, `rankedComparable`,
+   `elementLiteral`, `spellByKind`, `staticSubsecondSpelling`, `equalityEmission`, `printedFormatSlots`,
+   `markedNeedle`, `literalMarked`, `MixedElems`' `ids` channel, `variantSlot`'s text parse; `LiteralSpelling`:
+   `mixedNumericArray`, `printForm`; `Scalars`: the sort's spelled branch, the `contains`/`in` arms over a spelled
+   collection, `pureToString`'s spelled print, `literalPrint`; the `Lowerer`'s label arm; `CastPolicy`'s no-re-wrap
+   arm; `Dedup`'s re-mark; `PureSql.elementText`'s arm; `CanonicalRenderSql`'s identity-canon root; `Render.textSlot`;
+   `ValueCollections.rowMajorCellList` keeps only the variant lane for a class-kinded column); the plan facts
+   (`ColumnFacts.precision`, `WireTypes`, `SqlTypeCensus`). A Date-LUB literal mix is read as a tagged list where
+   the spelled sort read it (`Scalars.asTaggedList`). The plan format is 19 (a slot word retired; `PlanJsonTest`).
+   Guards: `ArchitectureTest.spellingDecodeIsLabelDriven` deleted with its subject (a dated note where it stood);
+   `CarrierPurityRatchetTest` tightened (ArrayLit 45 to 42, OrderedListAgg 5 to 4, LIST_ 171 to 170 and to 173 with the audit's fixes, UNNEST 15
+   to 13); `ColumnFactsTest` pins a tagged column's null precision; `DedupBindingTest`, `CastNoReWrapTest`,
+   `SqlTypingTest`, `RowDecodeTest` read VARCHAR or dropped their literal case. The census probe
+   (`docs/result-boundary-homework/probes/oldpath_census.py.txt`) counts the slot's own spellings and reads zero. The
+   L1 audit's fixes ride this commit (D53: equality exact in kind, scale and written precision; no static FALSE for a
+   needle of no static kind; the flatten's deterministic numbering; map over a mixed list; `TaggedListTest` nine
+   tests). PR #80's `pct_postgres` lanes on the L1 commit (red on Linux, macOS and Windows, one cause) found two
+   expected-failure pins the tagged list retires (`Test_LegendLite_Postgres_EssentialFunctions_PCT`, the two
+   comparator `removeDuplicates` tests pinned "UNNEST over Unknown[] reached Postgres"): retired with a dated note.
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`, `//:generated` and `//gates:checks` (178 of 179: the
+   arm64-only classpath test skipped), `//core:core_tests` (every lane; the platform's integration run 2,232),
+   `//core:core_tests_lanes` (sqlite and h2 on their floors, unmoved), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine Postgres targets 9 of 9;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (both rosters unchanged); the 21 PCT
+   lanes 21 of 21 (one test at a time, docs/CLOUD_SESSIONS.md); the five Postgres PCT lanes 5 of 5 (the two retired
+   pins pass: `//pct:pct_postgres_essential` 345 of 345); `//datacube:python_execute_test`; the product job's
+   unlaned-tests guard empty. The chain's script: the session's scratchpad `l2-chain.sh` (the L1 chain plus the
+   Postgres PCT group).
+3. **Not measured:** CI's lanes (PR #80 runs them on the push).

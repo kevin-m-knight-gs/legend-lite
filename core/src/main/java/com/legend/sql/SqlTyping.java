@@ -1512,7 +1512,7 @@ public final class SqlTyping {
             // a RAISING member never yields a value — bottom-like in a
             // branch family: admissible anywhere, never the family's
             // type (witness: the checked-extract CASE, error-guard +
-            // LIST_GET over Array(LITERAL), types LITERAL). The fact
+            // LIST_GET over a typed array, types its element). The fact
             // rides the tree (TypeFact.Raises), not a structural match.
             if (v instanceof TypeFact.Raises) {
                 saw = true;

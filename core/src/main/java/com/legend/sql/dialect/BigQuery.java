@@ -113,7 +113,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case INTEGER, BIGINT -> "INT64";
             case HUGEINT -> "BIGNUMERIC";
             case DOUBLE -> "FLOAT64";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case VARCHAR, TEMPORAL_TEXT -> "STRING";
             case DATE -> "DATE";
             case TIMESTAMP -> "DATETIME";
             case TIMESTAMPTZ -> "TIMESTAMP";
@@ -899,7 +899,7 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     private static boolean textual(SqlExpr e) {
         SqlType t = typeOf(e);
-        return e instanceof SqlExpr.StringLit || t == SqlType.Scalar.VARCHAR || t == SqlType.Scalar.LITERAL
+        return e instanceof SqlExpr.StringLit || t == SqlType.Scalar.VARCHAR
                 || t == SqlType.Scalar.TEMPORAL_TEXT || t == SqlType.Scalar.DECIMAL_TEXT;
     }
 
@@ -1285,7 +1285,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         if (isJson(v)) {
             boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-            if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+            if (target == SqlType.Scalar.VARCHAR) {
                 return writer.piece(jsonAsText(v, member));
             }
             if (target instanceof SqlType.Array arr) {
@@ -1317,10 +1317,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself (LITERAL is STRING physically): the mixed sort's ordered ids
-            // (2026-10-13, PR #34's review: element-wise, it wrote the aggregate twice)
-            if (v instanceof SqlExpr.NullLit || from == null
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (v instanceof SqlExpr.NullLit || from == null) {
                 return writer.append("CAST(").expr(v, 0).append(" AS ").append(bqType(target)).append(")");
             }
             // element-wise: BigQuery casts between arrays of compatible element types only (measured)
@@ -1329,7 +1326,7 @@ public final class BigQuery extends AnsiSqlRenderer {
                     .piece(castTo(x -> x.append(e), from, arr.element())).append(" FROM UNNEST(").expr(v, 0)
                     .append(") AS " + e + " WITH OFFSET AS " + param("__co") + " ORDER BY " + param("__co") + ")")));
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
@@ -1348,7 +1345,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         if (to instanceof SqlType.Decimal d) {
             return w -> w.append("ROUND(CAST(").piece(value).append(" AS BIGNUMERIC), " + d.scale() + ")");
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return textOf(value, from);
         }
         return w -> w.append("CAST(").piece(value).append(" AS ").append(bqType(to)).append(")");
@@ -1356,7 +1353,7 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** A Variant scalar's text cast to {@code to}. */
     private SqlWriter.Piece castFromText(SqlWriter.Piece text, SqlType to) {
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return text;
         }
         return castTo(text, SqlType.Scalar.VARCHAR, to);

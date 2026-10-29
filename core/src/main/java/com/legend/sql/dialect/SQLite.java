@@ -130,7 +130,7 @@ public final class SQLite extends AnsiSqlRenderer {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
             case DOUBLE -> "REAL";
-            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, TEMPORAL_TEXT -> "TEXT";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1209,11 +1209,7 @@ public final class SQLite extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself, as the scalar cast below writes it (LITERAL is VARCHAR
-            // physically): the mixed sort's ordered ids (2026-10-13, PR #34's review: element-wise, it wrote the
-            // aggregate twice)
-            if (from == null || from.equals(arr.element())
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (from == null || from.equals(arr.element())) {
                 return writer.expr(v, 0);
             }
             // element-wise
@@ -1224,7 +1220,7 @@ public final class SQLite extends AnsiSqlRenderer {
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             // a big integer's text raises past 64 bits, as its root column does (deliveredValue): the plan route's
             // root is the TDS text, which spells the value through this cast (step 9, 2026-10-19: the overflow's
             // REAL had crossed as '9.22337203685478e+18')
@@ -1240,10 +1236,10 @@ public final class SQLite extends AnsiSqlRenderer {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON (DuckDB's
         // CAST(json AS VARCHAR) keeps a string's quotes)
         boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-        if ((to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) && !member) {
+        if (to == SqlType.Scalar.VARCHAR && !member) {
             return w -> w.expr(v, 0);
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return w -> w.append("(CASE WHEN json_type(").expr(v, 0).append(") = 'text' THEN (").expr(v, 9)
                     .append(" ->> '$') ELSE ").expr(v, 0).append(" END)");
         }
@@ -1279,7 +1275,7 @@ public final class SQLite extends AnsiSqlRenderer {
             return value;
         }
         return switch (s) {
-            case VARCHAR, LITERAL -> textOf(value, from);
+            case VARCHAR -> textOf(value, from);
             case BOOLEAN -> from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
                     ? w -> w.append("(CASE lower(").piece(value).append(") WHEN 'true' THEN 1 WHEN 'false' THEN 0 END)")
                     : w -> w.append("(").piece(value).append(" <> 0)");

@@ -278,7 +278,7 @@ public final class CellText {
      *  a value root's instant (MINIMAL), a nested value and a mixed column's winner at the precision its digits
      *  show, the fraction's trailing zeros dropped (register S118). Two choices the S1.4 audit asked to be written
      *  down (2026-10-29): in Pure's TEXT (the CSV path, {@link #element}) WRITTEN applies to a nested element too (a
-     *  LITERAL carrier holds its list's written text, each element a written value), where DAY and INSTANT are the
+     *  tagged slot's kind carries each element's written digits), where DAY and INSTANT are the
      *  column's own cell's facts ({@code own}) -- the JSON path's nested dates ({@link #structure}) take the digits
      *  shown whatever the column's fact, D9's open question (the S1.5 audit, finding 8); and MINIMAL and a null fact
      *  (a column with no temporal of its own: a mixed column's winner, a derived column) spell the same text, the

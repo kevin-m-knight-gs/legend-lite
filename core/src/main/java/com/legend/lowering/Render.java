@@ -601,10 +601,9 @@ public final class Render {
                 || t == Type.Primitive.LATEST_DATE;
     }
 
-    /** A slot that carries text: VARCHAR, a literal's spelling, a temporal's text. */
+    /** A slot that carries text: VARCHAR, a temporal's text. */
     private static boolean textSlot(@com.legend.base.Nullable SqlType slot) {
-        return slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.LITERAL
-                || slot == SqlType.Scalar.TEMPORAL_TEXT;
+        return slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.TEMPORAL_TEXT;
     }
 
     /** Whether the DATE-family value prints date-only (a DATE slot) or

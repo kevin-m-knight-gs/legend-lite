@@ -36,7 +36,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case BIGINT -> "BIGINT";
             case HUGEINT -> "HUGEINT";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
@@ -2313,15 +2313,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         if (c.conform()) {
             return writer.expr(c.value(), 0);
         }
-        // The F10 LITERAL marker cast is a LABEL device (the
-        // construction-site carrier declaration scalarRoot reads) —
-        // never engine text: goldens pin the engine's own spelling
-        // (testGreatestLeast caught cast(greatest(...) as varchar)).
-        if (c.target() == com.legend.sql.SqlType.Scalar.LITERAL
-                || c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
-                || (c.target() instanceof com.legend.sql.SqlType.Array la
-                        && la.element()
-                                == com.legend.sql.SqlType.Scalar.LITERAL)) {
+        // The temporal-text marker cast is a LABEL device (the construction-site carrier declaration the root
+        // reads) -- never engine text: goldens pin the engine's own spelling (testGreatestLeast caught
+        // cast(greatest(...) as varchar)). (The LITERAL spelling carrier's marker left with it, track L, 2026-10-29.)
+        if (c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT) {
             return writer.expr(c.value(), 0);
         }
         String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);

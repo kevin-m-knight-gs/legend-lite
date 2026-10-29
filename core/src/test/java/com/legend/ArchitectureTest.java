@@ -60,7 +60,7 @@ final class ArchitectureTest {
     private static final java.util.Map<String, String> PRODUCT_LIBRARIES = java.util.Map.ofEntries(
             java.util.Map.entry("spi", "com.legend.spi.ElementSink"),
             java.util.Map.entry("cache", "com.legend.cache.ContentStore"),
-            java.util.Map.entry("values", "com.legend.values.LiteralText"),
+            java.util.Map.entry("values", "com.legend.values.PureDateLiteral"),
             java.util.Map.entry("error", "com.legend.error.LegendCompileException"),
             java.util.Map.entry("lexer", "com.legend.lexer.Lexer"),
             java.util.Map.entry("sql", "com.legend.sql.SqlQuery"),
@@ -1156,35 +1156,10 @@ final class ArchitectureTest {
      * which is the disease the whole verdict program deletes. Tests
      * (the harness IS the referee) are exempt by scope.
      */
-    /** THE SNIFF-STOP PIN (F10 slice-3 audit, 2026-08-24): wire-value
-     * decoding is LABEL-DRIVEN, never shape-guessed — the engine's own
-     * rule (declared type decides; relationalMappingExecution's narrow
-     * conversion table). The two grammar readers are reachable ONLY
-     * from the label-dispatch funnel: LiteralText parses LITERAL-
-     * labeled cells (Executor.unwrap's arm); ad-hoc callers would be
-     * value sniffing — the '4'-as-Long class of bug. A new caller
-     * registers here consciously with its label-contract argument. */
-    @Test
-    void spellingDecodeIsLabelDriven() {
-        noClasses()
-            // (Executor's LITERAL arm left with it, 2026-10-27, the result boundary program's phase 5.) 2026-10-18 (the
-            // plan path program's step 6): the runner's typed-row decode has the same arm -- a cell whose plan
-            // column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
-            .that().doNotHaveFullyQualifiedName("com.legend.result.RowDecode")   // moved from exec 2026-10-27
-            // 2026-10-18 (step 6, the typed rows): the plan runner's decode of a driver's cell by the plan column's
-            // slot has the same LITERAL arm, over the cell's text; 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12):
-            // the MongoDB connector's decode of a document's cell by the same slot label. Registered 2026-10-19 at
-            // step 9's merge, where the guard lanes outside the core suite first ran on the program's branch.
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.JdbcDecode")
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.MongoDbDecode")
-            .and().doNotHaveFullyQualifiedName("com.legend.values.LiteralText")
-            .should().dependOnClassesThat().haveFullyQualifiedName(
-                "com.legend.values.LiteralText")
-            .as("SNIFF-STOP: LiteralText.parse is reachable only from the"
-                    + " label-dispatch funnels (the LITERAL slot arms of RowDecode, JdbcDecode and MongoDbDecode)"
-                    + " — decode by declared label, never by value shape")
-            .check(CORE_PROD_CLASSES);
-    }
+    // (THE SNIFF-STOP PIN, spellingDecodeIsLabelDriven -- LiteralText.parse reachable only from the LITERAL slot's
+    // decode arms -- left with its subject on 2026-10-29, the result boundary program's track L, L2: the LITERAL
+    // spelling carrier, its parser and the decoders' arms are deleted; a mixed value is a tagged value, read in its
+    // slot, and no cell is parsed by its text's shape.)
 
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {

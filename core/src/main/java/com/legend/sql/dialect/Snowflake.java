@@ -80,7 +80,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMBER(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP_NTZ";
             case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
@@ -1783,7 +1783,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                 case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ, TIME ->
                         w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(s) + ")");
                 case JSON -> w -> w.append("TO_VARIANT(").piece(number).append(")");
-                case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
+                case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
                         .append(" AS VARCHAR)");
             };
             case SqlType.Decimal d -> w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(d) + ")");

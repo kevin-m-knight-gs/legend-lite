@@ -5,7 +5,6 @@ package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.values.LiteralText;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 
@@ -93,7 +92,7 @@ final class JdbcDecode {
         switch (com.legend.result.RowDecode.slotWord(c.slot())) {
             // the texts: a label whose text carries its own kind, and a text slot (a number the database holds
             // under a text slot keeps its digits, as its JSON token did)
-            case "LITERAL", "DECIMAL_TEXT", "TEMPORAL_TEXT", "VARCHAR", "CHAR", "TEXT" -> v = rs.getString(i);
+            case "DECIMAL_TEXT", "TEMPORAL_TEXT", "VARCHAR", "CHAR", "TEXT" -> v = rs.getString(i);
             default -> {
                 v = rs.getObject(i);
                 // a timestamp or a time re-read as java.time: BC-faithful, and a time with the microseconds its
@@ -135,11 +134,9 @@ final class JdbcDecode {
         }
         String type = c.type();
         switch (com.legend.result.RowDecode.slotWord(c.slot())) {
-            // the slot labels that ARE the decode instruction: a literal-spelled cell carries its own kind; a
-            // text-carried temporal or decimal parses
-            case "LITERAL" -> {
-                return LiteralText.parse(text(v, c));
-            }
+            // the slot labels that ARE the decode instruction: a text-carried temporal or decimal parses (the
+            // LITERAL spelling carrier's arm, a cell parsed by its Pure-literal text, left with track L's L2,
+            // 2026-10-29: a mixed value is a tagged value, read in its slot)
             case "TAGGED" -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
                     + " its row (its slot columns stand beside it), never alone");
             case "DECIMAL_TEXT" -> {

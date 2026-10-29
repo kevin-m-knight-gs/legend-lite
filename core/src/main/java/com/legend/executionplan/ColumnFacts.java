@@ -148,9 +148,10 @@ public final class ColumnFacts {
 
     /** How a temporal cell of a column of Pure type {@code type} in slot {@code slot} (null: no one slot), in a
      *  result of {@code shape}, has its written precision ({@link ExecutionPlan.Precision}; the start page's S1.4
-     *  item 1, 2026-10-28, corrected 2026-10-29 under the upstream-fidelity tenet). A literal-spelled cell (the
-     *  LITERAL slot, a mixed column's) spells its own kind and precision: WRITTEN. A DATE slot or a StrictDate column
-     *  holds a day: DAY. A time-bearing temporal otherwise -- a TIMESTAMP slot, a temporal-text carrier, a Date or
+     *  item 1, 2026-10-28, corrected 2026-10-29 under the upstream-fidelity tenet). A tagged column (a mixed value's,
+     *  {@code TAGGED<kind slot, ...>}) has no one precision: its slots' kinds carry it ({@code DateTime(n)}), and the
+     *  decoders present each cell at its own, so it is null here. A DATE slot or a StrictDate column holds a day:
+     *  DAY. A time-bearing temporal otherwise -- a TIMESTAMP slot, a temporal-text carrier, a Date or
      *  DateTime column in any other slot (a text a database holds its dates as, no slot at all) -- is, in a
      *  relation, a cell legend-engine's TDS spells with nine digits whatever carried it (INSTANT); in a value root,
      *  legend-pure's value: the precision written where the cell carries it (a temporal-text carrier: WRITTEN), the
@@ -158,9 +159,6 @@ public final class ColumnFacts {
      *  Any other column has no temporal of its own: null, said. */
     public static ExecutionPlan.@com.legend.base.Nullable Precision precision(String type,
             @com.legend.base.Nullable SqlType slot, ExecutionPlan.TdsResult.Shape shape) {
-        if (slot == SqlType.Scalar.LITERAL) {
-            return ExecutionPlan.Precision.WRITTEN;
-        }
         if (type.equals("StrictDate") || slot == SqlType.Scalar.DATE) {
             return ExecutionPlan.Precision.DAY;
         }

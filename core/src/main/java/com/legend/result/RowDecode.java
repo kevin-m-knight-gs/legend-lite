@@ -5,7 +5,6 @@ package com.legend.result;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.values.LiteralText;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 
@@ -101,11 +100,8 @@ public final class RowDecode {
         }
         String slot = slotWord(c.slot());
         switch (slot) {
-            // the slot labels that ARE the decode instruction: a literal-spelled cell carries its own kind; a
-            // text-carried temporal or decimal parses
-            case "LITERAL" -> {
-                return LiteralText.parse(text(node, c));
-            }
+            // the slot labels that ARE the decode instruction: a text-carried temporal or decimal parses (the
+            // LITERAL spelling carrier's arm left with track L's L2, 2026-10-29: a mixed value is a tagged value)
             case "TAGGED" -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
                     + " its row (its slot columns stand beside it), never alone");
             case "DECIMAL_TEXT" -> {

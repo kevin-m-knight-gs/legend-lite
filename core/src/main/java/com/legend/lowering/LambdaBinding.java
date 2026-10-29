@@ -28,7 +28,7 @@ import java.util.function.BiFunction;
  * that collection's element — the body's own dispatch (pureToString's
  * Any arm, equality emission) then reads the carrier from the tree at
  * construction, never from a side channel (witness
- * testPctRemoveDuplicatesBy: a toString key over a LITERAL-carried
+ * testPctRemoveDuplicatesBy: a toString key over a mixed (once LITERAL-carried, a tagged list since track L)
  * mix must print spellings, not variant-extract them). Comparator
  * lambdas bind at their consumer sites (Dedup — §3.2); fold's
  * two-parameter lambda (element, ACCUMULATOR) never matches the unary
@@ -48,10 +48,8 @@ final class LambdaBinding {
      * exhaustive same-element (T,T)->_ signature sweep of both referee
      * trees (2026-08-25): removeDuplicates, sort, and contains — the
      * audit's found regression. contains' convention is
-     * eval($value, $x) — needle FIRST — and its param-0 element
-     * stamp is honest ONLY because the rule substitutes a SPELLED,
-     * LITERAL-marked needle there (MixedEncoding.markedNeedle;
-     * witness ComparatorConventionTest incl. the kind-honest eq pin
+     * eval($value, $x) — needle FIRST — and over a mixed list the element parameter IS the tagged element
+     * (the stamped resolver below; witness ComparatorConventionTest incl. the kind-honest eq pin
      * that caught the raw-needle text collision). Keys are signature
      * keys, the rule table's own dispatch identity. NOT here: fold
      * (second param = ACCUMULATOR); relation join/asOfJoin (their
@@ -273,6 +271,10 @@ final class LambdaBinding {
                         : srcToOne ? t.type() : null
                 : null;
         return (var, prop) -> {
+            if (param.equals(var) && prop == null && source instanceof SqlExpr.TaggedList tl) {
+                // a mixed list's element (track L): the tagged value at the position the transform ranges over
+                return tl.element(SqlExpr.Column.derived(null, param));
+            }
             if (param.equals(var) && elem != null) {
                 if (prop == null) {
                     // §E3: element read — may-be-null (param doctrine)
@@ -326,8 +328,15 @@ final class LambdaBinding {
                     }
                     return inner.resolve(var, prop);
                 };
-                out.add(new SqlExpr.Lambda(ps,
-                        scalarFn.apply(LambdaBinding.last(l), stamped)));
+                // contains' needle over a tagged list enters the body as ITSELF, typed (the L1 audit, 2026-10-29):
+                // the body's equality then reads the needle's static kind ('1' is a String), where a parameter
+                // typed Any names no kind and would be refused
+                TypedSpec body = LambdaBinding.last(l);
+                if (needleFirst && coll instanceof SqlExpr.TaggedList && n.args().size() >= 2) {
+                    body = com.legend.compiler.spec.typed.TypedSubst.apply(body,
+                            java.util.Map.of(ps.get(0), n.args().get(1)));
+                }
+                out.add(new SqlExpr.Lambda(ps, scalarFn.apply(body, stamped)));
                 continue;
             }
             if (a instanceof com.legend.compiler.spec.typed.TypedCollection run

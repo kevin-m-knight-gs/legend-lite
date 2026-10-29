@@ -32,7 +32,7 @@ import java.util.Map;
  * column's own type, so the value is untouched and the canon spells the
  * wire's kind. Numeric, Boolean and temporal declarations convert the
  * wire cell (the transformer's other arms) and are never touched; nor is
- * a label carrier (LITERAL / TEMPORAL_TEXT / DECIMAL_TEXT / JSON), whose
+ * a label carrier (TEMPORAL_TEXT / DECIMAL_TEXT / JSON), whose
  * VARCHAR wire is the label's contract. */
 public final class WireTypes {
 
@@ -169,7 +169,7 @@ public final class WireTypes {
     }
 
     private static boolean labelCarrier(SqlType t) {
-        return t == SqlType.Scalar.LITERAL || t == SqlType.Scalar.TEMPORAL_TEXT
+        return t == SqlType.Scalar.TEMPORAL_TEXT
                 || t == SqlType.Scalar.DECIMAL_TEXT || t == SqlType.Scalar.JSON;
     }
 

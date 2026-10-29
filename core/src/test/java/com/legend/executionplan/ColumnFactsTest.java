@@ -8,6 +8,8 @@ import com.legend.executionplan.ExecutionPlan.TdsResult.Shape;
 import com.legend.sql.SqlType;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -26,12 +28,13 @@ class ColumnFactsTest {
     }
 
     @Test
-    void aLiteralCarrierIsWrittenInEveryShape() {
+    void aTaggedColumnHasNoOnePrecision() {
+        // a mixed value's column (TAGGED<kind slot, ...>): its slots' kinds carry the precision (DateTime(n)) and
+        // the decoders present each cell at its own, so the column states none
+        SqlType tagged = new SqlType.Tagged(List.of(new SqlType.Tagged.Slot("DateTime(3)", SqlType.Scalar.TIMESTAMP),
+                new SqlType.Tagged.Slot("Integer", SqlType.Scalar.BIGINT)));
         for (Shape shape : Shape.values()) {
-            assertEquals(Precision.WRITTEN, fact("DateTime", SqlType.Scalar.LITERAL, shape), shape.name());
-            assertEquals(Precision.WRITTEN, fact("Date", SqlType.Scalar.LITERAL, shape), shape.name());
-            // the carrier decides before the type: a StrictDate written into a literal carrier is a written value
-            assertEquals(Precision.WRITTEN, fact("StrictDate", SqlType.Scalar.LITERAL, shape), shape.name());
+            assertNull(fact("Any", tagged, shape), shape.name());
         }
     }
 

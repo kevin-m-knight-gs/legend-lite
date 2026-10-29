@@ -114,6 +114,11 @@ final class Scalars {
                         if (le && re) {
                             return new SqlExpr.BoolLit(true);
                         }
+                        SqlExpr.TaggedList full = asTaggedList(n.args().get(le ? 1 : 0), args.get(le ? 1 : 0));
+                        if (full != null) {
+                            // a mixed list against []: equal where it holds nothing (the L1 audit, 2026-10-29)
+                            return SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(full), new SqlExpr.IntLit(0));
+                        }
                         return SqlExpr.Call.of(SqlFn.IS_NULL,
                                 args.get(le ? 1 : 0));
                     }
@@ -150,17 +155,9 @@ final class Scalars {
                                     args.get(0), n.args().get(1)),
                             CastPolicy.comparisonWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
-                    // EQUALITY BY EMISSION (M4 re-land — the claim's eq
-                    // lane, the burn-down doctrine): a LITERAL-marked
-                    // side meeting a side of known SPELLABLE static kind
-                    // SPELLS that side — both then byte-compare in the
-                    // grammar, which IS pure equality (six kinds
-                    // disjoint by spelling; §0.4 receipts). Never
-                    // unspell the literal side; dynamic/unspellable
-                    // other sides fall through to the existing lanes.
+                    // a literal side meeting a variant-carried side joins it there (the spelling carrier's
+                    // equality by emission left with track L's L2, 2026-10-29: a mixed value is tagged, above)
                     cargs = VariantShapes.alignLiteralToJson(n.args(), cargs);
-                    cargs = MixedEncoding.equalityEmission(
-                            n.args().get(0), n.args().get(1), cargs);
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
                             cargs.get(0), cargs.get(1));
@@ -1098,69 +1095,6 @@ final class Scalars {
                     SqlExpr.TaggedList mixed = asTaggedList(sortOperand, sortLowered);
                     if (mixed != null) {
                         return TaggedLists.sort(mixed, "_tls");
-                    }
-                    // SEE-THROUGH a plain removeDuplicates (callee-FQN
-                    // identified, never a name string): sort∘dedup =
-                    // dedup∘sort over identical (id, comparable) pairs, so
-                    // the encoding reads the INNER collection and the pair
-                    // subselect dedups with DISTINCT
-                    // (testRemoveDuplicates...MixedTypes sorts a dedup).
-                    boolean dedup = false;
-                    if (sortOperand instanceof
-                                com.legend.compiler.spec.typed.TypedNativeCall dd
-                            && Pure.AT_COLLECTION_REMOVE_DUPLICATES
-                                    .contains(dd.callee().id())
-                            && !dd.args().isEmpty()
-                            && sortLowered instanceof SqlExpr.Call dc
-                            && dc.fn() == SqlFn.LIST_FILTER
-                            && unwrapArrayCast(dc.args().get(0))
-                                    instanceof SqlExpr.ArrayLit innerLa) {
-                        sortOperand = dd.args().get(0);
-                        sortLowered = innerLa;
-                        dedup = true;
-                    }
-                    MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(sortOperand, sortLowered);
-                    if (mx == null) {
-                        // ANY-LUB mixed kinds (ints + strings): the rank-
-                        // struct comparable orders by the engine's compare
-                        // groups; the identity channel is the carrier's own
-                        // literal lane (testRemoveDuplicates...MixedTypes)
-                        mx = MixedEncoding.rankedElems(sortOperand, sortLowered);
-                    }
-                    if (mx == null && dedup) {
-                        // dedup detected but the inner shape isn't
-                        // encodable — fall back to the ORIGINAL operand
-                        sortOperand = n.args().get(0);
-                        sortLowered = args.get(0);
-                        dedup = false;
-                    }
-                    if (mx != null) {
-                        // identity-preserving mixed sort: order the ids by
-                        // their comparables (parallel select-list unnests)
-                        SqlExpr ids = SqlExpr.Call.of(SqlFn.UNNEST, mx.idList());
-                        SqlExpr vals = SqlExpr.Call.of(SqlFn.UNNEST, mx.valList());
-                        var inner = new SqlSelect(List.of(
-                                new SqlSelect.Projection(ids, "i", null),
-                                new SqlSelect.Projection(vals, "v", null)),
-                                dedup, new com.legend.sql.SqlSource.Dual(), null,
-                                List.of(), null, null, List.of(),
-                                null, null, List.of());
-                        var src = new SqlSource.Subselect(inner, "_mx", null);
-                        var outer = new SqlSelect(List.of(
-                                new SqlSelect.Projection(
-                                        new SqlExpr.OrderedListAgg(
-                                                projected("_mx", "i", ids),
-                                                projected("_mx", "v", vals)), "s", null)),
-                                false, src, null, List.of(), null, null, List.of(),
-                                null, null, List.of());
-                        // F10 slice 2/3: the sorted ids ARE pure-literal
-                        // spellings (temporals joined in slice 3 via
-                        // the %-forms) — the Array(LITERAL) cast is the
-                        // construction-site label (scalarRoot reads it;
-                        // VARCHAR[] physically, an identity cast).
-                        return new SqlExpr.Cast(
-                                new SqlExpr.ScalarSubquery(outer),
-                                new SqlType.Array(SqlType.Scalar.LITERAL));
                     }
                     // STAMP-read (pair-#4 eliminated): only many-
                     // stamped operands reach here, and a many-stamped
@@ -2173,12 +2107,7 @@ final class Scalars {
                     // — the FIRST comparator param binds the NEEDLE, the
                     // second each element (C1.5b; the reversed binding sent
                     // [1,2,3]->contains(5, {v,e|$v>$e}) the wrong way)
-                    // carried collection: the needle enters SPELLED
-                    // AND MARKED (MixedEncoding.markedNeedle — the
-                    // comparator-form needle wrap; makes the param-0
-                    // element stamp honest and the compare kind-true)
-                    SqlExpr needle = MixedEncoding.markedNeedle(
-                            n.args().get(1), args.get(1), args.get(0));
+                    SqlExpr needle = args.get(1);
                     SqlExpr body = substituteRef(comp.body(), comp.params().get(0), needle);
                     return new SqlExpr.Call(SqlFn.GREATER, List.of(
                             SqlExpr.Call.of(SqlFn.LIST_LENGTH,
@@ -2225,30 +2154,22 @@ final class Scalars {
                                     new SqlExpr.Call(SqlFn.STRPOS, args),
                                     new SqlExpr.IntLit(0))));
                 }
+                // a MIXED list (track L, 2026-10-29; an Any-LUB literal, or a Number-LUB literal mix read as one):
+                // membership by the needle's kind's channel, a tagged needle by element; a kind the list has no
+                // channel for (an instance, another kind) is a member of nothing
+                SqlExpr.TaggedList mixedColl = asTaggedList(n.args().get(0), args.get(0));
+                if (mixedColl != null) {
+                    return args.get(1) instanceof SqlExpr.Tagged needleT
+                            ? TaggedLists.containsElement(mixedColl, needleT)
+                            : TaggedLists.contains(mixedColl, MixedEncoding.kindOf(n.args().get(1)), args.get(1),
+                                    n.args().get(1).info().type());
+                }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
                 // needle the same way so containment compares JSON to JSON.
                 // This MUST precede the cross-kind rule: an Any list can
                 // legitimately contain an instance (audit: class-in-mixed-list
                 // containment was constant FALSE).
                 if (PlatformTypes.isAny(elem)) {
-                    // a MIXED list (track L, 2026-10-29): membership by the needle's kind's channel; a kind the
-                    // list has no channel for (an instance, another kind) is a member of nothing
-                    if (args.get(0) instanceof SqlExpr.TaggedList tl) {
-                        return TaggedLists.contains(tl, MixedEncoding.kindOf(n.args().get(1)), args.get(1));
-                    }
-                    // F10 slice 3b: against a LITERAL-carried collection
-                    // the needle SPELLS (same grammar, byte-comparable);
-                    // an unspellable needle (instance) is statically
-                    // outside the six scalar kinds — pure equality
-                    // instance-vs-primitive is FALSE
-                    if (args.get(0) instanceof SqlExpr.Cast lm
-                            && lm.target() instanceof SqlType.Array lma
-                            && lma.element() == SqlType.Scalar.LITERAL) {
-                        SqlExpr sn = MixedEncoding.elementLiteral(
-                                n.args().get(1), args.get(1));
-                        return sn == null ? new SqlExpr.BoolLit(false)
-                                : new SqlExpr.Membership(sn, args.get(0));
-                    }
                     return new SqlExpr.Membership(
                             SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1)),
                             args.get(0));
@@ -2280,13 +2201,7 @@ final class Scalars {
                 List<TypedSpec> typedElems =
                         n.args().get(1) instanceof TypedCollection tc
                                 ? tc.elements() : List.of(n.args().get(1));
-                // A LITERAL-carried argument list (M4 re-land) -- a list
-                // value, not a literal collection, whose elements the
-                // Lowerer lowers each by its own kind: each slot re-emits
-                // as its spelling->PRINT projection by its STATIC kind
-                // (MixedEncoding.printedFormatSlots)
-                SqlExpr argColl = MixedEncoding.printedFormatSlots(
-                        args.get(1), typedElems);
+                SqlExpr argColl = args.get(1);
                 if (argColl instanceof SqlExpr.TaggedList tla) {
                     // a MIXED argument list is a tagged list (track L): each argument its own value, in its kind
                     List<SqlExpr.Tagged.Candidate> elements = tla.literalElements();
@@ -2624,23 +2539,12 @@ final class Scalars {
             SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
                     n.args().get(1));
             // a MIXED list (track L, 2026-10-29): membership by the needle's kind's channel
-            if (args.get(1) instanceof SqlExpr.TaggedList tl) {
-                return TaggedLists.contains(tl, MixedEncoding.kindOf(n.args().get(0)), raw);
-            }
-            // F10 slice 3b: a LITERAL-carried collection compares in
-            // the spelling grammar — the needle spells by its static
-            // kind (an unspellable needle is statically not a member)
-            if (args.get(1) instanceof SqlExpr.Cast inLm
-                    && inLm.target() instanceof SqlType.Array inLa
-                    && inLa.element() == SqlType.Scalar.LITERAL) {
-                SqlExpr sn = MixedEncoding.elementLiteral(
-                        n.args().get(0), raw);
-                if (sn == null) {
-                    return new SqlExpr.BoolLit(false);
-                }
-                return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Membership(sn, args.get(1)),
-                        new SqlExpr.BoolLit(false));
+            SqlExpr.TaggedList tl = asTaggedList(n.args().get(1), args.get(1));
+            if (tl != null) {
+                return raw instanceof SqlExpr.Tagged needleT
+                        ? TaggedLists.containsElement(tl, needleT)
+                        : TaggedLists.contains(tl, MixedEncoding.kindOf(n.args().get(0)), raw,
+                                n.args().get(0).info().type());
             }
             SqlExpr needle = collVariant
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
@@ -2853,26 +2757,6 @@ final class Scalars {
             // the JSON quoting ('b', not '"b"'); a variant-carried LIST
             // (a nested ^List under Any) prints pure's '[a, b]', its
             // ELEMENTS as root text — composed in SQL from the JSON array
-            // F10 slice-3 AUDIT (2026-08-24): the spelling-print path
-            // gates on the LITERAL wire the TREE carries (M3 flip:
-            // .type() read) — first-char dispatch on arbitrary Any
-            // wires was SNIFFING (a raw VARCHAR cell whose text starts
-            // with ' or % would mis-print); the engine's rule is
-            // declared-type-decides. Non-LITERAL wires keep the
-            // pre-carrier variant path unchanged.
-            boolean literalWire = x.type()
-                    instanceof
-                            com.legend.sql.TypeFact.Typed jt
-                    && (jt.type() == SqlType.Scalar.LITERAL
-                            || (jt.type() instanceof SqlType.Array ja
-                                    && ja.element()
-                                            == SqlType.Scalar.LITERAL));
-            if (literalWire) {
-                // ONE recipe, one owner (M4 re-land): the spelling->
-                // PRINT projection moved to LiteralSpelling.printForm,
-                // byte-identical to the inline block it replaces
-                return literalPrint(x);
-            }
             return new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
@@ -3026,23 +2910,6 @@ final class Scalars {
                     a.elements().stream().map(Scalars::undoubled).toList());
             default -> e.mapChildren(Scalars::undoubled);
         };
-    }
-
-    /** A typed-list conformance cast peels off (PureSql.typedList wraps
-     * the literal carrier in CAST(x AS T[]) — shape-transparent). */
-    static SqlExpr unwrapArrayCast(SqlExpr e) {
-        return e instanceof SqlExpr.Cast c
-                && c.target() instanceof SqlType.Array ? c.value() : e;
-    }
-
-    /** {@code alias.name}, a subselect's projection of {@code e}, stamped
-     * with {@code e}'s type (the site holds the projection, as
-     * Comparators' element reference); untyped where {@code e} is. */
-    private static SqlExpr.Column projected(String alias, String name, SqlExpr e) {
-        return e.type() instanceof com.legend.sql.TypeFact.Typed t
-                ? SqlExpr.Column.of(alias, name, t.type(), t.nullable(),
-                        com.legend.sql.OutputCol.Origin.DERIVED)
-                : SqlExpr.Column.derived(alias, name);
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
@@ -3398,14 +3265,6 @@ final class Scalars {
     static SqlExpr floatRepr(SqlExpr x) {
         return LiteralSpelling.floatPrint(x);
     }
-
-    /** The spelling->PRINT projection — owned by
-     * {@link LiteralSpelling#printForm} (one grammar owner, both
-     * directions of the label seam). */
-    static SqlExpr literalPrint(SqlExpr x) {
-        return LiteralSpelling.printForm(x);
-    }
-
     /**
      * Scans a LITERAL printf format string for the pure-only directives,
      * rewriting each to %s and wrapping the matching spread argument
@@ -3681,10 +3540,10 @@ final class Scalars {
             return TaggedLists.sameElement(x, y);
         }
         if (a instanceof SqlExpr.Tagged x) {
-            return TaggedLists.sameElement(x, MixedEncoding.kindOf(s1), b);
+            return TaggedLists.sameElement(x, MixedEncoding.kindOf(s1), b, s1.info().type());
         }
         if (b instanceof SqlExpr.Tagged y) {
-            return TaggedLists.sameElement(y, MixedEncoding.kindOf(s0), a);
+            return TaggedLists.sameElement(y, MixedEncoding.kindOf(s0), a, s0.info().type());
         }
         SqlExpr.TaggedList la = asTaggedList(s0, a);
         SqlExpr.TaggedList lb = asTaggedList(s1, b);
@@ -3700,7 +3559,9 @@ final class Scalars {
             SqlExpr.TaggedList tl = java.util.Objects.requireNonNull(la != null ? la : lb);
             TypedSpec otherSpec = la != null ? s1 : s0;
             SqlExpr other = la != null ? b : a;
-            String kind = null;
+            // a list of ONE declared kind that is not a literal collection (a String[*] variable, a map's result):
+            // its kind is its element type's (the L1 audit, 2026-10-29)
+            String kind = otherSpec instanceof TypedCollection ? null : MixedEncoding.kindOf(otherSpec);
             if (otherSpec instanceof TypedCollection oc && !oc.elements().isEmpty()) {
                 // a row's cells (the Typer's rowCells collection, on the variant carrier for its NULL cells) are a
                 // literal collection of static kinds: read as a tagged list, the two compare kind by kind
@@ -3752,7 +3613,23 @@ final class Scalars {
     /** {@code lowered} as a tagged list (track L, 2026-10-29): one already, or a Number-LUB literal mix read as its
      *  kinds ({@link MixedEncoding#mixedNumericLiteral}); null otherwise. */
     static SqlExpr.@com.legend.base.Nullable TaggedList asTaggedList(TypedSpec spec, SqlExpr lowered) {
-        return lowered instanceof SqlExpr.TaggedList tl ? tl : MixedEncoding.mixedNumericLiteral(spec, lowered);
+        if (lowered instanceof SqlExpr.TaggedList tl) {
+            return tl;
+        }
+        SqlExpr.TaggedList numbers = MixedEncoding.mixedNumericLiteral(spec, lowered);
+        if (numbers != null) {
+            return numbers;
+        }
+        // a Date-LUB mix ([%2014-01-01, %2014-01-01T10:00:00]: a StrictDate, a DateTime, a partial date together):
+        // the plain arm's array coerces them to one SQL type; read as its kinds where every element is of one
+        // (the spelling carrier's sort encoded exactly these, L2 2026-10-29)
+        if (spec instanceof TypedCollection c && lowered instanceof SqlExpr.ArrayLit la
+                && c.info().type() == Type.Primitive.DATE && c.elements().size() >= 2
+                && la.elements().size() == c.elements().size()
+                && c.elements().stream().map(e -> e.info().type()).distinct().count() > 1) {
+            return MixedEncoding.taggedList(c, la.elements());
+        }
+        return null;
     }
 
     /** The empty list -- the NULL value, bottom -- conformed to its pure element's array (the typedList door,

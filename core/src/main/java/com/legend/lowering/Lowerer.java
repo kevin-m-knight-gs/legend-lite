@@ -648,23 +648,17 @@ public final class Lowerer {
             rootType = MixedEncoding.declaredType(rootType);
         }
         boolean anyStamp = rootType == SqlType.Scalar.JSON;
-        // read unconditionally: a LITERAL-carried product under ANY
-        // stamp (generic/TypeVar dedup results included) must label
-        // truthfully — the TREE carries the carrier through
-        // element-preserving ops (F10 3b; M3 flip: the stored type IS
-        // the authority, the judge is gone from this site)
+        // read unconditionally: a product under ANY stamp (generic/TypeVar dedup results included) must label
+        // truthfully -- the TREE carries the carrier through element-preserving ops (the stored type IS the
+        // authority, the judge is gone from this site)
         com.legend.sql.TypeFact rootJudge = e.type();
         if (anyStamp && !Stamps.isMany(spec)
                 && rootJudge instanceof com.legend.sql.TypeFact.Typed t
-                && t.type() != SqlType.Scalar.JSON
-                && t.type() != SqlType.Scalar.LITERAL) {
+                && t.type() != SqlType.Scalar.JSON) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
         }
-        // F10 slice 2 — the KIND-FAITHFUL CARRIER at a mixed root: a
-        // literal collection of >=2 distinct numeric kinds rebuilds as
-        // pure-literal spellings (the DOUBLE-promoted array erased
-        // Integer 1 into 1.0 here), returning its own Array(LITERAL)
-        // construction-site mark.
+        // a Number-LUB literal mix at a root ([25.0, 1]) is read as its kinds: a tagged list (the DOUBLE-promoted
+        // array erased Integer 1 into 1.0 here)
         SqlExpr.TaggedList mixedNumbers = MixedEncoding.mixedNumericLiteral(spec, e);
         if (mixedNumbers != null) {
             e = mixedNumbers;
@@ -686,22 +680,10 @@ public final class Lowerer {
             }
             return taggedRoot(tg, spec);
         }
-        // THE ONE LITERAL-LABEL ARM (§4.3, redundant half deleted
-        // 2026-08-24): the TREE says whether the finished root carries
-        // spellings — every producer marks at construction (the sort
-        // arm's cast, mixedNumericArray's mark, LIST_GET/UNNEST
-        // flowing the element) and a cast TYPES as its target, so the
-        // former cast-mark and mixed-array label arms re-derived what
-        // e.type() states. This arm's residual content is the label
-        // SPELLING (scalar LITERAL for the element contract) — it
-        // retires at M4 with the carrier rule.
+        // the root's label: the pure type's SQL mapping, or an unrefined Number's own numeric slot (the LITERAL
+        // spelling label stood here until track L's L2, 2026-10-29: a mixed value is a tagged value now)
         com.legend.sql.SqlType label = rootType;
-        if (e.type() instanceof com.legend.sql.TypeFact.Typed jt
-                && (jt.type() == SqlType.Scalar.LITERAL
-                        || (jt.type() instanceof com.legend.sql.SqlType.Array ja
-                                && ja.element() == SqlType.Scalar.LITERAL))) {
-            label = SqlType.Scalar.LITERAL;
-        } else if (spec.info().type() == Type.Primitive.NUMBER
+        if (spec.info().type() == Type.Primitive.NUMBER
                 && e.type() instanceof com.legend.sql.TypeFact.Typed nt
                 && (nt.type() instanceof com.legend.sql.SqlType.Decimal || nt.type() == SqlType.Scalar.DOUBLE
                         || nt.type() == SqlType.Scalar.BIGINT || nt.type() == SqlType.Scalar.INTEGER
@@ -3070,22 +3052,13 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // THE HETERO-LITERAL CLAIM (F10 3b, M4 RE-LAND on the
-                // typed IR — zero compensations): a VALUE-LANE Any-LUB
-                // literal collection whose every element SPELLS rides
-                // the LITERAL carrier — six kinds disjoint BY GRAMMAR,
-                // so temporal/Decimal equality inside Any is byte-
-                // decidable (json erased exactly those kinds: to_json
-                // of a date and of its string print are the SAME bytes
-                // — witness AnyLiteralByteDecidabilityTest). The
-                // original parking blocker DISSOLVED with the carrier-
-                // rule reversal: rows.values rides the grid again, so
-                // grid-extraction asserts never meet this carrier (the
-                // lane gates: value-lane only, never a rowCells body).
-                // Enum/instance/computed elements decline per-element
-                // and the collection keeps the variant lane; Number-LUB
-                // mixes keep variant BY CONTRACT (arithmetic must type;
-                // the next arm — the §1R census receipt).
+                // a VALUE-LANE Any-LUB literal collection is a TAGGED LIST (track L, 2026-10-29; the LITERAL
+                // spelling carrier, six kinds disjoint by grammar, until L2 that day): each element in its own
+                // channel, so temporal/Decimal equality inside Any is decided by kind (json erased exactly those
+                // kinds: to_json of a date and of its string print are the SAME bytes -- witness
+                // AnyLiteralByteDecidabilityTest). Instance/computed elements decline per-element and the
+                // collection keeps the variant lane; Number-LUB mixes keep variant BY CONTRACT (arithmetic must
+                // type; the next arm), read as a tagged list at a root and under the list's operations.
                 boolean cellSlots = c.rowCells();
                 if (!cellSlots && CollectionLanes.valueLane(c)
                         && !c.elements().isEmpty()) {

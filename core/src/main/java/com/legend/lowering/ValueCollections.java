@@ -117,17 +117,45 @@ final class ValueCollections {
             }
             channelOf.add(channels.indexOf(ch));
         }
-        // the rows numbered once, in the scan's order
+        // the rows numbered ONCE and DETERMINISTICALLY: the list's arrays are aggregates over the cells, each its
+        // own scan of the relation, so the numbering must come out the same on every scan (the L1 audit,
+        // 2026-10-29: ROW_NUMBER() OVER () over an unordered scan may not) -- by the relation's own sort keys where
+        // it has them, then by every column (equal rows are interchangeable); a sorted relation keeps its order
         String inner = alias.get();
         var innerCell = SqlExpr.Column.lookup(inner, rel.outputs());
         List<SqlSelect.Projection> numbered = new ArrayList<>();
+        List<SqlSelect.SortKey> order = new ArrayList<>();
         for (OutputCol oc : rel.outputs()) {
             numbered.add(new SqlSelect.Projection(innerCell.apply(oc.name()), oc.name(), oc));
+            order.add(new SqlSelect.SortKey(innerCell.apply(oc.name()), true, null, null));
         }
         OutputCol rnOut = new OutputCol("__rn", SqlType.Scalar.BIGINT, false);
-        numbered.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), List.of(), null), "__rn", rnOut));
-        SqlSelect numberedRel = SqlSelect.starOf(new SqlSource.Subselect(rel, inner, null)).withProjections(numbered);
+        SqlSelect numberedRel;
+        if (!rel.orderBy().isEmpty() && !rel.distinct()
+                && rel.projections().stream().noneMatch(pr -> pr.expr() instanceof SqlExpr.Star
+                        || pr.expr() instanceof SqlExpr.StarExcept)) {
+            // the relation's own sort keys are in scope inside it: the number is one of its projections
+            List<SqlSelect.SortKey> keys = new ArrayList<>(rel.orderBy());
+            for (SqlSelect.Projection pr : rel.projections()) {
+                keys.add(new SqlSelect.SortKey(pr.expr(), true, null, null));
+            }
+            List<SqlSelect.Projection> own = new ArrayList<>(rel.projections());
+            own.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                    new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), "__rn", rnOut));
+            List<OutputCol> outs = new ArrayList<>(rel.outputs());
+            outs.add(rnOut);
+            SqlSelect numberedInside = rel.withProjections(own, outs);
+            var nCellInner = SqlExpr.Column.lookup(inner, numberedInside.outputs());
+            List<SqlSelect.Projection> pass = new ArrayList<>();
+            for (OutputCol oc : numberedInside.outputs()) {
+                pass.add(new SqlSelect.Projection(nCellInner.apply(oc.name()), oc.name(), oc));
+            }
+            numberedRel = SqlSelect.starOf(new SqlSource.Subselect(numberedInside, inner, null)).withProjections(pass);
+        } else {
+            numbered.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                    new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), order, null), "__rn", rnOut));
+            numberedRel = SqlSelect.starOf(new SqlSource.Subselect(rel, inner, null)).withProjections(numbered);
+        }
         // crossed with the column indexes: one row per cell
         String n = alias.get();
         String cAlias = alias.get();
@@ -179,11 +207,12 @@ final class ValueCollections {
         cellOuts.add(posOut);
         cellOuts.add(tagOut);
         List<String> rankFields = struct ? List.of("g", "n", "d", "s") : List.of(SqlExpr.TaggedList.ROW_COMPARABLE);
+        // the one-group comparable's type is the group's (numbers a DOUBLE, dates a TIMESTAMP), never read off a
+        // column's rank, which a partial date leaves NULL (the L1 audit, 2026-10-29)
         List<SqlType> rankTypes = struct
                 ? List.of(SqlType.Scalar.INTEGER, SqlType.Scalar.DOUBLE, SqlType.Scalar.TIMESTAMP,
                         SqlType.Scalar.VARCHAR)
-                : List.of(ranks.get(0).type() instanceof com.legend.sql.TypeFact.Typed rt0 ? rt0.type()
-                        : SqlType.Scalar.DOUBLE);
+                : List.of(groups.iterator().next() == 0 ? SqlType.Scalar.DOUBLE : SqlType.Scalar.TIMESTAMP);
         for (int f = 0; f < rankFields.size(); f++) {
             List<SqlExpr.Case.When> arms = new ArrayList<>(w);
             for (int k = 0; k < w; k++) {
@@ -253,38 +282,16 @@ final class ValueCollections {
                 new SqlExpr.ScalarSubquery(cellsRel));
     }
 
-    /** {@code SELECT flatten(LIST([cells...]))} over {@code rel} — a
-     * MULTI-column relation as a ROW-MAJOR value collection. Cells ride
-     * the LITERAL carrier when every column kind SPELLS (conform BY
-     * EMISSION — the same grammar owner the claimed Any-LUB expected
-     * side uses, so grid asserts byte-compare; the OutputCol carries
-     * the label and egress decodes typed). An unspellable column kind
-     * (enum) keeps the whole list on the VARIANT carrier. */
+    /** {@code SELECT flatten(LIST([cells...]))} over {@code rel}: a MULTI-column relation as a ROW-MAJOR value
+     *  collection on the VARIANT carrier, for a column of a kind no tagged channel holds (a class; the tagged list,
+     *  {@link #rowMajorTaggedList}, carries every other). The LITERAL spelling carrier stood here until track L's
+     *  L2, 2026-10-29. */
     static SqlSelect rowMajorCellList(SqlSelect rel, Type.RelationType rt,
             String sub) {
         List<SqlExpr> cells = new ArrayList<>();
-        boolean allSpell = true;
         var column = SqlExpr.Column.lookup(sub, rel.outputs());
         for (Type.Column c : rt.columns()) {
-            // WIRE columns by construction — DateTime cells spell the
-            // engine's value-read decode (NINE subsecond digits,
-            // disagree-9 burn); written-literal spellings never pass
-            // through this caller
-            SqlExpr s = MixedEncoding.spellByKind(c.type(),
-                    column.apply(c.name()),
-                    com.legend.sql.DateFmt.ISO_NANO);
-            if (s == null) {
-                allSpell = false;
-                break;
-            }
-            cells.add(s);
-        }
-        if (!allSpell) {
-            cells.clear();
-            for (Type.Column c : rt.columns()) {
-                cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                        column.apply(c.name())));
-            }
+            cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT, column.apply(c.name())));
         }
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
@@ -293,10 +300,7 @@ final class ValueCollections {
                                         new SqlExpr.ArrayLit(cells)),
                                         false, java.util.List.of())),
                         null,
-                        new OutputCol("value",
-                                allSpell ? SqlType.Scalar.LITERAL
-                                        : SqlType.Scalar.VARCHAR,
-                                true))));
+                        new OutputCol("value", SqlType.Scalar.VARCHAR, true))));
     }
 
     /** Delegates to the canonical reader on the node itself. */

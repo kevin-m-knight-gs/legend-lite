@@ -1579,7 +1579,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 case DATE -> "DATE";
                 case TIMESTAMP -> "TIMESTAMP";
                 case TIME -> "TIME";
-                case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+                case HUGEINT, TIMESTAMPTZ, JSON, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                         "plan parameter '" + parameter + "' is typed " + scalar + ", which no parameter is bound as");
             };
             case com.legend.sql.SqlType.Decimal d -> "DECIMAL";

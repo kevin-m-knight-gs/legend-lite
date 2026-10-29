@@ -77,7 +77,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "HUGEINT";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";

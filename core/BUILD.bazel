@@ -595,7 +595,7 @@ _CORE_TEST_PACKAGES = [
     "test",
     "testdatagen",
     "testing",
-    "values",
+    # ("values" left 2026-10-29 with its one test, LiteralTextTest, track L's L2: the package has no test)
 ]
 
 # Measured 2026-10-05: every package's live heap peak is under 342 MB (the largest, root, 264 MB), so P1-21's rule

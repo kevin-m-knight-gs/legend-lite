@@ -25,7 +25,7 @@ syms = [
  ("4", "TextResult", r"\bTextResult\b"),
  ("4", "PctShadowPlan", r"\bPctShadowPlan\b"),
  ("5", "conformValueEgress", r"\bconformValueEgress\b"),
- ("6", "LITERAL slot", r"\bLITERAL\b"),
+ ("6", "LITERAL slot", r"\bScalar\s*\.\s*LITERAL\b|\"LITERAL\""),   # the slot as the enum constant or as a plan's slot word (the bare word names other things: a Cypher scan's kind, a metamodel class, a format string)
  ("6", "LiteralText.parse", r"\bLiteralText\s*\.\s*parse\b"),
 ]
 comment = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)

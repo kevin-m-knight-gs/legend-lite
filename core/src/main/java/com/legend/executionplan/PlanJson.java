@@ -59,7 +59,7 @@ public final class PlanJson {
      *  {@link ExecutionPlan.Precision}; the result boundary program's R2, the start page's S1.4 item 1); 18 since
      *  2026-10-29: the fact's fourth value, MINIMAL, a value root's instant at the precision its digits show (a
      *  relation's INSTANT keeps the nine digits legend-engine spells: the upstream-fidelity tenet, register S118). */
-    public static final int VERSION = 18;
+    public static final int VERSION = 19;
 
     private PlanJson() {
     }

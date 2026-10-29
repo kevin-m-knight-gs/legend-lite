@@ -86,7 +86,7 @@ public final class Trino extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "DECIMAL(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP(6)";
             case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";

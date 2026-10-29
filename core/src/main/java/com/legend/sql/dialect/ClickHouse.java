@@ -107,7 +107,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case BIGINT -> "Nullable(Int64)";
             case HUGEINT -> "Nullable(Int128)";
             case DOUBLE -> "Nullable(Float64)";
-            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "Nullable(String)";
+            case VARCHAR, JSON, TEMPORAL_TEXT -> "Nullable(String)";
             case DATE -> "Nullable(Date32)";
             case TIMESTAMP, TIMESTAMPTZ -> "Nullable(DateTime64(6, 'UTC'))";
             // ClickHouse's Time type is experimental (25.6, behind a setting): no time of day here yet

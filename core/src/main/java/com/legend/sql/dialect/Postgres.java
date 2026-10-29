@@ -82,7 +82,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMERIC(38)";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";

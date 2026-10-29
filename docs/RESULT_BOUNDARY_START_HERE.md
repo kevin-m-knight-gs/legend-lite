@@ -512,9 +512,11 @@ no list encoding (its lane runs the relation suite alone); SQLite reads a BIT as
   ranges over its positions: its parameter IS the element there (`LambdaBinding`), so the body's rules read a tagged
   value; equality reads the value itself, never its comparable (D50a). A list-less dialect reads a literal array at a
   computed position as a CASE (`CarrierStrategies`). Gate: `exec/TaggedListTest` beside `TaggedSelectionTest`.
-  Measured: the full chain (GATES, the L1 entry). Next: L2, the deletions (the `LITERAL` slot, `LiteralText.parse`,
-  the spelling carrier's machinery, the dialects' literal arms; the census zero); `Fold.conformValueEgress` is step
-  5's deletion and waits on a written-digits fact at scalar roots (D51, the user's question).
+  Measured: the full chain (GATES, the L1 entry).
+- **L2 built 2026-10-29** (GATES, the L2 entry; the decisions log D52): the `LITERAL` slot, `LiteralText.parse`, the
+  decoders' and the dialects' literal arms and the lowering's spelling machinery DELETED; the census probe reads
+  zero for the slot's own spellings; the plan format is 19. `Fold.conformValueEgress` is step 5's deletion and
+  waits on a written-digits fact at scalar roots (D51, the user's question). Track L is done but for that ruling.
 
 ### Track A. The Arrow writer (the program's steps 2 and 5)
 

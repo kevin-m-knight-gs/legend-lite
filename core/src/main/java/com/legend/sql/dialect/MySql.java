@@ -47,7 +47,7 @@ public final class MySql extends MariaDb {
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
-                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
+                 TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }

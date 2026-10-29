@@ -209,7 +209,6 @@ public final class LiteralSpelling {
                 && (t.type() == SqlType.Scalar.VARCHAR
                         || t.type() == SqlType.Scalar.TEMPORAL_TEXT
                         || t.type() == SqlType.Scalar.DECIMAL_TEXT
-                        || t.type() == SqlType.Scalar.LITERAL
                         || t.type() == SqlType.Scalar.JSON)) {
             return null;
         }
@@ -391,7 +390,6 @@ public final class LiteralSpelling {
                         || t.type() == SqlType.Scalar.VARCHAR
                         || t.type() == SqlType.Scalar.TEMPORAL_TEXT
                         || t.type() == SqlType.Scalar.DECIMAL_TEXT
-                        || t.type() == SqlType.Scalar.LITERAL
                         || t.type() == SqlType.Scalar.JSON)) {
             return v;
         }
@@ -456,90 +454,6 @@ public final class LiteralSpelling {
                         new SqlExpr.StringLit(needle)),
                 new SqlExpr.IntLit(0));
     }
-
-    /** F10 slice 2 — the MIXED-NUMERIC carrier encoder: a literal
-     * collection whose elements are ≥2 DISTINCT numeric kinds rebuilds
-     * as an array of pure-literal spellings (each element carries its
-     * own kind; the DOUBLE promotion that erased Integer 1 into 1.0
-     * dies here). Null = not this shape (homogeneous, non-numeric,
-     * non-literal) — the caller keeps its lane. */
-    static @com.legend.base.Nullable SqlExpr mixedNumericArray(
-            com.legend.compiler.spec.typed.TypedSpec spec, SqlExpr lowered) {
-        if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)
-                || !(lowered instanceof SqlExpr.ArrayLit la)
-                || c.elements().size() < 2
-                || la.elements().size() != c.elements().size()) {
-            return null;
-        }
-        java.util.List<SqlExpr> spelled =
-                new java.util.ArrayList<>(la.elements().size());
-        java.util.Set<Type> kinds = new java.util.HashSet<>();
-        for (int i = 0; i < c.elements().size(); i++) {
-            Type t = c.elements().get(i).info().type();
-            Type kind = t instanceof Type.PrecisionDecimal
-                    ? Type.Primitive.DECIMAL : t;
-            if (kind != Type.Primitive.INTEGER && kind != Type.Primitive.FLOAT
-                    && kind != Type.Primitive.DECIMAL) {
-                return null;
-            }
-            kinds.add(kind);
-            SqlExpr lit = literal(la.elements().get(i), kind);
-            if (lit == null) {
-                return null;
-            }
-            spelled.add(lit);
-        }
-        if (kinds.size() < 2) {
-            return null;
-        }
-        // the construction-site MARK (the sort arm's idiom): the tree
-        // CARRIES the spelling contract — Array(LITERAL), physically
-        // VARCHAR[], an identity cast; list-less backends strip it at
-        // render. Without it the label knew what the tree did not (the
-        // 2x LITERAL<>VARCHAR census rows — flip adjudication).
-        return new SqlExpr.Cast(new SqlExpr.ArrayLit(spelled),
-                new com.legend.sql.SqlType.Array(
-                        com.legend.sql.SqlType.Scalar.LITERAL));
-    }
-
-    /** The spelling->PRINT projection of a LITERAL-labeled text, in SQL
-     * (the burn-down doctrine — a TRANSFORM, never an inversion to
-     * raw): quoted strings unescape and unquote, %-temporals strip the
-     * mark, every other kind's print IS its spelling (bare ints,
-     * pointed floats, D-decimals, bools). First-byte dispatch is
-     * grammar-driven on a LABELED wire — the six spellings are
-     * first-byte disjoint BY DESIGN (the banned version ran on
-     * unlabeled text). ONE recipe for every print consumer:
-     * pureToString's Any arm, format's spelled-argument slots, and the
-     * makeString join family (M4 §2R — the three residual-row
-     * witnesses). */
-    static SqlExpr printForm(SqlExpr x) {
-        SqlExpr txt = new SqlExpr.Cast(x,
-                PureSql.type(Type.Primitive.STRING));
-        SqlExpr body = SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                new SqlExpr.IntLit(2),
-                SqlExpr.Call.of(SqlFn.MINUS,
-                        SqlExpr.Call.of(SqlFn.LENGTH, txt),
-                        new SqlExpr.IntLit(2)));
-        SqlExpr unesc = SqlExpr.Call.of(SqlFn.REPLACE,
-                SqlExpr.Call.of(SqlFn.REPLACE, body,
-                        new SqlExpr.StringLit("\\'"),
-                        new SqlExpr.StringLit("'")),
-                new SqlExpr.StringLit("\\\\"),
-                new SqlExpr.StringLit("\\"));
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                new SqlExpr.StringLit("'")),
-                        unesc),
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                new SqlExpr.StringLit("%")),
-                        SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                                new SqlExpr.IntLit(2)))),
-                txt);
-    }
-
     // unspell + unspellMarked (the STRUCTURAL INVERSE pair) DELETED
     // (spell-debt burn-down 2026-08-24): their three consumers (the
     // equality unspell-one-side arm, format's decomposition, the

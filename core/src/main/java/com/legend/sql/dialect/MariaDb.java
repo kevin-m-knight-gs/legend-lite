@@ -198,7 +198,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case BOOLEAN, INTEGER, BIGINT -> "SIGNED";
             case HUGEINT -> "DECIMAL(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
+            case VARCHAR, JSON, TEMPORAL_TEXT -> "CHAR";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
@@ -1116,7 +1116,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
             case JSON -> "JSON";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
+            case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
         };
     }
 
@@ -1141,7 +1141,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     + " FALSE WHEN 'false' THEN FALSE END)");
         }
         if (t instanceof SqlType.Decimal || t instanceof SqlType.Scalar s && s != SqlType.Scalar.VARCHAR
-                && s != SqlType.Scalar.LITERAL && s != SqlType.Scalar.TEMPORAL_TEXT
+                && s != SqlType.Scalar.TEMPORAL_TEXT
                 && s != SqlType.Scalar.DECIMAL_TEXT) {
             String type = t instanceof SqlType.Decimal d ? columnType(d) : switch ((SqlType.Scalar) t) {
                 case INTEGER, BIGINT -> "SIGNED";
@@ -1150,7 +1150,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 case DATE -> "DATE";
                 case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
                 case TIME -> "TIME(6)";
-                case BOOLEAN, JSON, VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
+                case BOOLEAN, JSON, VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
             };
             return w -> w.append("CAST(").piece(text).append(" AS " + type + ")");
         }
@@ -1657,11 +1657,7 @@ public class MariaDb extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself, as the scalar cast below writes it (LITERAL is VARCHAR
-            // physically): the mixed sort's ordered ids (2026-10-13, PR #34's review: element-wise, it wrote the
-            // aggregate twice)
-            if (from == null || from.equals(arr.element())
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (from == null || from.equals(arr.element())) {
                 return writer.expr(v, 0);
             }
             // element-wise
@@ -1671,7 +1667,7 @@ public class MariaDb extends AnsiSqlRenderer {
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
@@ -1683,10 +1679,10 @@ public class MariaDb extends AnsiSqlRenderer {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON (DuckDB's
         // CAST(json AS VARCHAR) keeps a string's quotes)
         boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-        if ((to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) && !member) {
+        if (to == SqlType.Scalar.VARCHAR && !member) {
             return jsonAsText(w -> w.expr(v, 0));
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return w -> w.append("(CASE WHEN JSON_TYPE(").expr(v, 0).append(") = 'STRING' THEN JSON_UNQUOTE(")
                     .expr(v, 0).append(") ELSE ").piece(jsonAsText(x -> x.expr(v, 0))).append(" END)");
         }
@@ -1722,7 +1718,7 @@ public class MariaDb extends AnsiSqlRenderer {
             return value;
         }
         return switch (s) {
-            case VARCHAR, LITERAL -> textOf(value, from);
+            case VARCHAR -> textOf(value, from);
             case BOOLEAN -> from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
                     ? w -> w.append("(CASE lower(").piece(value).append(") WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE")
                             .append(" END)")
@@ -2136,7 +2132,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
+            case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
         };
     }
 

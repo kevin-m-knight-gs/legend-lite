@@ -142,40 +142,6 @@ public final class CanonicalRenderSql {
         List<SqlExpr> canons = new java.util.ArrayList<>();
         int literalIndex = -1;
         String instFqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
-        if (valueCol.type() == SqlType.Scalar.LITERAL) {
-            // F10 slice 2 — the KIND-FAITHFUL CARRIER: the cell already
-            // IS the canonical pure-literal spelling (LiteralSpelling
-            // wrote it at construction), so the canon is the identity
-            // and the ONE candidate is the literal channel.
-            return new CanonWrap(new com.legend.sql.SqlSelect(
-                    List.of(new com.legend.sql.SqlSelect.Projection(
-                                    valueRef, valueCol.name(), valueCol),
-                            new com.legend.sql.SqlSelect.Projection(
-                                    new SqlExpr.Cast(valueRef,
-                                            SqlType.Scalar.VARCHAR),
-                                    "__canon0",
-                                    new com.legend.sql.OutputCol("__canon0",
-                                            SqlType.Scalar.VARCHAR, true))),
-                    false,
-                    new com.legend.sql.SqlSource.Subselect(plan, "side",
-                            null),
-                    null, List.of(), null, null,
-                    canonicalOrder
-                            ? List.of(new com.legend.sql.SqlSelect.SortKey(
-                                    new SqlExpr.Cast(valueRef,
-                                            SqlType.Scalar.VARCHAR),
-                                    true, null, null))
-                            : List.of(),
-                    null, null,
-                    List.of(valueCol, new com.legend.sql.OutputCol(
-                            "__canon0", SqlType.Scalar.VARCHAR, true))),
-                    List.of(t),
-                    rootInfo.multiplicity().requireBounded("canon side")
-                            .upper() == null
-                            || rootInfo.multiplicity()
-                                    .requireBounded("canon side").upper() > 1,
-                    0, null);
-        }
         boolean jsonCol = valueCol.type() == SqlType.Scalar.JSON;
         if (jsonCol || (t instanceof Type.ClassType anyCt
                 && com.legend.compiler.element.type.PlatformTypes
@@ -1000,7 +966,7 @@ public final class CanonicalRenderSql {
     /**
      * The canon of a tagged root (a mixed selection's winner, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the
      * literal spelling of the slot the tag names, each slot by its own kind -- the one candidate is the literal
-     * channel, as a LITERAL-carried root's is. The root's columns (the tag and its slots) ride through.
+     * channel. The root's columns (the tag and its slots) ride through.
      */
     private static CanonWrap taggedCanon(com.legend.sql.SqlQuery plan, SqlType.Tagged tg, Type t,
             com.legend.compiler.element.type.ExprType rootInfo, boolean canonicalOrder) {

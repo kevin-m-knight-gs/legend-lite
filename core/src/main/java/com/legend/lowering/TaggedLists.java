@@ -69,19 +69,17 @@ final class TaggedLists {
     static SqlExpr sameListByKinds(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
         List<SqlExpr> conditions = new ArrayList<>();
         conditions.add(SqlExpr.Call.of(SqlFn.EQUAL, size(a), size(b)));
-        java.util.LinkedHashSet<String> kinds = new java.util.LinkedHashSet<>();
-        for (SqlExpr.TaggedList.Channel ch : a.channels()) {
-            kinds.add(kindFamily(ch.kind()));
-        }
-        for (SqlExpr.TaggedList.Channel ch : b.channels()) {
-            kinds.add(kindFamily(ch.kind()));
-        }
-        for (String kind : kinds) {
-            SqlExpr.TaggedList.Channel ca = channelOfFamily(a, kind);
-            SqlExpr.TaggedList.Channel cb = channelOfFamily(b, kind);
-            SqlType slot = ca != null ? ca.slot() : java.util.Objects.requireNonNull(cb).slot();
-            SqlExpr va = ca != null ? ca.values() : nullChannel(a, slot);
-            SqlExpr vb = cb != null ? cb.values() : nullChannel(b, slot);
+        // every (kind, slot) either side holds, exactly: a Decimal at another scale, a DateTime at another written
+        // precision, is another kind (Pure's BigDecimal and PureDate equality: the scale, the subsecond text), so
+        // its values meet an all-NULL array (the L1 audit, 2026-10-29)
+        java.util.LinkedHashSet<SqlType.Tagged.Slot> slots = new java.util.LinkedHashSet<>();
+        slots.addAll(a.slots());
+        slots.addAll(b.slots());
+        for (SqlType.Tagged.Slot slot : slots) {
+            SqlExpr.TaggedList.Channel ca = channelOfSlot(a, slot);
+            SqlExpr.TaggedList.Channel cb = channelOfSlot(b, slot);
+            SqlExpr va = ca != null ? ca.values() : nullChannel(a, slot.type());
+            SqlExpr vb = cb != null ? cb.values() : nullChannel(b, slot.type());
             conditions.add(SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.IS_DISTINCT_FROM, va, vb)));
         }
         SqlExpr all = conditions.get(0);
@@ -91,18 +89,30 @@ final class TaggedLists {
         return all;
     }
 
-    private static String kindFamily(String kind) {
-        return MixedEncoding.writtenDigits(kind) != null ? "DateTime" : kind;
-    }
-
-    private static SqlExpr.TaggedList.@com.legend.base.Nullable Channel channelOfFamily(SqlExpr.TaggedList tl,
-            String family) {
+    private static SqlExpr.TaggedList.@com.legend.base.Nullable Channel channelOfSlot(SqlExpr.TaggedList tl,
+            SqlType.Tagged.Slot slot) {
         for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
-            if (kindFamily(ch.kind()).equals(family)) {
+            if (ch.kind().equals(slot.kind()) && ch.slot().equals(slot.type())) {
                 return ch;
             }
         }
         return null;
+    }
+
+    /** The positions whose element is PRESENT: a literal collection with an element that may be empty
+     *  ({@code [$optional, 'a']}, Pure's collection holds no empties) keeps the positions whose tagged channel holds
+     *  a value (the L1 audit, 2026-10-29: the empty element was a position holding NULL). */
+    static SqlExpr presentPositions(SqlExpr.TaggedList tl) {
+        String p = "_tlq";
+        SqlExpr pos = SqlExpr.Column.derived(null, p);
+        List<SqlExpr.Case.When> whens = new ArrayList<>(tl.channels().size());
+        for (int k = 0; k < tl.channels().size(); k++) {
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(pos), new SqlExpr.IntLit(k + 1)),
+                    SqlExpr.Call.of(SqlFn.IS_NOT_NULL, tl.channelAt(k, pos))));
+        }
+        return SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
+                new SqlExpr.Lambda(List.of(p), SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null),
+                        new SqlExpr.BoolLit(false))));
     }
 
     /** An all-NULL channel of {@code slot} over the list's positions: a literal list's n NULLs; a list over its
@@ -214,13 +224,19 @@ final class TaggedLists {
     }
 
     /** A tagged value equals a value of the static {@code kind}: its tag names that kind's candidate, whose value
-     *  equals it; no candidate of the kind, never. */
-    static SqlExpr sameElement(SqlExpr.Tagged x, @com.legend.base.Nullable String kind, SqlExpr value) {
+     *  equals it; no candidate of the kind, never. A value of no static kind ({@code valueType} Number, Any, Date:
+     *  a kind only its runtime value names, which Pure's {@code eq} reads and no channel does) is refused by name,
+     *  never answered false (the L1 audit, 2026-10-29). */
+    static SqlExpr sameElement(SqlExpr.Tagged x, @com.legend.base.Nullable String kind, SqlExpr value,
+            Type valueType) {
+        if (kind == null) {
+            throw new com.legend.error.NotImplementedException("a tagged value compared with a value of type "
+                    + valueType + ", whose kind only its runtime value names: not lowered");
+        }
         List<SqlExpr> arms = new ArrayList<>();
         for (int i = 0; i < x.candidates().size(); i++) {
             SqlExpr.Tagged.Candidate a = x.candidates().get(i);
-            if (kind == null || !(a.kind().equals(kind)
-                    || (kind.startsWith("DateTime") && a.kind().startsWith("DateTime")))) {
+            if (!a.kind().equals(kind)) {
                 continue;
             }
             arms.add(SqlExpr.Call.of(SqlFn.AND,
@@ -254,7 +270,8 @@ final class TaggedLists {
         SqlExpr differing = SqlExpr.Call.of(SqlFn.LIST_FILTER, a.positions(),
                 new SqlExpr.Lambda(List.of(p, i), SqlExpr.Call.of(SqlFn.NOT,
                         sameElement(a.element(SqlExpr.Column.derived(null, p)), kind,
-                                SqlExpr.Call.of(SqlFn.LIST_GET, other, SqlExpr.Column.derived(null, i))))));
+                                SqlExpr.Call.of(SqlFn.LIST_GET, other, SqlExpr.Column.derived(null, i)),
+                                MixedEncoding.kindType(kind)))));
         return SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, size(a),
                         SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Call.of(SqlFn.LIST_LENGTH, other),
@@ -302,8 +319,13 @@ final class TaggedLists {
      * needle's kind's and whose value there equals the needle; a kind the list has no channel for is a member of
      * nothing (Pure's equality never crosses kinds: {@code 1} is not {@code 1.0}, {@code '1'} is not {@code 1}).
      */
-    static SqlExpr contains(SqlExpr.TaggedList tl, @com.legend.base.Nullable String kind, SqlExpr needle) {
-        int k = kind == null ? -1 : MixedEncoding.channelOf(tl, kind);
+    static SqlExpr contains(SqlExpr.TaggedList tl, @com.legend.base.Nullable String kind, SqlExpr needle,
+            Type needleType) {
+        if (kind == null) {
+            throw new com.legend.error.NotImplementedException("a mixed list's membership of a value of type "
+                    + needleType + ", whose kind only its runtime value names: not lowered");
+        }
+        int k = MixedEncoding.channelOf(tl, kind);
         if (k < 0) {
             return new SqlExpr.BoolLit(false);
         }
@@ -315,6 +337,19 @@ final class TaggedLists {
                 SqlExpr.Call.of(SqlFn.GREATER,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
                                 new SqlExpr.Lambda(List.of(p), hit))),
+                        new SqlExpr.IntLit(0)),
+                new SqlExpr.BoolLit(false));
+    }
+
+    /** Whether the list holds the tagged value {@code needle} (a mixed selection's winner): a position whose element
+     *  is the same element ({@link #sameElement(SqlExpr.Tagged, SqlExpr.Tagged)}). */
+    static SqlExpr containsElement(SqlExpr.TaggedList tl, SqlExpr.Tagged needle) {
+        String p = "_tlp";
+        SqlExpr pos = SqlExpr.Column.derived(null, p);
+        return SqlExpr.Call.of(SqlFn.COALESCE,
+                SqlExpr.Call.of(SqlFn.GREATER,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
+                                new SqlExpr.Lambda(List.of(p), sameElement(tl.element(pos), needle)))),
                         new SqlExpr.IntLit(0)),
                 new SqlExpr.BoolLit(false));
     }

@@ -58,7 +58,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "DECIMAL(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case VARCHAR, TEMPORAL_TEXT -> "STRING";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "TIMESTAMP";
             case JSON -> "VARIANT";
