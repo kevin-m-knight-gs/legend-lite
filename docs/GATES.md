@@ -15505,3 +15505,12 @@ probes, its seeds and its static pivot: the session seam (`exec/Statements`) ans
    not send before. Not yet (B1b): the `Connection` in `ExecEnv` and `WrappedSide`, `ESTABLISHED`, `wireMemo`,
    `SystemDatabase.Route`, the transaction bracket, the test-data generator; the `java.sql` guard on the driver and the
    judges.
+
+## 2026-10-29 — B1a's gate, measured at df91f816
+
+The chain the B1a entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
+unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5);
+D33 names what they measure when they can.
