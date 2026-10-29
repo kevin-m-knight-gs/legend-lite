@@ -248,8 +248,10 @@ legend_java_library(
 legend_java_library(
     name = "driver",
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
+    # //json since 2026-10-29 (the doors, door 1): the body driver writes a graph fetch's objects as host rows, one per
+    # object of the array the database built, read as JSON nodes
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
+        "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
         ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",

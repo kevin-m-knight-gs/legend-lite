@@ -76,7 +76,14 @@ final class JudgePlans {
      *  ({@link TypedRows#statement}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
     static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
             BodyDriver.ExecEnv env) {
-        List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement, ExecutionPlan.TdsResult.Shape.RELATION);
+        return rowsPlan(statement, schema, env, ExecutionPlan.TdsResult.Shape.RELATION);
+    }
+
+    /** {@link #rowsPlan(SqlQuery, Type.RelationType, BodyDriver.ExecEnv)} in a result of {@code shape} (a value root's
+     *  streamed answer is a VALUE, as the product's plan says it; the doors, 2026-10-29). */
+    static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
+            BodyDriver.ExecEnv env, ExecutionPlan.TdsResult.Shape shape) {
+        List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement, shape);
         List<OutputCol> outs = statement.outputs();
         boolean anyByName = columns.stream().anyMatch(c -> outs.stream().anyMatch(o -> o.name().equals(c.name())));
         if (anyByName && columns.size() == outs.size()) {
@@ -88,8 +95,197 @@ final class JudgePlans {
                 }
             }
         }
-        return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, columns,
+        return new ExecutionPlan.TdsResult(shape, columns,
                 PlanMaker.sql(TypedRows.statement(statement), env.dialect(), target(env)));
+    }
+
+    /**
+     * The body's last statement's answer STREAMED to the caller's sink (the doors, 2026-10-29): the same plan the
+     * judges' side runs ({@link #rowsPlan}; a late-bound grid framed by the database's columns; a dynamic pivot's
+     * keyed plan), its typed rows through the plan runner to the writer, as the service's answer goes -- the
+     * product's rules, not the judges' canon ({@link #valueLane}'s trim and the collection's null cells are the
+     * judges' own); a graph fetch's objects read as one cell and written as host rows. The root's cardinality is
+     * held on the stream: a scalar root and a to-one reader ({@code toOne}) answer at most one row, a required root
+     * at least one -- the collected side's refusals ({@link #values}, {@code BodyDriver.enforceToOneReader}).
+     */
+    static void streamResult(BodyDriver.WrappedSide w, boolean toOne, BodyDriver.ExecEnv env,
+            Execution.Answer answer) {
+        ExprType info = w.shapeInfo();
+        PlanSessions.Source on = PlanSessions.of(w.session(), env.trace());
+        switch (w.shape()) {
+            case GRAPH -> host(new TypedSide.Graph(objects(w, env), info.type()), answer);
+            case TABULAR -> {
+                SqlQuery plan = w.plan();
+                Type.RelationType schema = Type.schemaView(info.type());
+                boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
+                if (lateBound) {
+                    plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(), on, target(env),
+                            w.session().state().wireTypes());
+                    schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
+                }
+                if (schema == null) {
+                    throw new IllegalStateException("TABULAR result without a relation root type: "
+                            + info.type().typeName());
+                }
+                schema = TypedRows.flat(schema);
+                SqlQuery framed = withFrames(plan, env);
+                ExecutionPlan.Node node;
+                if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
+                    com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
+                            com.legend.lowering.KeyedPivot.dynamic(framed),
+                            "a dynamic pivot side whose plan holds no such pivot");
+                    node = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
+                } else {
+                    node = rowsPlan(framed, schema, env);
+                }
+                stream(node, on, answer.of(ExecutionPlan.TdsResult.Shape.RELATION), toOne, 0, "", toOne);
+            }
+            case SCALAR, COLLECTION -> {
+                com.legend.compiler.element.type.Multiplicity.Bounded m = info.multiplicity()
+                        .requireBounded("result shape");
+                stream(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env,
+                        ExecutionPlan.TdsResult.Shape.VALUE), on, answer.of(ExecutionPlan.TdsResult.Shape.VALUE),
+                        w.shape() == com.legend.plan.ResultShape.SCALAR, m.lower(), m.text(), false);
+            }
+        }
+    }
+
+    /** A side the body driver holds in Java (the doors, door 1, 2026-10-29) written to the caller's sink through a batcher, as a host's rows are: its
+     *  columns as plan columns of the side's Pure types (no slot: the writer spells a cell by its carrier's own kind),
+     *  its rows the side's values; a graph side one row per object of its array (the reader's own reading). */
+    static void host(TypedSide side, Execution.Answer answer) {
+        com.legend.executionplan.ExecutionPlan.Multiplicity one = new com.legend.executionplan.ExecutionPlan
+                .Multiplicity(1, 1);
+        com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape;
+        java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns;
+        java.util.List<java.util.List<Object>> rows = new java.util.ArrayList<>();
+        switch (side) {
+            case TypedSide.Scalar s -> {
+                // the driver's Scalar(null) is Pure's [] (an empty optional value): no row, as the plan path answers
+                shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE;
+                columns = java.util.List.of(hostColumn("value", s.returnType().typeName(),
+                        new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1)));
+                if (s.value() != null) {
+                    rows.add(hostRow(s.value()));
+                }
+            }
+            case TypedSide.Collection c -> {
+                shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE;
+                columns = java.util.List.of(hostColumn("value", c.returnType().typeName(),
+                        new com.legend.executionplan.ExecutionPlan.Multiplicity(0, null)));
+                for (Object v : c.values()) {
+                    rows.add(hostRow(v));
+                }
+            }
+            case TypedSide.Tabular t -> {
+                shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION;
+                java.util.List<com.legend.executionplan.ExecutionPlan.Column> cs = new java.util.ArrayList<>();
+                for (com.legend.exec.Column c : t.columns()) {
+                    // the side's column carries the typer's multiplicity where the judge had one; one otherwise
+                    cs.add(hostColumn(c.name(), c.pureType().typeName(), c.multiplicity() == null ? one
+                            : com.legend.plan.PlanColumns.multiplicity(c.multiplicity())));
+                }
+                columns = cs;
+                for (com.legend.exec.Row r : t.rows()) {
+                    rows.add(new java.util.ArrayList<>(r.values()));
+                }
+            }
+            case TypedSide.Graph g -> {
+                shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS;
+                columns = java.util.List.of(hostColumn("json", "String", one));
+                com.legend.json.Json.Node parsed = com.legend.json.Json.parse(g.json());
+                if (!(parsed instanceof com.legend.json.Json.Arr items)) {
+                    throw new IllegalStateException("a graph side's JSON is an array of objects; got " + g.json());
+                }
+                for (com.legend.json.Json.Node item : items.items()) {
+                    rows.add(hostRow(com.legend.json.Json.toCompact(item)));
+                }
+            }
+        }
+        try {
+            com.legend.result.Batcher batcher = new com.legend.result.Batcher(columns, answer.of(shape),
+                    com.legend.result.Batcher.DEFAULT_CAPACITY);
+            batcher.start();
+            for (java.util.List<Object> row : rows) {
+                batcher.row(row);
+            }
+            batcher.end();
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    private static com.legend.executionplan.ExecutionPlan.Column hostColumn(String name, String type,
+            com.legend.executionplan.ExecutionPlan.Multiplicity multiplicity) {
+        return new com.legend.executionplan.ExecutionPlan.Column(name, type, multiplicity, null, null, null);
+    }
+
+    /** A row of one cell, which may be null (a list holding a null, which {@code List.of} refuses). */
+    private static java.util.List<Object> hostRow(@com.legend.base.Nullable Object cell) {
+        java.util.List<Object> row = new java.util.ArrayList<>(1);
+        row.add(cell);
+        return row;
+    }
+
+    /** {@code node}'s typed rows to {@code sink} through the plan runner, the root's cardinality held on the way. */
+    private static void stream(ExecutionPlan.Node node, PlanSessions.Source on, com.legend.result.ResultSink sink,
+            boolean atMostOne, long atLeast, String multiplicity, boolean toOneReader) {
+        try {
+            PlanRunner.stream(new ExecutionPlan(List.of(), node), Map.of(), on,
+                    new Cardinality(sink, atMostOne, atLeast, multiplicity, toOneReader));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** A sink that counts the rows on their way to {@code sink} and refuses, by the collected side's own words, a
+     *  scalar of more than one row, a required root of none, a to-one reader of other than one. */
+    private static final class Cardinality implements com.legend.result.ResultSink {
+        private final com.legend.result.ResultSink sink;
+        private final boolean atMostOne;
+        private final long atLeast;
+        private final String multiplicity;
+        private final boolean toOneReader;
+        private long rows;
+
+        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast, String multiplicity,
+                boolean toOneReader) {
+            this.sink = sink;
+            this.atMostOne = atMostOne;
+            this.atLeast = atLeast;
+            this.multiplicity = multiplicity;
+            this.toOneReader = toOneReader;
+        }
+
+        @Override
+        public void columns(List<ExecutionPlan.Column> columns) throws java.io.IOException {
+            sink.columns(columns);
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+            rows += batch.size();
+            if (atMostOne && rows > 1) {
+                throw new IllegalStateException(toOneReader
+                        ? "toOne() over a relation returned " + rows + " row(s) — the exactly-one contract"
+                                + " (engine reader semantics)"
+                        : "scalar-shaped result returned more than one row — the to-one contract was not enforced"
+                                + " upstream");
+            }
+            sink.batch(batch);
+        }
+
+        @Override
+        public void end() throws java.io.IOException {
+            if (toOneReader && rows != 1) {
+                throw new IllegalStateException("toOne() over a relation returned " + rows
+                        + " row(s) — the exactly-one contract (engine reader semantics)");
+            }
+            if (rows == 0 && atLeast >= 1) {
+                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + multiplicity);
+            }
+            sink.end();
+        }
     }
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in

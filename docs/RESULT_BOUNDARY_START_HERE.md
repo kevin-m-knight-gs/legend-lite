@@ -105,6 +105,7 @@ audit itself and what it found: the homework README §1.
   PCT or corpus pin flipped; the as-of test asserts the spec on every lane.
 - Doors 3, 4 and 5 (2026-10-29, D61; GATES, the doors 3-5 entry): the full local chain on the patch alone.
 - Door 2 (2026-10-29, D62; GATES, the door 2 entry): the full local chain on the patch alone.
+- Door 1 (2026-10-29, D63; GATES, the door 1 entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -645,8 +646,13 @@ a class that reaches `Statements` or a JDBC connection around it. The map (the d
 - **Door 2 built 2026-10-29** (the decisions log D62; GATES, the door 2 entry): the generator's temps and drops as
   effects, its read-backs as typed rows of the columns the database describes, the CSV's text columns as reported
   columns, the whole run under the TDG origin; no JDBC in `testdatagen` (the funnel tightened, the census shrunk).
-- **Door 1 next** (the last statement streamed; `ProgramReport` deleted), with the chain, the records and an
-  independent audit of the doors; then the decisions post.
+- **Door 1 built 2026-10-29** (the decisions log D63; GATES, the door 1 entry): a program's last statement streams
+  to the sink the caller hands for its shape (`Execution.Answer`); `ProgramReport` deleted, `TypedSide` off the
+  public surface; the service test runner on `PureV1Writer.objects` and the new `result/TdsObjectsWriter`; the twin's
+  `Program` on `Lean.Capturing`. Every door in the map is closed (a body's every statement the plan runner's;
+  nothing materialized past a public entry); the independent audit of the doors named three raw sends that remain
+  inside the chartered seams (the plan path's seeds, the server's fill, the MariaDB connector) and twelve findings,
+  folded as D64; the decisions post follows.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 
@@ -840,7 +846,7 @@ the user's. Where a row names a register id, the row's text holds the expression
 | D10 | LEAN's Float with an exponent: legend-pure's layout (`0.00000025`) or legend-engine's JSON (`2.5E-7`) | legend-pure's (the Float rule's shortest digits) |
 | D16 | an instance's text in CSV and `toString()` | the interpreter's (the PCT's reference): `@_` and a counter |
 | D30 | what the body driver keeps in Java (call frames, `assertError`, `$plan` navigation, `planToString`, `print`, the generator's fold) | keep as named residue (planning, carriage of an error, effects); the generator's JDBC on its session was door 2 of "the doors" (§4), CLOSED 2026-10-29 (D62): every statement of a run is the plan runner's |
-| D36 / D37 | `ProgramReport.last`: the one materialized side a public entry returns (the service test runner's) | stream the last statement to a sink the runner hands (an hour in `BodyDriver`); then delete `TypedSide` from the public surface |
+| D36 / D37 | `ProgramReport.last`: the one materialized side a public entry returns (the service test runner's) | CLOSED 2026-10-29 (door 1, D63): the last statement streams to the caller's sink; `ProgramReport` deleted; `TypedSide` off the public surface |
 | D51 | `Fold.conformValueEgress` (step 5's delete): add a written-digits fact at scalar roots and delete it, or keep it and strike the step | (a): the fact, then the delete |
 | D56 | switch the Python route and the tab to the new Arrow writer (changes the Python route's existing bytes: DuckDB's types to the plan's slots'; timestamp[us] to [ns]) | switch, with the bytes' change posted |
 | D57 (4) | a DAY under a TIMESTAMP column: the JSON route spells its day, the Arrow route refuses | refuse in both (a timestamp holds no day) |

@@ -32,14 +32,16 @@ final class BodyDriver {
      * resolved AST itself for each of three entries). {@code assertListener} observes every statement-root assert
      * verdict (the runner's scoring seam — judging stays here, in one place); {@code replayReferee} is the registered
      * SQL-replay referee (SQLTEXT charter §2 — same registration seam, same nullable carriage; production passes
-     * neither); the execute OPTIONS ride the environment and the result — no static slot. */
-    static @com.legend.base.Nullable TypedSide execute(TypedQuery typed,
+     * neither); the execute OPTIONS ride the environment and the result — no static slot. {@code answer}, when
+     * given, takes the body's last statement's answer as a stream ({@link Execution.Answer}: the doors, 2026-10-29;
+     * until then the last side came back materialized); the driver returns nothing. */
+    static void execute(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             com.legend.exec.Sessions.Session session,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
-            ExecuteOptions options) {
+            ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         SpecCompiler specs = typed.specs();
         java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());
@@ -62,10 +64,11 @@ final class BodyDriver {
                 || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
             com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
             ExecEnv tx = env;
-            return tx.session().inTransaction(
-                    () -> executeStatements(typedBody, new java.util.ArrayList<>(), specs, tx));
+            tx.session().inTransaction(() -> BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs,
+                    tx, answer));
+            return;
         }
-        return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
+        BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs, env, answer);
     }
 
     /** The K-phase execution environment: ONE ambient session, ONE
@@ -400,6 +403,25 @@ final class BodyDriver {
         // in the shared state the inliner touches, measured 2026-09-21, owed)
         return new PreparedValue(body, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
                 lets, null, null, null);
+    }
+
+    /** The body's LAST value statement answered to the caller's sink (the doors, 2026-10-29): a planned statement
+     *  streams through the plan runner as the service's answer would ({@link JudgePlans#streamResult}); a side the
+     *  driver computes (a staged let's rows, an adjudicated verdict, assertError's, a frame's) is written as host
+     *  rows ({@link JudgePlans#host}). Nothing materialized is handed back. */
+    static void answerValue(PreparedValue pv, SpecCompiler specs, Execution.Answer answer) {
+        if (pv.stagedInto() != null || pv.verdict() != null || pv.contextOwner() != null
+                || pv.forcedFrame() != null) {
+            TypedSide side = runValue(pv, specs, new java.util.ArrayDeque<>());
+            if (side != null) {
+                JudgePlans.host(side, answer);
+            }
+            return;
+        }
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
+                com.legend.exec.StatementOrigin.STATEMENT)) {
+            executeTyped(pv.body(), pv.env(), false, answer);
+        }
     }
 
     /** Run a prepared value statement: the run phase only. */
@@ -2503,10 +2525,22 @@ final class BodyDriver {
      *  itself). F13c: {@code identityLane} joins the identity lane (assert-condition sides). */
     static TypedSide executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env, boolean identityLane) {
+        return java.util.Objects.requireNonNull(executeTyped(body, env, identityLane, null),
+                "a statement with no answer wanted collects its side");
+    }
+
+    /** {@link #executeTyped(java.util.List, ExecEnv, boolean)} with the statement's answer, where {@code answer} is
+     *  given, STREAMED to it instead of collected (the body's last statement, the doors, 2026-10-29): a side the
+     *  prelude or a fold gave is written as host rows; a planned statement's rows go through the plan runner to the
+     *  sink ({@link JudgePlans#streamResult}), and null comes back. The answer is this statement's alone: nested
+     *  runs collect, as before. */
+    static @com.legend.base.Nullable TypedSide executeTyped(
+            java.util.List<TypedSpec> body, ExecEnv env, boolean identityLane,
+            Execution.@com.legend.base.Nullable Answer answer) {
         ModelContext ctx = env.ctx();
         Prelude p = prelude(body, env, null, identityLane);
         if (p.answered() != null) {
-            return p.answered();
+            return answered(p.answered(), answer);
         }
         body = p.body();
         env = p.plannedEnv();
@@ -2514,7 +2548,7 @@ final class BodyDriver {
         com.legend.compiler.element.type.ExprType declaredInfo = p.declaredInfo();
         com.legend.exec.TypedSide folded = LiteralFold.fold(root);
         if (folded != null) {
-            return folded;
+            return answered(folded, answer);
         }
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
             System.err.println("[resolved] " + body);
@@ -2532,10 +2566,22 @@ final class BodyDriver {
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
-        TypedSide res = JudgePlans.statementResult(wrapSide(plan, root,
-                collectionDeclared ? declaredInfo : null, null, env), env);
+        WrappedSide side = wrapSide(plan, root, collectionDeclared ? declaredInfo : null, null, env);
+        if (answer != null) {
+            JudgePlans.streamResult(side, toOneReader(root), env, answer);
+            return null;
+        }
+        TypedSide res = JudgePlans.statementResult(side, env);
         enforceToOneReader(root, res);
         return res;
+    }
+
+    /** {@code side} written to {@code answer} as host rows where an answer is wanted; the side either way. */
+    private static TypedSide answered(TypedSide side, Execution.@com.legend.base.Nullable Answer answer) {
+        if (answer != null) {
+            JudgePlans.host(side, answer);
+        }
+        return side;
     }
 
     /** ORCHESTRATION-HANDLE arms of {@link #executeTyped} (extracted at
@@ -2818,17 +2864,20 @@ final class BodyDriver {
      * covers scalar reads, this covers whole-TDS consumption and the
      * ZERO-row lower bound. */
     private static void enforceToOneReader(TypedSpec root, TypedSide res) {
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
-                && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
-                && !tw.args().isEmpty()
-                && com.legend.compiler.element.type.Type
-                        .isRelation(tw.args().get(0).info().type())
-                && res instanceof TypedSide.Tabular tab
-                && tab.rows().size() != 1) {
+        if (toOneReader(root) && res instanceof TypedSide.Tabular tab && tab.rows().size() != 1) {
             throw new IllegalStateException("toOne() over a relation returned "
                     + tab.rows().size() + " row(s) — the exactly-one contract"
                     + " (engine reader semantics)");
         }
+    }
+
+    /** Whether {@code root} is {@code toOne()} over a relation: its answer is exactly one row (engine reader
+     *  semantics), held on a collected side ({@link #enforceToOneReader}) and on a streamed one alike. */
+    static boolean toOneReader(TypedSpec root) {
+        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
+                && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
+                && !tw.args().isEmpty()
+                && com.legend.compiler.element.type.Type.isRelation(tw.args().get(0).info().type());
     }
 
     /**

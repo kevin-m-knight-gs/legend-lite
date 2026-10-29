@@ -16238,3 +16238,50 @@ own on the body's session, the fold's residue D30 named.
    the product job's unlaned-tests guard empty.
 3. **CI:** PR #80 runs every OS on the push.
 4. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The doors, 1: a program's last statement streamed to the caller's sink; ProgramReport deleted; the service test runner and the test twin on the boundary's writers
+
+Door 1 of the doors (the decisions log D63; the start page §4, "The doors"): the one materialized side a public entry
+returned (`Execution.ProgramReport.last`, D36/D37's open question).
+
+1. **Built:** `Execution.Answer` (`ResultSink of(Shape)`), `Execution.runProgram(..., answer)`, `ProgramReport`
+   DELETED, `TypedSide` off the public surface; `BodyDriver.execute` returns nothing, `BodyCompiler.execute(...,
+   answer)` answers the body's last value statement through `BodyDriver.answerValue` (a planned statement streams:
+   `executeTyped(body, env, identityLane, answer)`, `JudgePlans.streamResult` -- the judges' own plan, in the
+   product's VALUE or RELATION shape, a late-bound grid framed, a dynamic pivot keyed, through `PlanRunner.stream`;
+   a side the driver computes written as host rows, `JudgePlans.host`), a verdict as the last statement as host rows
+   at the end; `JudgePlans.Cardinality` holds the root's cardinality on the stream with the collected side's words.
+   The service test runner reads its answer from `PureV1Writer.objects` (a graph fetch) and the new
+   `result/TdsObjectsWriter` (legend-engine's `PURE_TDSOBJECT`: objects keyed by the presented column name, cells
+   `CellText.engine`, a to-one value as its one cell), parsing the text back as the tree its assertions compare;
+   its `serialize` and `cell` are gone. The twin's `Program` streams to `Lean.Capturing.of(shape)` and reads back
+   through the one reader (`Lean.Result.of`); `Lean.of(TypedSide)` retired. Pins, dated: the result register gains
+   `TdsObjectsWriter.java`; the size pins as measured.
+2. **Found by the chain and by the audit (the streamed answer against the collected side's canon):** no lane moved
+   (the verdicts are the judges' collected sides, untouched; the twin's `Program` tests read the streamed answer and
+   passed unchanged; the corpus's rosters and outside-body registers as before). The independent audit of the doors
+   (2026-10-29; folded as D64) named where the stream applies the product's rules and the collected side applied the
+   judges': (1) no `valueLane` trim of a timestamp's text; (2) a null cell under a root that is not TDSNull, Any or a
+   variant is written as `null`, where the collected side walled it ("NULL cell reached COLLECTION egress"), so the
+   second lower-bound count (values below the bound after dropped cells) has nothing to count; (3) a scalar-shaped root
+   whose one cell arrives as the list wire is written as that one list cell, where the collected side reshaped it into
+   a collection of the list's elements; (4) `ScanOrder.stabilize` applies at the assert boundary alone, so never to an
+   answer; (5) a scalar root of more than one row is refused when its second row arrives, after its first was written,
+   where the collected side refused before writing anything. None is reached by a lane; each is the product's rule on
+   the product's answer, ruled in D64. Found by the audit and fixed in the fold (D64, its own chain): an effect
+   statement that ENDS the body had its value written before its script ran.
+3. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178, 1 skipped; the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12; the 21 PCT
+   lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's
+   segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`; the product
+   job's unlaned-tests guard empty.
+4. **CI:** the run at `7b060530` (doors 3-5, run 40931158083) was CANCELLED by the door 2 push nine minutes
+   later (its `gates green` summary job then reports failure, as the `1e3065d4` run's did when the records push
+   superseded it: a cancellation, not a red lane); `908d726f` (door 2, run 40935984214) GREEN on every OS at
+   19:36Z, `gates green` passing, 52 check runs none failed (linux, linux-arm, macOS, Windows: core, checks, the
+   corpus lanes, PCT on H2, DuckDB, channel B and Postgres, datacube, warehouse, product, stress, sdlc, ui, the
+   parser equivalence); this push runs every OS in turn.
+5. **Not measured:** the MariaDB lane (CI alone).

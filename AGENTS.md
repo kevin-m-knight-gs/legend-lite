@@ -26,9 +26,12 @@
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
 > (JDBC only at the chartered seams),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
-> statement a session runs is the plan runner's: the probes, the seeds and
-> the system store's rows are plan statements it sends -- "the doors",
-> 2026-10-29) and
+> statement a BODY's session runs is the plan runner's: the probes, the
+> seeds and the system store's rows are plan statements it sends -- "the
+> doors", 2026-10-29; inside the chartered seams three raw sends remain,
+> named by the doors' audit, D64: the plan path's seeds
+> `PlanSessions.runSetup`, the server's fill `ConnectionResolver.filled`,
+> the MariaDB connector's own session reads) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the
@@ -153,7 +156,7 @@ user-visible error carries one of these eight.
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
-| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's side (`exec/TypedSide`) | STRICT |
+| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product

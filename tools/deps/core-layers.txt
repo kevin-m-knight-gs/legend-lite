@@ -99,7 +99,9 @@ execution_plan	base json model sql
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
+# 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
+# body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
 test	base compiler driver error exec execution_plan json model planner protocol result sql values
 saved_queries	base json

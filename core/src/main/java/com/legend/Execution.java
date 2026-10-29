@@ -126,36 +126,52 @@ public final class Execution {
      * version, the session's setup run once: {@link #dialectOf}), every assert's verdict reported to {@code listener}
      * as it is judged (one event each, in statement order; a failure is raised after its report), the SQL-text
      * referee {@code referee} consulted where an assert carries a golden text (the harnesses' registration seam;
-     * production passes neither), nothing materialized returned but the last statement's side for a serializer
-     * ({@link ProgramReport}). The session is closed when the program ends (the source's lease: nothing for a caller's
-     * own, {@link com.legend.exec.Sessions#given}).
+     * production passes neither), nothing materialized returned: the last statement's answer, where a caller wants
+     * it, streams to the sink the caller hands for its shape ({@link Answer}; the doors, 2026-10-29: until then the
+     * last side came back materialized, {@code ProgramReport.last}). The session is closed when the program ends
+     * (the source's lease: nothing for a caller's own, {@link com.legend.exec.Sessions#given}).
      */
-    public static ProgramReport runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+    public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            return runProgram(typed, runtimeFqn, session, listener, referee, options);
+            runProgram(typed, runtimeFqn, session, listener, referee, options, answer);
         }
     }
 
     /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.AssertListener,
-     *  com.legend.exec.SqlReplayReferee, ExecuteOptions)} on a session the caller holds and keeps (the old door's
-     *  connection): checked, its dialect decided, the body driver run on it; the one place a program's session meets
-     *  its JDBC connection. */
-    static ProgramReport runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Session session, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
+     *  com.legend.exec.SqlReplayReferee, ExecuteOptions, Answer)} with no answer wanted: the body's last statement
+     *  runs as every other and answers nothing to anyone (the corpus's bodies, whose verdicts are the listener's). */
+    public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
             com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
-        ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
-        return new ProgramReport(BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee,
-                options));
+        runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
-    /** What a program leaves behind: its last statement's side, collected and typed as the judges' sides are
-     *  ({@link com.legend.exec.TypedSide}; the service test runner serializes it,
-     *  nothing else reads it), or null for a body whose last statement answers nothing. The verdicts are the
-     *  listener's, one event each; a program reports nothing else. */
-    public record ProgramReport(com.legend.exec.@com.legend.base.Nullable TypedSide last) {
+    /** Where a program's last statement answers: the sink for its shape, made once the shape is known (a relation,
+     *  a value of one column, a graph fetch's objects) -- a writer at the boundary, as a product answer's
+     *  ({@link #run}'s {@code sinkOf}). The body driver streams a planned statement's typed rows through the plan
+     *  runner to it; an answer it holds in Java (a host constant the prelude gave, a verdict, a staged let's rows, a
+     *  graph fetch's objects read as one cell) is written through a batcher as a host's rows are. */
+    @FunctionalInterface
+    public interface Answer {
+        com.legend.result.ResultSink of(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape);
+    }
+
+    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.AssertListener,
+     *  com.legend.exec.SqlReplayReferee, ExecuteOptions, Answer)} on a session the caller holds and keeps (the old
+     *  door's connection): checked, its dialect decided, the body driver run on it; the one place a program's
+     *  session meets its JDBC connection. A program leaves nothing behind: its verdicts are the listener's, one
+     *  event each, its last statement's answer the sink's ({@code ProgramReport}, the one materialized side a public
+     *  entry returned, went 2026-10-29 with the doors). */
+    static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.exec.Sessions.Session session, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            @com.legend.base.Nullable Answer answer) {
+        ModelContext ctx = typed.context();
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
+        BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
     }
 }

@@ -788,7 +788,11 @@ class JavaEvalLedgerTest {
             // (CsvSeed.planned, PlanRunner.setUp, the referee's recorder as the runner's listener), the environment's
             // plan-sessions and target accessors in place of its statements accessor, the transaction bracket on the
             // session -- plumbing to the one seam, nothing evaluated; exec.SetupRunner deleted with it
-            Map.entry("core/src/main/java/com/legend/BodyDriver.java", 2282),
+            // 2282 -> 2313 (2026-10-29, the doors, door 1): the body's last value statement answered to the caller's sink
+            // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
+            // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
+            // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
+            Map.entry("core/src/main/java/com/legend/BodyDriver.java", 2313),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1493,7 +1497,12 @@ class JavaEvalLedgerTest {
                     "ArrowWriter.java",
                     // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
                     // slot index and the slot's carrier, a record of two fields and nothing computed
-                    "TaggedCell.java");
+                    "TaggedCell.java",
+                    // legend-engine's PURE_TDSOBJECT serialization (the doors, 2026-10-29; D63): the service test
+                    // runner's answer as a writer at the boundary -- objects keyed by the presented column name, each
+                    // cell legend-engine's token (CellText.engine); a to-one value as its one cell; spells, decides
+                    // nothing
+                    "TdsObjectsWriter.java");
 
     /** The other funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen may touch JDBC

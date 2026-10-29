@@ -502,6 +502,14 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-29, the doors, 1** (the decisions log D63; GATES, the door 1 entry): a program's last statement streams
+  to the sink the caller hands for its shape; `Execution.ProgramReport` deleted, `TypedSide` off the public surface;
+  the service test runner reads its answer from the boundary's writers (`PureV1Writer.objects`, the new
+  `TdsObjectsWriter`), the twin's `Program` from `Lean.Capturing`. Every door in the map is closed: a body's every
+  statement is the plan runner's, and nothing materialized leaves a public entry. Three raw sends remain inside the
+  chartered seams, named by the doors' audit (D64): the plan path's seeds (`PlanSessions.runSetup`), the server's
+  fill of a held database (`ConnectionResolver.filled`), the MariaDB connector's own session reads. Next: the
+  audit's fold (D64), the decisions post.
 - **2026-10-29, the doors, 2** (the decisions log D62; GATES, the door 2 entry): the test-data generator on plans --
   its temps and drops as effects, its read-backs as typed rows of the columns the database describes, the CSV's
   text columns as reported columns; `testdatagen` holds no JDBC (the funnel tightened, the census shrunk). Next:

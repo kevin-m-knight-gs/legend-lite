@@ -123,6 +123,13 @@ class CodeShapeGuardrailTest {
             // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
             "ArrowWriter.encoders",
             "PureV1Writer.order", "PureV1Writer.rows",
+            // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
+            // columns as announced, whether the one value column is to-one, the row count for the comma and the
+            // to-one refusal
+            "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
+            // the streamed answer's cardinality sink (JudgePlans.Cardinality, the doors, door 1, 2026-10-29): the rows
+            // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
+            "JudgePlans.rows",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

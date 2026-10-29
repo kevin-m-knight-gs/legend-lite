@@ -52,7 +52,16 @@ public final class BodyCompiler {
      * pending script is sent before it folds. The body's value is its last statement's. */
     static @com.legend.base.Nullable TypedSide execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env0) {
-        Segments seg = new Segments(env0, specs);
+        return execute(stmts, letPrefix, specs, env0, null);
+    }
+
+    /** {@link #execute(List, List, SpecCompiler, BodyDriver.ExecEnv)} with the body's last statement's answer, where
+     *  {@code answer} is given, streamed to the caller's sink as it runs ({@link BodyDriver#answerValue}; the doors,
+     *  2026-10-29) and nothing collected for it: null comes back; a verdict as the last statement is written as host
+     *  rows at the end. Every other statement runs as before. */
+    static @com.legend.base.Nullable TypedSide execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer) {
+        Segments seg = new Segments(env0, specs, answer);
         Map<String, BodyDriver.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         // the staged lets' temporary tables (Pure.Lite.STAGE), dropped once the body has run
@@ -98,7 +107,7 @@ public final class BodyCompiler {
                     TypedSpec rows = sc.args().get(0);
                     BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
                             rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
-                    seg.value(pv);
+                    seg.value(pv, false);
                     staged.add(table);
                     letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
                             BodyDriver.storeOf(pv.body(), seg.env()), let.info()));
@@ -161,11 +170,18 @@ public final class BodyCompiler {
             if (pv.verdict() != null && seg.batch != null) {
                 nameRows(seg.fragments, seg.batch, rowsBefore, com.legend.compiler.spec.typed.Calls.calleeOf(bare), i + 1);
             }
-            seg.value(pv);
+            seg.value(pv, last);
         }
         seg.closeEffects();
         seg.closeVerdicts();
         BodyDriver.dropStaged(env0, staged);
+        if (answer != null) {
+            // a body whose last statement was a verdict (or answered nothing that streamed): its side as host rows
+            if (seg.last != null) {
+                JudgePlans.host(seg.last, answer);
+            }
+            return null;
+        }
         return seg.last;
     }
 
@@ -200,11 +216,26 @@ public final class BodyCompiler {
         private @com.legend.base.Nullable TypedSide last;
         private @com.legend.base.Nullable TypedSide pendingVerdict;
         private boolean lastIsValue;
+        /** Where the body's last value statement answers, when a caller wants it (the doors, 2026-10-29). */
+        private final Execution.@com.legend.base.Nullable Answer answer;
+        /** The deferred value that is the body's last statement, to answer when its segment closes. */
+        private BodyDriver.@com.legend.base.Nullable PreparedValue answers;
 
-        Segments(BodyDriver.ExecEnv env0, SpecCompiler specs) {
+        Segments(BodyDriver.ExecEnv env0, SpecCompiler specs, Execution.@com.legend.base.Nullable Answer answer) {
             this.env0 = env0;
             this.specs = specs;
+            this.answer = answer;
             this.batch = AssertVerdicts.databaseMode(env0) ? BodyDriver.newVerdictBatch(env0) : null;
+        }
+
+        /** {@code pv} run: answered to the caller's sink where it is the body's last statement and an answer is
+         *  wanted (nothing collected: null), collected otherwise. */
+        private @com.legend.base.Nullable TypedSide run(BodyDriver.PreparedValue pv, boolean answersTheBody) {
+            if (answersTheBody && answer != null) {
+                BodyDriver.answerValue(pv, specs, answer);
+                return null;
+            }
+            return BodyDriver.runValue(pv, specs, new java.util.ArrayDeque<>());
         }
 
         BodyDriver.ExecEnv env() {
@@ -221,12 +252,15 @@ public final class BodyCompiler {
             lastIsValue = false;
         }
 
-        void value(BodyDriver.PreparedValue pv) {
+        void value(BodyDriver.PreparedValue pv, boolean answersTheBody) {
             if (batch == null) {
                 // the host judge: no deferral anywhere — the value runs now, in walk order
-                last = BodyDriver.runValue(pv, specs, new java.util.ArrayDeque<>());
+                last = run(pv, answersTheBody);
             } else {
                 values.add(pv);
+                if (answersTheBody) {
+                    answers = pv;
+                }
             }
             lastIsValue = true;
         }
@@ -261,7 +295,7 @@ public final class BodyCompiler {
             TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
             BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
                     stmt, bare, letPrefix, execFrames, specs, sinkEnv);
-            last = BodyDriver.runValue(pv, specs, new java.util.ArrayDeque<>());
+            last = run(pv, i == stmts.size() - 1);
             lastIsValue = true;
         }
 
@@ -284,9 +318,10 @@ public final class BodyCompiler {
          * raises); a fresh batch opens for the next segment. */
         void closeVerdicts() {
             for (BodyDriver.PreparedValue pv : values) {
-                last = BodyDriver.runValue(pv, specs, new java.util.ArrayDeque<>());
+                last = run(pv, pv == answers);
             }
             values.clear();
+            answers = null;
             if (batch != null) {
                 batch.fragments(fragments);
                 AssertVerdicts.flush(batch, env());

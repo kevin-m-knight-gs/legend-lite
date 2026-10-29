@@ -87,8 +87,12 @@ public final class Program {
                         ? lf.body() : List.of(parsed);
         com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(statements,
                 new com.legend.model.ImportScope(List.of()), ctx);
-        Execution.ProgramReport report = Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime,
-                Sessions.given(c), listener, null, options);
-        return new Report(List.copyOf(verdicts), report.last() == null ? null : Lean.of(report.last()));
+        // the body's last statement streams to the twin's capturing sink (lite's JSON rows), read back by the one
+        // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
+        java.io.StringWriter out = new java.io.StringWriter();
+        Lean.Capturing sink = new Lean.Capturing(out);
+        Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, Sessions.given(c), listener, null,
+                options, sink::of);
+        return new Report(List.copyOf(verdicts), sink.answered());
     }
 }

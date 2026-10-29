@@ -89,14 +89,29 @@ public final class Lean {
         return Result.of(plan.answerShape(), sink.columns, out.toString());
     }
 
-    /** The JSON rows writer with the columns the runner handed it kept: what the plan that RAN names and types. */
-    private static final class Capturing implements ResultSink {
+    /** The JSON rows writer with the columns the runner handed it kept: what the plan that RAN names and types; a
+     *  program's answer the same way, its shape as the body driver decided it ({@link Program}; the doors,
+     *  2026-10-29). */
+    static final class Capturing implements ResultSink {
         private final StringWriter out;
         private JsonRowsWriter writer;
         private List<ExecutionPlan.Column> columns = List.of();
+        private ExecutionPlan.TdsResult.@com.legend.base.Nullable Shape shape;
 
         Capturing(StringWriter out) {
             this.out = out;
+        }
+
+        /** The sink for a program's answer of {@code shape} ({@link Execution.Answer}). */
+        ResultSink of(ExecutionPlan.TdsResult.Shape shape) {
+            this.shape = shape;
+            writer = new JsonRowsWriter(out, shape);
+            return this;
+        }
+
+        /** The answer read back, once the body has answered; null for a body whose last statement answered nothing. */
+        @com.legend.base.Nullable Result answered() {
+            return shape == null ? null : Result.of(shape, columns, out.toString());
         }
 
         ResultSink of(ExecutionPlan plan) {
@@ -242,13 +257,15 @@ public final class Lean {
     }
 
     /**
-     * The judges' collected side ({@code TypedSide}; {@code ExecutionResult} until track D renamed it) read
-     * through the same reader: for a body only the program entry runs (a read of the system metamodel store, which
-     * the plan path does not route; a DDL native; a staged let; an assert body) -- {@link Program}. A scalar or a
-     * collection is a VALUE answer of one column {@code value}; a relation a RELATION answer; a graph fetch an OBJECTS
-     * answer whose text is the objects' JSON array.
+     * A program's answer ({@link Program}: a body only the program entry runs -- a read of the system metamodel
+     * store, which the plan path does not route; a DDL native; a staged let; an assert body) comes through the SAME
+     * writer and reader as a query's: the body driver streams its last statement to the capturing sink
+     * ({@link Capturing#of}; the doors, 2026-10-29). Until then the driver's collected side ({@code TypedSide}) was
+     * re-read here by rules of its own: a scalar or a collection as a VALUE answer of one column {@code value}, a
+     * relation a RELATION answer, a graph fetch an OBJECTS answer -- the body driver's host rows say the same now.
      */
-    public static Result of(com.legend.exec.TypedSide side) {
+    @Deprecated(forRemoval = true)
+    static Result ofCollectedSide(com.legend.exec.TypedSide side) {
         ExecutionPlan.Multiplicity one = new ExecutionPlan.Multiplicity(1, 1);
         // the driver's Scalar is a to-one value (its null Pure's []), its Collection a to-many one
         ExecutionPlan.Multiplicity optional = new ExecutionPlan.Multiplicity(0, 1);
