@@ -3492,11 +3492,22 @@ public final class Lowerer {
             // COLLECTION-VALUED relation nodes in scalar position (the
             // list encodings; relation-typed sources take relation()).
             // C1: a scalar-stamped source conforms by EMISSION (asList).
-            case TypedFilter f when !Type.relationValued(f.source().info()) ->
-                    SqlExpr.Call.of(SqlFn.LIST_FILTER,
-                            PureSql.asList(scalar(f.source(), columns),
-                                    Stamps.isMany(f.source())),
-                            scalar(f.predicate(), columns));
+            case TypedFilter f when !Type.relationValued(f.source().info()) -> {
+                SqlExpr src = scalar(f.source(), columns);
+                SqlExpr.TaggedList mixed = Scalars.asTaggedList(f.source(), src);
+                if (mixed != null && f.predicate().parameters().size() == 1) {
+                    // a mixed list (track L; the L2 audit, 2026-10-29): the predicate over the element at each
+                    // position, its parameter the element there (LambdaBinding.mapElemResolver)
+                    String param = f.predicate().parameters().get(0);
+                    SqlExpr body = scalar(LambdaBinding.last(f.predicate()),
+                            LambdaBinding.mapElemResolver(param, mixed, false,
+                                    LambdaBinding.lambdaResolver(f.predicate().parameters(), columns)));
+                    yield TaggedLists.filter(mixed, new SqlExpr.Lambda(List.of(param), body));
+                }
+                yield SqlExpr.Call.of(SqlFn.LIST_FILTER,
+                        PureSql.asList(src, Stamps.isMany(f.source())),
+                        scalar(f.predicate(), columns));
+            }
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
             // slice/drop/take consume the LIST carrier — a to-one-stamped

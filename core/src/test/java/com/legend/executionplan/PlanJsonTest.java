@@ -135,7 +135,7 @@ class PlanJsonTest {
         // the effect node (a statement sent for what it does, the body driver's effects on the plan); 16 the same day: a
         // keyed result's per-key columns placed among its fixed ones; 17 since 2026-10-28: a column's written-precision
         // fact (the result boundary program's R2, the start page's S1.4 item 1); 18 since 2026-10-29: the fact's
-        // MINIMAL value, a value root's instant
+        // MINIMAL value, a value root's instant; 19 the same day: the LITERAL slot word retired (track L's L2)
         assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":19,"), json);
     }
 

@@ -189,7 +189,7 @@ public final class Boundary {
     }
 
     /**
-     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 18): a program
+     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 19): a program
      * that writes -- a store write's {@code Update}, its count bound into the query that answers it, in one
      * {@code Sequence} -- or a query's one {@code TdsResult}, its answer TYPED rows the host reads by the plan's
      * columns (the result boundary program, 2026-10-27: a plan names no output format; a writer at the edge spells

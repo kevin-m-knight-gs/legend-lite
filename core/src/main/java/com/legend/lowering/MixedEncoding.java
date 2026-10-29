@@ -15,14 +15,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The MIXED-ELEMENT two-channel encoding — DATABASE-EXECUTED — extracted
- * from {@link Scalars} (CodeShapeGuardrail file split, stamp C1 slice).
- * Elements of DIFFERENT concrete kinds under the Number/Date LUB split
- * into an IDENTITY channel (pure print form, computed BY SQL) and a
- * COMPARABLE channel (CAST AS DOUBLE / strptime-padded TIMESTAMP);
- * selections order by the comparable, return the identity. TENET:
- * encodings chosen by STATIC type; every value computation runs in the
- * database (elements may be arbitrary expressions).
+ * The MIXED-ELEMENT encodings -- DATABASE-EXECUTED -- extracted from {@link Scalars} (CodeShapeGuardrail file split,
+ * stamp C1 slice). A collection of elements of different kinds is a TAGGED LIST ({@link #taggedList}: parallel typed
+ * channels by position, a rank for its order, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a; track L, 2026-10-29);
+ * elements under the Number or Date LUB also carry a COMPARABLE channel (every number a DOUBLE, every date a
+ * TIMESTAMP) for a selection, whose winner is a tagged value ({@link MixedElems#tagged}). The spelling carrier (an
+ * identity channel of print forms) was deleted with track L's L2. TENET: encodings chosen by STATIC type; every value
+ * computation runs in the database (elements may be arbitrary expressions).
  */
 final class MixedEncoding {
 
@@ -30,12 +29,10 @@ final class MixedEncoding {
     }
 
     /**
-     * Null when not per-element encodable or not mixed. Three channels per element: {@code ids}, its Pure literal
-     * spelling (the F10 carrier, the lists' until step B of docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a: the mixed
-     * sort rides it); {@code vals}, its comparable (every number a DOUBLE, every date a TIMESTAMP); and
-     * {@code candidates}, the element itself with its Pure kind and the SQL slot that holds it exactly, which a
-     * SELECTION returns as a tagged value ({@link #tagged}: the winner's kind survives as a type, never as a
-     * spelling; 2026-10-23).
+     * Null when not per-element encodable or not mixed. Two channels per element: {@code vals}, its comparable (every
+     * number a DOUBLE, every date a TIMESTAMP); and {@code candidates}, the element itself with its Pure kind and the
+     * SQL slot that holds it exactly, which a SELECTION returns as a tagged value ({@link #tagged}: the winner's kind
+     * survives as a type, never as a spelling; 2026-10-23). (A third channel of spellings went with track L's L2.)
      */
     record MixedElems(List<SqlExpr> vals, List<SqlExpr.Tagged.Candidate> candidates) {
 
@@ -57,8 +54,6 @@ final class MixedEncoding {
         }
     }
 
-    /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type: the one map (the encoders
-     *  name each candidate's kind as they build it; a tagged list adds String and Boolean, track L). */
     /** The written subsecond digits a kind {@code DateTime(n)} carries; null for every other kind. */
     static @com.legend.base.Nullable Integer writtenDigits(String kind) {
         return kind.startsWith("DateTime(")
@@ -299,11 +294,13 @@ final class MixedEncoding {
             d = x;
         } else if (t == Type.Primitive.DATE) {
             group = 1;
-            // a column's partial date (no written literal to read the precision from) orders among the dates by
-            // no instant: its comparable is NULL there (a sort over a row's mixed cells holding one is undefined,
-            // as the spelling carrier's rank struct declined it)
-            d = e == null ? null : partialComparable(e, x);
-            if (e != null && d == null) {
+            // a column's partial date (no written literal to read the precision from) has no instant to order by:
+            // no rank (the caller keeps the variant lane; the L2 audit, 2026-10-29: a NULL rank sorted it silently)
+            if (e == null) {
+                return null;
+            }
+            d = partialComparable(e, x);
+            if (d == null) {
                 return null;
             }
         } else if (t == Type.Primitive.BOOLEAN) {
@@ -331,8 +328,8 @@ final class MixedEncoding {
     }
 
     /** The channel of a tagged list that holds a value of {@code kind} (a needle's static kind), else -1: a kind
-     *  with no channel is a member of nothing in the list. A DateTime needle reads any DateTime channel whatever its
-     *  written precision (the instant decides). */
+     *  with no channel is a member of nothing in the list (a {@code DateTime(n)} is its own kind: Pure's date
+     *  equality reads the subsecond text, the L1 audit's finding 2). */
     static int channelOf(SqlExpr.TaggedList tl, String kind) {
         for (int k = 0; k < tl.channels().size(); k++) {
             String ck = tl.channels().get(k).kind();
@@ -849,21 +846,6 @@ final class MixedEncoding {
                 || e instanceof SqlExpr.TimestampLit;
     }
 
-    /** The ONE inverse of the variant wrap — understands every shape
-     * {@link #variantElement} can emit: {@code TO_VARIANT(v)} and the
-     * cell-slot law's {@code COALESCE(TO_VARIANT(v), CAST('null' AS
-     * JSON))}. Consumers that need the raw value back (format arg
-     * decomposition, mixed-identity encode, literal spelling, numeric
-     * aggregates, membership carrier decisions) ask HERE; each matching
-     * the wrap shape locally went stale the first time the wrap changed
-     * (gate-caught 2026-08-24 — struct extraction and variant-column
-     * detection missed the COALESCE form). Returns {@code x} unchanged
-     * when not wrapped. */
-    /** A value entering an Any-declared (JSON-carried) slot: a JSON value
-     * passes; a typed primitive wraps as the literal carrier does; a value
-     * on the LITERAL LANE (an Any cell read: a quoted string, a
-     * {@code %}-prefixed date, a bare number / boolean) converts by its own
-     * spelling — the one boundary where the literal lane meets a JSON slot. */
     /** The Pair STRUCT carrier {@code (first, second)}: a slot the Pair
      * declares Any rides the JSON carrier ({@link #variantSlot}). */
     static SqlExpr pairStruct(Type pairType, SqlExpr first, Type firstType,

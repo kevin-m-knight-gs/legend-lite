@@ -120,26 +120,32 @@ final class ValueCollections {
         // the rows numbered ONCE and DETERMINISTICALLY: the list's arrays are aggregates over the cells, each its
         // own scan of the relation, so the numbering must come out the same on every scan (the L1 audit,
         // 2026-10-29: ROW_NUMBER() OVER () over an unordered scan may not) -- by the relation's own sort keys where
-        // it has them, then by every column (equal rows are interchangeable); a sorted relation keeps its order
+        // it has them, else by the order its source carries where that order can be read outside it (an ordered
+        // subselect, Sorts.carriedName), then by every column (equal rows are interchangeable: a relation of no
+        // order is read in all-columns order, the closest thing to an arrival order no database promises;
+        // register S124). A sorted relation keeps its order.
         String inner = alias.get();
         var innerCell = SqlExpr.Column.lookup(inner, rel.outputs());
         List<SqlSelect.Projection> numbered = new ArrayList<>();
-        List<SqlSelect.SortKey> order = new ArrayList<>();
+        List<SqlSelect.SortKey> order = new ArrayList<>(carriedOrder(rel, innerCell));
         for (OutputCol oc : rel.outputs()) {
             numbered.add(new SqlSelect.Projection(innerCell.apply(oc.name()), oc.name(), oc));
             order.add(new SqlSelect.SortKey(innerCell.apply(oc.name()), true, null, null));
         }
         OutputCol rnOut = new OutputCol("__rn", SqlType.Scalar.BIGINT, false);
         SqlSelect numberedRel;
-        if (!rel.orderBy().isEmpty() && !rel.distinct()
-                && rel.projections().stream().noneMatch(pr -> pr.expr() instanceof SqlExpr.Star
-                        || pr.expr() instanceof SqlExpr.StarExcept)) {
-            // the relation's own sort keys are in scope inside it: the number is one of its projections
+        boolean star = rel.projections().isEmpty() || rel.projections().stream().anyMatch(
+                pr -> pr.expr() instanceof SqlExpr.Star || pr.expr() instanceof SqlExpr.StarExcept);
+        if (!rel.orderBy().isEmpty() && !rel.distinct()) {
+            // the relation's own sort keys are in scope inside it: the number is one of its projections; a star
+            // frame's projections are spelled out first (one per output, the source's column: the L2 audit,
+            // 2026-10-29, a sorted star frame -- a sorted table, a sorted raw grid -- threw here)
+            List<SqlSelect.Projection> shown = star ? spelledOut(rel) : rel.projections();
             List<SqlSelect.SortKey> keys = new ArrayList<>(rel.orderBy());
-            for (SqlSelect.Projection pr : rel.projections()) {
+            for (SqlSelect.Projection pr : shown) {
                 keys.add(new SqlSelect.SortKey(pr.expr(), true, null, null));
             }
-            List<SqlSelect.Projection> own = new ArrayList<>(rel.projections());
+            List<SqlSelect.Projection> own = new ArrayList<>(shown);
             own.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
                     new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), "__rn", rnOut));
             List<OutputCol> outs = new ArrayList<>(rel.outputs());
@@ -280,6 +286,54 @@ final class ValueCollections {
         }
         return new SqlExpr.TaggedList(positions, agg.apply(SqlExpr.TaggedList.ROW_TAG), comparable, listChannels,
                 new SqlExpr.ScalarSubquery(cellsRel));
+    }
+
+    /** A star frame's projections spelled out: one per output, the source's own column (the frame reads it so). */
+    private static List<SqlSelect.Projection> spelledOut(SqlSelect rel) {
+        List<SqlSelect.Projection> out = new ArrayList<>(rel.outputs().size());
+        for (OutputCol oc : rel.outputs()) {
+            SqlExpr.Column c = Fold.sourceColumn(rel.from(), oc.name());
+            if (c == null) {
+                throw new IllegalStateException("the cells of a sorted relation: its column '" + oc.name()
+                        + "' cannot be read from its source " + rel.from().getClass().getSimpleName()
+                        + " to number its rows by its own order");
+            }
+            out.add(new SqlSelect.Projection(c, oc.name(), oc));
+        }
+        return out;
+    }
+
+    /**
+     * The order a relation of NO sort keys of its own still carries, read outside it as columns of {@code innerCell}
+     * (the subselect the numbering ranges over): a DISTINCT frame's own ORDER BY (the number cannot stand among its
+     * projections, which would undo the distinct), and a star frame's ordered SOURCE ({@link Sorts#carriedName}: the
+     * name the source shows each key under, as a sort over a sorted subselect carries them). A key that cannot be
+     * read outside is refused by name: the order would be dropped silently.
+     */
+    private static List<SqlSelect.SortKey> carriedOrder(SqlSelect rel,
+            java.util.function.Function<String, SqlExpr.Column> innerCell) {
+        List<SqlSelect.SortKey> out = new ArrayList<>();
+        boolean star = rel.projections().isEmpty() || rel.projections().stream().anyMatch(
+                pr -> pr.expr() instanceof SqlExpr.Star || pr.expr() instanceof SqlExpr.StarExcept);
+        SqlSelect ordered;
+        if (!rel.orderBy().isEmpty() && rel.distinct()) {
+            ordered = rel;
+        } else if (rel.orderBy().isEmpty() && star && rel.from() instanceof SqlSource.Subselect sub
+                && sub.inner() instanceof SqlSelect inside && !inside.orderBy().isEmpty()) {
+            ordered = inside;
+        } else {
+            return out;
+        }
+        for (SqlSelect.SortKey k : ordered.orderBy()) {
+            String name = Sorts.carriedName(ordered, k);
+            if (name == null || rel.outputs().stream().noneMatch(oc -> oc.name().equals(name))) {
+                throw new com.legend.error.NotImplementedException("the cells of a sorted relation whose sort key "
+                        + k.expr() + " cannot be read outside it (no output shows it): its rows cannot be numbered"
+                        + " in its order");
+            }
+            out.add(new SqlSelect.SortKey(innerCell.apply(name), k.ascending(), k.nullOrder(), null));
+        }
+        return out;
     }
 
     /** {@code SELECT flatten(LIST([cells...]))} over {@code rel}: a MULTI-column relation as a ROW-MAJOR value

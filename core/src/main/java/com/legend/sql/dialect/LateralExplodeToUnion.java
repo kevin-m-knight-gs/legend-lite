@@ -184,10 +184,14 @@ final class LateralExplodeToUnion extends SqlRewriter {
         return null;
     }
 
-    /** The element type a list expression states ({@code ARRAY<T>}: T), else VARCHAR, the type every element of an
-     *  exploded literal collection casts to on this family's reader. */
+    /** The element type a list expression states ({@code ARRAY<T>}: T), the type every element of an exploded
+     *  literal collection casts to on this family's reader; a list stating none is refused by name (the L2 audit,
+     *  2026-10-29: VARCHAR stood here where the LITERAL slot's default had, a guessed label). */
     private static SqlType elementTypeOf(SqlExpr list) {
-        return list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a
-                ? a.element() : SqlType.Scalar.VARCHAR;
+        if (list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a) {
+            return a.element();
+        }
+        throw new DialectCapability("an exploded list states no element type (" + list.type() + "): this family's"
+                + " reader casts each element to the list's type, and the list has none");
     }
 }

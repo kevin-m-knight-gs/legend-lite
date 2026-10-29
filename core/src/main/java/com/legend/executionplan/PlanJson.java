@@ -58,7 +58,9 @@ public final class PlanJson {
      *  2026-10-28: a column's fourth fact, how a temporal cell's written precision is known ({@code precision}:
      *  {@link ExecutionPlan.Precision}; the result boundary program's R2, the start page's S1.4 item 1); 18 since
      *  2026-10-29: the fact's fourth value, MINIMAL, a value root's instant at the precision its digits show (a
-     *  relation's INSTANT keeps the nine digits legend-engine spells: the upstream-fidelity tenet, register S118). */
+     *  relation's INSTANT keeps the nine digits legend-engine spells: the upstream-fidelity tenet, register S118); 19
+     *  since 2026-10-29: the {@code LITERAL} slot word retired (track L's L2: a mixed value is a tagged value, never a
+     *  spelled text; a plan naming the word is refused at the reader). */
     public static final int VERSION = 19;
 
     private PlanJson() {

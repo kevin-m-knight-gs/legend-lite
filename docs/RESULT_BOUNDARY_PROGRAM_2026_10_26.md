@@ -522,6 +522,9 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 - **2026-10-29, track L, L2: the spelling carrier deleted** (GATES, the L2 entry; the decisions log D52): the
   `LITERAL` slot, `LiteralText`, the decoders' and dialects' arms, the lowering's spellers; the census zero; plan
   format 19. Open: `Fold.conformValueEgress` (step 5's delete) waits on D51's ruling.
+- **2026-10-29, track L, the L2 audit's fold** (GATES, the L2 audit entry; the decisions log D54; the register
+  S123, S124): the flatten's numbering of a sorted star frame and of an ordered source; crossing numbers refused by
+  name; `filter` over a mixed list; the cells' size; the gate over typed columns. Next: track A.
 - **2026-10-29, track T, T-d2: every integration test on the lanes; the floors re-measured** (GATES, the T-d2
   entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 270 and one not-run pin (H2's
   planner on a twenty-call chain), the platform 0 of 2,232; a test's own connection text re-spelled to the

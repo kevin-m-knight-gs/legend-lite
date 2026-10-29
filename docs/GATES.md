@@ -15967,3 +15967,44 @@ program's step 6, "Delete").
    unlaned-tests guard empty. The chain's script: the session's scratchpad `l2-chain.sh` (the L1 chain plus the
    Postgres PCT group).
 3. **Not measured:** CI's lanes (PR #80 runs them on the push).
+
+## 2026-10-29 — Track L, the L2 audit's fold: the flatten's numbering, crossing numbers refused, the mixed filter, the typed-columns gate
+
+The result boundary program's track L (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D54; the
+register S123, S124; the homework README's findings).
+
+1. **Built:** `ValueCollections.rowMajorTaggedList` numbers a sorted STAR frame (its projections spelled out first,
+   `Fold.sourceColumn`: a sorted table threw) and carries the order a relation's source shows (an ordered subselect's
+   keys by `Sorts.carriedName`, a DISTINCT frame's own) before every column; `TaggedLists.refuseCrossingNumbers`: an
+   Integer against a scale-zero Decimal and a Float against a Decimal -- the pairs compiled legend-pure equates by their
+   texts (`CompiledSupport.eq(Number, Number)`) -- are refused by name in `contains`, `sameElement` and
+   `sameListByKinds`, where a static false stood; the Lowerer's collection `filter` over a mixed list binds the element
+   (`TaggedLists.filter`, unreferenced until now); `TdsDesugars`: `$tds.rows.values->size()` is the row count times the
+   column count (the bare `.values` flatten keeps the rows' identity, so it answered the row count; found by the new
+   gate); `MixedEncoding.rankedComparableOf`: a Date-typed column has no rank (the variant lane keeps the row; a NULL
+   comparable sorted it silently); `LateralExplodeToUnion.elementTypeOf` refuses a list of no element type
+   (`DialectCapability`, never VARCHAR); `ColumnFacts.precision` answers null for a TAGGED slot first; the stale
+   javadocs of the spelling carrier rewritten; the plan format's note for 19. The gate: `exec/TaggedListTest` -- the test
+   named for the tagged flatten reached the VARIANT lane (an `executeInDb` grid's columns are untyped; found by dumping
+   its SQL), renamed `anUntypedGridsCellsAreReadOnTheVariantLane`; `aTypedRelationsCellsKeepTheRelationsOrder` over a
+   store (sorted, unsorted, a sorted star frame, the cells' size); `aMixedListFiltersByItsElements`;
+   `numbersOfDifferentKindsAreRefusedWherePureEquatesTheirTexts`. Not covered by a gate: the ordered-subselect carry
+   (`carriedOrder`'s second case; no shape in the tests reaches it yet). The own-corpus ratchet
+   (`parser-equivalence/.../ratchets.tsv`) moves 3004 to 3009: the gate's store model's five elements joined and
+   matched. PR #80's CI on the L2 commit went red on the `ui`, `datacube` and `warehouse` lanes of every OS: the plan
+   format's one reader outside core (`engine-client/src/plan-runner.ts`, the tab's and Python's headless host) pinned
+   version 18; 19 now. A format bump reaches that pin; the local chain runs `//engine-client:plan_runner_test`,
+   `//datacube:headless_test`, `//datacube:verify_flow_test` and `//python:engine_test` from here on
+   (`engine_test`: 68 of its 334 tests pass in this container before the headless host's V8, mini-racer, segfaults at
+   `WarehouseOnPython` -- before any assertion of that test; earlier sessions only analyzed it here, GATES 2026-10-29
+   S1.5; CI's Linux run of the L2 commit passed it but for the version pin: judged by CI).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`, `//:generated` and `//gates:checks` (the arm64-only
+   classpath test skipped; `//core:update_generated_4_test` red once on the natives-claims table, which the desugar's
+   new reference of `times` moves: regenerated, `bazel run //core:update_generated_4`), `//core:core_tests` (every
+   lane), `//core:core_tests_lanes` (floors unmoved), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine Postgres targets 9 of 9; `//spec:judge_lanes`,
+   `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (rosters unchanged); the 21 PCT lanes 21 of 21; the five
+   Postgres PCT lanes 5 of 5; `//datacube:python_execute_test`; `//engine-client:plan_runner_test`,
+   `//datacube:headless_test`, `//datacube:verify_flow_test`; `//parser-equivalence:parser_parity` (3,009 matched, the
+   ratchet moved with it); the product job's unlaned-tests guard empty.
+3. **Not measured:** CI's lanes (PR #80 runs them on the push).

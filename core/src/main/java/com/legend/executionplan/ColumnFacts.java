@@ -159,6 +159,11 @@ public final class ColumnFacts {
      *  Any other column has no temporal of its own: null, said. */
     public static ExecutionPlan.@com.legend.base.Nullable Precision precision(String type,
             @com.legend.base.Nullable SqlType slot, ExecutionPlan.TdsResult.Shape shape) {
+        if (slot instanceof SqlType.Tagged) {
+            // whatever its Pure type (Any, Date, DateTime: a mixed temporal selection's root): its slots' kinds carry
+            // the precision (the L2 audit, 2026-10-29: a Date-typed tagged column answered MINIMAL here)
+            return null;
+        }
         if (type.equals("StrictDate") || slot == SqlType.Scalar.DATE) {
             return ExecutionPlan.Precision.DAY;
         }

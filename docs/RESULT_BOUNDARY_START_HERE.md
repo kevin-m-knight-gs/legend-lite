@@ -517,6 +517,12 @@ no list encoding (its lane runs the relation suite alone); SQLite reads a BIT as
   decoders' and the dialects' literal arms and the lowering's spelling machinery DELETED; the census probe reads
   zero for the slot's own spellings; the plan format is 19. `Fold.conformValueEgress` is step 5's deletion and
   waits on a written-digits fact at scalar roots (D51, the user's question). Track L is done but for that ruling.
+- **The L2 audit folded 2026-10-29** (GATES, the L2 audit entry; the decisions log D54; the register S123, S124): the
+  flatten numbers a sorted star frame (it threw) and carries an ordered source's keys; crossing numbers (an Integer
+  against a scale-zero Decimal, a Float against a Decimal: Pure equates them by text) refused by name where a static
+  false stood; `filter` over a mixed list; `$tds.rows.values->size()` is rows times columns (it answered the row
+  count); the gate that reached only the variant lane renamed and a typed-columns gate added. Posted to the user: a
+  Decimal's rank among the numbers (S123), an unordered relation's cells in all-columns order (S124).
 
 ### Track A. The Arrow writer (the program's steps 2 and 5)
 

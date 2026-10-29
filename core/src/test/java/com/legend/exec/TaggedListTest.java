@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -219,10 +220,83 @@ class TaggedListTest {
                 StorelessRuntime.RUNTIME, c).one();
     }
 
+    /** A store, a mapping and a runtime on the platform's DuckDB: the corpus's whole-TDS idiom over TYPED columns
+     *  (an executeInDb grid's columns are untyped and take the variant lane: the test above). */
+    private static final String STORE_MODEL = """
+            Class t::Person { name: String[1]; age: Integer[1]; }
+            ###Relational
+            Database t::DB ( Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), AGE INTEGER) )
+            ###Mapping
+            Mapping t::M ( *t::Person : Relational { ~mainTable [t::DB] P name: P.NAME, age: P.AGE } )
+            ###Connection
+            RelationalDatabaseConnection t::C { store: t::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }
+            """;
+
+    private static Object stored(Connection c, String body) throws Exception {
+        return Program.last(STORE_MODEL, body, "t::RT", c).one();
+    }
+
     @Test
-    void aRelationsCellsAreATaggedListOverItsRows() throws Exception {
+    void aTypedRelationsCellsKeepTheRelationsOrder() throws Exception {
+        // the tagged flatten over TYPED columns (ValueCollections.rowMajorTaggedList; the L2 audit, 2026-10-29):
+        // rows numbered by the relation's own sort keys, a sorted star frame's too (a sorted table threw)
+        try (Connection c = TestBackends.platform().open()) {
+            try (java.sql.Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE P (ID INTEGER, NAME VARCHAR(200), AGE INTEGER)");
+                st.execute("INSERT INTO P VALUES (10, 'p1', 30), (20, 'p2', 40)");
+            }
+            String project = "{|let result = execute(|t::Person.all()->project([p|$p.name, p|$p.age], ['name','age'])";
+            String tail = ", t::M, t::RT.runtimeValue, []);";
+            assertEquals(true, stored(c, project + "->sort(desc('name'))" + tail
+                    + " ['p2', 40, 'p1', 30] == $result.values.rows.values;}"));
+            assertEquals(false, stored(c, project + "->sort(desc('name'))" + tail
+                    + " ['p1', 30, 'p2', 40] == $result.values.rows.values;}"));
+            assertEquals(true, stored(c, project + "->sort(asc('name'))" + tail
+                    + " ['p1', 30, 'p2', 40] == $result.values.rows.values;}"));
+            // a relation of no order of its own: its cells in all-columns order (register S124)
+            assertEquals(true, stored(c, project + tail + " ['p1', 30, 'p2', 40] == $result.values.rows.values;}"));
+            assertEquals(4L, stored(c, project + tail + " $result.values.rows.values->size();}"));
+            // a sorted STAR frame (a table's own columns, no projection): the finding's crash
+            assertEquals(true, stored(c, "{|[20, 'p2', 40, 10, 'p1', 30] == #>{t::DB.P}#->sort(~NAME->descending());}"));
+            assertEquals(false, stored(c, "{|[10, 'p1', 30, 20, 'p2', 40] == #>{t::DB.P}#->sort(~NAME->descending());}"));
+        }
+    }
+
+    @Test
+    void aMixedListFiltersByItsElements() throws Exception {
+        // filter over a mixed list (the L2 audit's finding 12): the predicate's parameter is the element
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of("a"), values(c, "|[1, 'a', 2]->filter(x | $x == 'a')"));
+            assertEquals(2L, value(c, "|[1, 'a', 2]->filter(x | $x != 'a')->size()"));
+        }
+    }
+
+    @Test
+    void numbersOfDifferentKindsAreRefusedWherePureEquatesTheirTexts() throws Exception {
+        // the L2 audit's finding 4: compiled legend-pure's eq(Number, Number) compares the texts, so 3 == 3D and
+        // 1.5 == 1.5D are true there; lite refuses those pairs by name until it lowers the rule (a static false
+        // stood); the pairs whose texts never agree keep their false
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(false, value(c, "|[1, 'a']->contains(1.0)"));
+            assertEquals(false, value(c, "|[1, 'a']->contains(1.5D)"));
+            assertEquals(false, value(c, "|[1, 'a'] == [1.0, 'a']"));
+            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> value(c, "|[3, 'a']->contains(3D)")).getMessage().contains("Integer"));
+            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> value(c, "|[3, 'a'] == [3D, 'a']")).getMessage().contains("Decimal"));
+            assertTrue(assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> value(c, "|[1.5, 'a']->contains(1.5D)")).getMessage().contains("Float"));
+        }
+    }
+
+    @Test
+    void anUntypedGridsCellsAreReadOnTheVariantLane() throws Exception {
         // the corpus's whole-TDS idiom (testUsingSameAggFunctionTwice: a literal list against $result.values.rows
-        // .values, under == and under assertEquals): the cells in row-major order, each in its column's kind
+        // .values, under == and under assertEquals) over an executeInDb grid, whose columns are UNTYPED: the
+        // variant lane, one LIST over the grid in its own order (the typed columns' tagged flatten is the test
+        // above; the L2 audit, 2026-10-29, found this test named for the flatten it never reached)
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(true, program(c, "[1, 'x', 2, 'y'] == $rs.rows.values;"));
             // a sorted relation keeps its order (the rows numbered by its own sort keys: finding 5)
