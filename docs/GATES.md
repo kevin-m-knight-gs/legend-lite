@@ -15440,3 +15440,18 @@ S1.5's code commit, after its records commit `3e9e739a` (the 51 writer differenc
    that follows this one, before the draft PR opens.
 6. **Not measured:** the lanes (not reachable from this session: the S1.4 entry, item 5). The next lane measurement is
    the draft PR's CI (S1.6) and track B's per-lane channel B.
+
+## 2026-10-29 — S1.5's gate, measured at d314455a
+
+The chain the S1.5 entry above names, run as root in the cloud container (docs/CLOUD_SESSIONS.md), after the commit:
+- `bazel test //core:guardrails`: pass (the `Double.isFinite` register 3 -> 4, dated).
+- `bazel test --lockfile_mode=error --keep_going //gates:local`: 446 targets, 436 pass, 1 skipped
+  (`//tools/guards:classpath_test`, arm64-only), 9 fail as root -- the eight `//core:*postgres*` tests and
+  `//datacube:verify_app_test`, whose `initdb` refuses root; re-run as the unprivileged user
+  (`tools/postgres/as_unprivileged.sh ubuntu`, `--strategy=TestRunner=standalone`): 9 of 9 pass. The lock check
+  passes (`--lockfile_mode=error`).
+- PCT channel A, DuckDB, SQLite and MongoDB, five suites each, and `//pct:pct_discipline`: 16 of 16 pass; every
+  relation crossing through the engine JSON (`[LegendLite PCT] engine JSON:`, total/relation suite): duckdb 524/460; sqlite 523/459; mongodb 523/459;
+- `bazel test //datacube:python_execute_test` (the native library and the WebAssembly planner; it reads LEAN JSON):
+  pass.
+Not measured: the lanes (the S1.4 entry, item 5). Next: S1.6's draft PR, the first CI on every OS since phase 1.
