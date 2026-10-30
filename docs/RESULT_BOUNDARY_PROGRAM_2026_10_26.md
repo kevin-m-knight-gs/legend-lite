@@ -502,6 +502,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the java.sql revamp, step 2b** (the decisions log D68; GATES, the step 2b entry): the test runners,
+  the observer and the corpus harness hold sessions, not connections -- an owning session from the opener, a
+  non-closing view to the program entry, the harness asking the session for the driver's object where its own
+  referee needs it; core's `test` package holds no `java.sql`. Next: step 3 (the census by class and capability).
 - **2026-10-30, the java.sql revamp, step 2a** (the decisions log D67; GATES, the step 2a entry): the execution
   front door holds a session and names no JDBC; `QueryService` and `OutputFormat` deleted -- the HTTP door's runner is
   `ConnectionResolver.RUNNER` over `Execution.run`, and the text conveniences were tests' alone; six server

@@ -205,18 +205,19 @@ class JdbcSurfaceCensusTest {
             // shape); it opens no connection and executes nothing —
             // the harness implementation does, on the testing side
             "core/src/main/java/com/legend/exec/SqlReplayReferee.java",
+            // 2026-10-30 (D68, the java.sql revamp's step 2b): PureTestRunner.java, ServiceTestRunner.java and
+            // TestObserver.java LEFT this register -- the runners hold sessions their opener owns
+            // (PlanSessions.owned, a test backend's openSession) and the observer sees sessions; a harness that
+            // needs the driver's object asks the session (the corpus's referee brackets and fixture asides); no JDBC
             // the product's test runner (batch 7a, 2026-09-11): opens one
             // session per package through the caller's connection factory and
             // HANDS the connection to the executor; the observer seam passes
             // it to the caller's referee; neither executes a statement of its
             // own (tenet #1 — the database executes what the platform compiles)
-            "core/src/main/java/com/legend/test/PureTestRunner.java",
             // the service test-suite runner (2026-09-16): the same shape —
             // opens sessions and HANDS them to the platform, whose own
             // establish step seeds the test runtime's declared data; the
             // runner executes no SQL of its own (tenet #1)
-            "core/src/main/java/com/legend/test/ServiceTestRunner.java",
-            "core/src/main/java/com/legend/test/TestObserver.java",
             // 2026-10-29 (track B's B1b): TestDataGenerationNatives.java LEFT this register -- it hands the body's
             // session to the generator and holds no JDBC; 2026-10-29 (the doors): TestDataGenerator.java LEFT it
             // too -- every statement of a run is the plan runner's (effects, described typed rows, reported

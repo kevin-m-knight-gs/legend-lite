@@ -120,6 +120,14 @@ public final class Sessions {
         return Connectors.of(type).jdbcProduct();
     }
 
+    /** A source of {@code session} as the caller holds it: a non-closing view of it for every target (D68,
+     *  2026-10-30: the test runners hold sessions, not connections). Unlike {@link #given(Connection)} it checks
+     *  nothing at open: its callers are the program entry, whose {@code dialectOf} checks the session against the
+     *  database the compiler decided, and the runner checks each statement's target. */
+    public static Source given(Session session) {
+        return (target, ctx) -> PlanSessions.view(session, null);
+    }
+
     /** {@link #check(Connection, DatabaseType)} of a session (D67, 2026-10-30: the execution front door holds no
      *  connection). */
     public static void check(Session session, DatabaseType declared) {

@@ -87,7 +87,15 @@ public final class PlanSessions {
      *  session's own, and the runner's close releases nothing -- the session is the body's (track B's B1b,
      *  2026-10-29: until then the driver handed its {@code Connection} here). */
     public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
-        return target -> new Sessions.Session() {
+        return target -> view(session, trace);
+    }
+
+    /** {@code session} as the runner takes it for one statement: its statements stamped for {@code trace}, its
+     *  state, version and connection the session's own, and a close that releases nothing -- the session is its
+     *  holder's. A view of a view forwards a traced request to the session it wraps (the audit of D68: the default
+     *  would build the seam's statements over the connection and pass a connector's own session by). */
+    static Sessions.Session view(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
+        return new Sessions.Session() {
             @Override
             public Connection connection() {
                 return session.connection();
@@ -96,6 +104,11 @@ public final class PlanSessions {
             @Override
             public Statements statements() {
                 return session.statements(trace);
+            }
+
+            @Override
+            public Statements statements(@com.legend.base.Nullable ExecutionTrace traced) {
+                return session.statements(traced);
             }
 
             @Override
@@ -110,7 +123,7 @@ public final class PlanSessions {
 
             @Override
             public void close() {
-                // the body's
+                // the holder's
             }
         };
     }
@@ -276,8 +289,9 @@ public final class PlanSessions {
         };
     }
 
-    /** A connection opened for the run alone: closing the session closes it. */
-    private static Sessions.Session owned(Connection c) {
+    /** A connection opened for the run alone: closing the session closes it (public since D68, 2026-10-30: a
+     *  test's opener hands the runner a session that owns the connection it opened). */
+    public static Sessions.Session owned(Connection c) {
         return new Sessions.Session() {
             @Override
             public Connection connection() {
