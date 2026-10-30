@@ -106,8 +106,9 @@ Upstream, as spec input (UPSTREAM):
 - **F3.** `TypedQuery.planStreaming` has zero callers in main and test (CODE §6a). Dead public API; deleted in S5.
 - **F4.** `GridProbe.probeNames` has no caller (CODE §3b). Deleted with GridProbe in S3c, or earlier as a nit.
 - **F5.** `Keyed` inside a `Sequence` is refused by name, so a write program whose answer is an uncast dynamic pivot
-  is refused on the product path today (CODE §4). Step H6 counts whether any body needs it; S1 lifts the refusal
-  if so (a per-step arm, not a default).
+  is refused on the product path today (CODE §4). S1 lifts the refusal: a pivot test body is a let, the pivot and an
+  assert, so the body plan holds a `Keyed` step beside a `Verdict` step from the first pivot body onward (the user's
+  question of 2026-10-30; H6 only counts how many).
 - **F6.** The test-data generator's fold reads the session before planning the next statement (`foldCensus`, CODE
   §5a; the named residue D30 said to revisit as "a two-plan body"). Step S2j.
 
@@ -140,14 +141,16 @@ Added to `executionplan/ExecutionPlan.java`, each a record with a runner arm and
   (`Type.wireDecided`: String, Number, Any; `compiler/element/type/Type.java:693-696`) is decoded by the kind the
   wire reports, at the row (D72's carriage), recorded on `Column.slot`. No DESCRIBE round trip, no re-typing of the
   plan.
-- A **region filled from rows** generalized from `Keyed`: today a `Keyed` body's regions are filled from the keys
-  step's cells (`Region`, `Binding.Key`; CODE §4). Where H1 and H2 show a deferred TDS or an undemanded raw grid
-  needs a column LIST the planner cannot write (the pivot's generated columns, a raw read's names), the same
-  mechanism names them: a first step reads the names (as `PlanRunner.columns` reads them today, carriage), the
-  next statement's region repeats per name. Whether this is `Keyed` itself (a keys step whose "keys" are column
-  names) or a sibling record is decided at S1's brief from H1's and H2's counts; no new runner capability is
-  involved beyond the existing region expansion.
-- `Keyed` inside a `Sequence` (F5) if H6 counts a body that needs it.
+- The **raw grid as the pivot's pattern** (the user's questions of 2026-10-30, §3.5): a first step whose ROWS are
+  the reported columns of the authored statement (name and wire type, as the seam reads them today: `columns`, a
+  LIMIT 0 run, or `describe`, a prepared statement never run; which one is the CONNECTOR's, as the decode facts
+  are, D72), then the body with a region per column (`Region`, `Binding.Key`, the existing expansion: a VALUES row
+  per name for `columnNames`, a cell per column for `rows.values`), each cell decoded by the wire. Whether the step
+  is `Keyed` itself with a "keys" step that reads columns, or a sibling record, is S1's brief; no runner capability
+  is added beyond reading reported columns as rows. The same step names a deferred TDS's column list where H1 shows
+  one outside a pivot. No step at all where nothing needs the names before the grid runs: a column read by the name
+  the program wrote, a grid that is the answer or a judge's side (its columns read from the real run at the row).
+- `Keyed` inside a `Sequence` (F5): required, lifted in S1.
 - A step's `Target` may differ inside one `Sequence` where H7 shows bodies that mix the platform (a verdict's
   canonical rows) and a declared database; otherwise the one-target rule stays and the mixing refusal stays.
 
@@ -198,27 +201,40 @@ line loses `compiler`, `compiler_element_type`, `lowering`, `resolver`, `normali
 `sql_dialect`, `validation`, `builtin`, `protocol` (the exact list is the measurement at S5; the target is "the
 runtime's libraries plus `:planner`'s doors, `:judge` and `:execution_plan`").
 
-### 3.5 Where a database answer may still reach the planner: one question, not four probes
+### 3.5 The raw grid: the pivot's pattern, not a probe and not an oracle
 
-By construction everything in §3.3 is planned without a session (UPSTREAM §6 is the spec evidence it can be), and
-every shape the planner cannot know is a rows-fill-regions step or a wire-decoded kind (§3.2), executed by the runner.
-The remaining question is the RAW GRID whose columns a LATER statement NAMES (`columnNames`, a typed read:
-`exec/ExecuteInDbProbeCountTest.columnNamesDemandsProbe`, CODE §7b). The names can be region-filled and the kinds
-wire-decoded, but the COMPILER must type the later statement, and a region cannot type-check a program. Two honest
-forms, decided by H2's count and the user:
+The first draft asked whether the RAW GRID (the rows of a SQL string a test author typed, `executeInDb('select
+...', $c)`: 2,252 calls in 86 of legend-engine's relational test files, the corpus input) needs a database answer
+during planning, because a later statement may ask for its `columnNames` or flatten its `rows.values`, and offered
+two forms: columns declared in the program, or a schema oracle door the planner owns. Both are withdrawn (the user's
+questions of 2026-10-30: "Is this similar to dynamic pivot? Does it make sense to use that pattern?").
 
-- **(i) declared in the program**: a typed `executeInDb` overload or a cast names the columns; the probe goes; a
-  body that names columns it did not declare is refused by name. Zero roster movement only if H2 finds every
-  demanding body declares or can declare (each one posted).
-- **(ii) a schema oracle door**: `planner.SchemaOracle { List<Type.Column> columnsOf(sql, writtenFor) }`, an
-  interface the PLANNER owns and takes as an argument; the product path passes the refusing one, the test runner
-  passes one backed by a `PlanRunner.columns` read on the body's session. Planning still asks the database in test
-  bodies, through one named door the planner declares, instead of a referee threaded through the resolver. This is
-  the hack-free form of today's `RawGridSchema.SchemaReferee`, and the ONLY place a session would remain upstream of
-  a plan.
+It is the dynamic pivot's situation in the one respect that matters: the compiler types the whole program WITHOUT
+the names. A raw grid's cells are `Any[0..1]` and its names `String[*]` (`compiler/spec/typed/TypedRawSqlRelation`,
+"columns are late-bound"; `RawGridSchema`'s stamp gives names, "cell types stay the database's own, decoded at
+egress"), and a column read by a name the program wrote is the database's own error when absent, never the
+compiler's. So the names are needed only to SPELL a later statement's text, exactly as a pivot's keys are, and the
+pattern the user ruled for the pivot applies (S110: a plan step whose rows fill the next statement's regions):
 
-Recommendation: (i) where H2's count is zero or every case can declare; (ii) otherwise, as a named, pinned residue
-(`JavaEvalLedgerTest`), with each demanding body a row the user rules.
+1. a first step reads the authored statement's reported columns as rows (§3.2);
+2. the body statement carries a region per column; `columnNames` is a VALUES list with a row per name, `rows.values`
+   a row-major flatten with a cell per column, and `at`, `size`, a fold or a map over them ordinary SQL over that
+   relation; each cell's kind is decoded by the wire at the row (D72);
+3. no first step where nothing needs the names before the grid runs (a read by a written name, the grid as the
+   answer or a side): the columns come from the real run, at the row, as legend-engine reads a dynamic pivot's.
+
+The compiler never sees a database answer: `RawGridSchema.stamp`, its `SchemaReferee` and `GridProbe` are deleted at
+S3c. Three differences from the pivot, each with its cost: the first step is a metadata read, not distinct values
+(both exist in the seam; the plan step says WHAT, the connector HOW); the columns' types are unknown where the
+pivot's are the aggregate's (the wire-decided decode covers it, and the judges already take tagged mixed-kind values
+since track L); `columnNames` becomes `String[*]` where today it is rewritten into a fixed-size list of literals (a
+multiplicity loosening; H2 shows whether any verdict depends on it, and each such case is posted). Declaring the
+columns in the program (a typed `executeInDb` overload) stays as a convenience for an author who wants typed cells,
+never as something the corpus must be rewritten to.
+
+H2 is the homework that proves it: every downstream read of a raw grid in the corpus and channel B, each shown to
+lower to SQL over the per-column region, and the count of grids that need the first step at all (a LIMIT 0 run
+still plans the query on the database, and a SELECT with a side-effecting function would execute).
 
 ### 3.6 The boundary at the end (step S5)
 
@@ -236,17 +252,21 @@ Each step: its own brief agreed with the user, the full local chain, an independ
 records (GATES, IN_FLIGHT, this §8, the decisions log, register rows where a spelling or an outcome moves), one
 commit, one push. **The oracle of every step is zero roster movement** on `corpus_duckdb`, `corpus_h2`, channel B
 and the five core lanes, plus the statement-origin census (`StatementOrigin.PROBE` shrinking to zero by S3,
-`WIRE_RETYPED`/`WIRE_SLOT_SKEW` equal before and after S3b). A step that moves a roster row stops and posts the row.
+`WIRE_RETYPED`/`WIRE_SLOT_SKEW` equal before and after S3b). A step that moves a roster row stops and posts the row. **The heavy lanes run by hand at every S3 step and at S2d**
+(the user's question of 2026-10-30): the local chain covers DuckDB, H2, SQLite and Postgres only; transaction brackets
+around effects differ on MariaDB and MySQL, and the wire decode differs on Trino, ClickHouse, Snowflake, Databricks
+and BigQuery, so a step that touches effects or the wire is not proven by the local chain alone (lane sessions measure
+only; no credentials read, printed or copied).
 
 | step | what | size | oracle and guards that move |
 |---|---|---|---|
 | **H** | the homework completions, read-only, lanes measure only: **H1** deferred TDS registrations by origin (pivot vs other) on the corpus and channel B; **H2** raw grids demanded vs undemanded, and whether each demanding body declares its columns; **H3** `WIRE_RETYPED` / `WIRE_SLOT_SKEW` per lane; **H4** a statement-kind census per body (the table in §3.3) and the frame lets whose rows are read before the end; **H5** bodies on the system route, bodies with the generator's fold; **H6** bodies whose non-last statement is an uncast dynamic pivot; **H7** bodies mixing the platform and a declared target | 2 to 3 days | none: measurements, posted as a report |
 | **S0** | F1 closed: the plan side refuses a late-bound raw grid by name | half a day | a new planner test; no roster moves (the product lanes never plan one: measured by the refusal firing nowhere in the PCT main lanes) |
-| **S1** | the vocabulary: `Verdict.Database`, `Verdict.Host`, the wire-decided column fact, the rows-fill-regions step for column names (`Keyed` or a sibling, per H1/H2), (`Keyed` in a `Sequence`, per-step targets if H6/H7 say so); runner arms; JSON round trip (`testcases/PlanRoundTrip`); no caller yet | 3 days | `core_tests_planner`, `exec`, `testcases`; nothing in the driver changes |
+| **S1** | the vocabulary: `Verdict.Database`, `Verdict.Host`, the wire-decided column fact, the reported-columns-as-rows step with its per-column regions (`Keyed` or a sibling, S1's brief), `Keyed` inside a `Sequence` (F5, required), per-step targets if H7 says so; runner arms; JSON round trip (`testcases/PlanRoundTrip`); no caller yet | 3 days | `core_tests_planner`, `exec`, `testcases`; nothing in the driver changes |
 | **S2a–S2j** | the body planner, kind by kind, as a strangler: the driver keeps its loop but, kind by kind, asks the body planner for the step and runs it through the runner; the driver's own branch for that kind is deleted in the same commit. Order from H4's frequencies; provisional: a (values), b (value, handle, alias lets), c (staged lets), d (effects), e (database-judge asserts), f (host-judge asserts, BOTH), g (frames), h (the system route), i (engine-text asserts), j (the generator's fold) | 1 to 3 days each, 2 to 3 weeks in all | each: zero roster movement; `BodyDriver`'s size pin shrinks (dated); the `JavaEvalLedgerTest` registers move by name; D30's residue list re-pinned |
 | **S3a** | the dynamic pivot in bodies as `Keyed` (the product path's form, S110); `DynamicPivot.staticize` deleted; ColumnProbe deleted, the deferred TDS's column list a per-key region of the `Keyed` body (S110's form) where H1 shows the pivot is its origin, else the rows-fill-regions step of S1 | 3 to 5 days | zero roster movement; `PROBE` census drops by the pivots' count; `DynamicPivotKeyLiteralH2Test` becomes a planner test; `JavaEvalLedgerTest:217` (DynamicPivot's pin) deleted |
 | **S3b** | wire-decided kinds decoded by the wire at the row (§3.2); `WireProbe.reconcile`/`staticized` deleted; `describe` has no caller in the driver | 3 to 5 days | `WIRE_RETYPED` before equals the wire-decoded count after; zero roster movement; `WireProbeTest` rewritten as a decode test in `exec` |
-| **S3c** | raw grids: undemanded as wire-decided columns with the names region-filled; demanded per the user's ruling (§3.5); `GridProbe` deleted; `RawSqlLedgerTest:122`'s one `RawSql` → 0; `RawGridSchema.SchemaReferee` deleted (form i) or replaced by the planner's oracle (form ii) | 1 week | zero roster movement, or each demanding body posted; `PROBE` census 0 |
+| **S3c** | raw grids as the pivot's pattern (§3.5): a read by a written name and a grid as the answer or a side with their columns from the real run; `columnNames` and `rows.values` as the reported-columns step plus per-column regions; `GridProbe`, `RawGridSchema.stamp` and `SchemaReferee` deleted; `RawSqlLedgerTest:122`'s one `RawSql` → 0 | 1 week | zero roster movement (a `String[*]` multiplicity loosening posted if any verdict reads it); `PROBE` census 0 |
 | **S4** | the driver as the runner and the judges: `BodyCompiler` and `Segments` deleted; `BodyDriver.execute` = plan once, run the sequence, judge at the verdicts; `specs()`/`resolved()` no longer called | 1 week | zero roster movement; `theDriverCompilesNothing` added; the driver's size pins shrink to the residue |
 | **S5** | the boundary: `TypedQuery`'s internals into `planner/` (package-private again), `PlanMaker`'s three driver statics package-private, `JudgePlans` in `planner/`, F3 and F4 deleted, `core-layers.txt`'s driver line cut, the registers closed; the JPMS spike if the user says so | 3 days (+1 for the spike) | `//tools/deps:core_layering_test`; `ArchitectureTest`; `JavaEvalLedgerTest` |
 | **Z** | the final audit and the landing handed to the user | 2 days | CI on every OS on the branch; the PR; the user's word |
@@ -270,8 +290,8 @@ the user rules; S2 onward each need their own brief.
 
 - **Q1. The program as a whole:** §0 to §4 as the plan, or changes. (A yes starts H.)
 - **Q2. F1 now:** the plan-side refusal of a late-bound raw grid (S0) as its own small commit, or held.
-- **Q3. The demanded raw grid (§3.5):** form (i) declared-in-program, or form (ii) the planner's schema oracle door,
-  or "decide after H2's count" (recommended).
+- **Q3. The raw grid (§3.5):** the pivot's pattern as the ruled form (recommended: a reported-columns step, per-column
+  regions, cells decoded by the wire; no probe into the compiler, no oracle door), or another form.
 - **Q4. JPMS:** spend one day on the `module-info.java` spike at S5, or rely on the ArchUnit rules and
   package-privacy (recommended: the rules; the spike only if the user wants the mechanical guarantee).
 - **Q5. The branch:** this program starts after PR #82 lands, on a fresh branch from `main` (recommended), or on top
@@ -296,4 +316,7 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
 - 2026-10-30: the homework done (two independent read-only agents: CODE, UPSTREAM); the plan written and posted; the
   user's correction the same day ("Who said to copy upstream? That's not our execution model in lite ours is in
   database or host judge"): the first draft's allocation node, variable map and "as upstream does it" framing
-  withdrawn; this version states the design in lite's model (D75). **No code.** Next: the user's rulings on §6.
+  withdrawn; this version states the design in lite's model (D75). The same day, from the user's questions ("What is
+  a raw grid exactly?", "Is this similar to dynamic pivot?", "a metadata read or a limit 0 query?", "is this the right
+  plan?"): the raw grid as the pivot's pattern and the oracle door withdrawn (§3.5), `Keyed` in a `Sequence` required
+  (F5), the heavy lanes by hand at S2d and S3 (D76). **No code.** Next: the user's rulings on §6.
