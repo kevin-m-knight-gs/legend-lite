@@ -26,8 +26,11 @@ public interface SqlReplayReferee {
      * values ({@code getObject} arrivals, untransformed — comparison
      * policy normalizes, never the referee). Any exception means the
      * referee could not answer; the caller's decline policy applies.
+     * The contract declares no {@code SQLException} (2026-10-30, the
+     * java.sql revamp's step 3, D69): the harness tells a failure of its
+     * own, unchecked, and this SPI names no JDBC type.
      */
-    RefereeRows rows(String sql) throws java.sql.SQLException;
+    RefereeRows rows(String sql);
 
     /** THE TDG FETCH-TEXT VERDICT (charter burn map, TDG scoring
      * flip): BOTH sides are generator fetch TEXTS — ours executes on

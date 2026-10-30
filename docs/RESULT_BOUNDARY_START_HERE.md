@@ -111,6 +111,7 @@ audit itself and what it found: the homework README §1.
 - The java.sql revamp, step 1 (2026-10-30, D66; GATES, the step 1 entry): the full local chain on the patch alone.
 - The java.sql revamp, step 2a (2026-10-30, D67; GATES, the step 2a entry): the full local chain on the patch alone.
 - The java.sql revamp, step 2b (2026-10-30, D68; GATES, the step 2b entry): the full local chain on the patch alone.
+- The java.sql revamp, step 3 (2026-10-30, D69; GATES, the step 3 entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -683,8 +684,13 @@ the places that use java.sql, pin the rest by class"):**
 - **Step 2b built 2026-10-30** (the decisions log D68; GATES, the step 2b entry): the test runners, the observer and
   the corpus harness on `Sessions.Session` (an owning session from the opener, non-closing views to the program
   entry); core's `test` package holds no `java.sql`. The census register shrank by three more files.
-- Step 3 next: the JDBC census pinned by class and capability (opens, checks, sends, loads, decodes, closes), the
-  funnel narrowed to the named classes, no `java.sql.Connection` in a public signature outside `exec`.
+- **Step 3 built 2026-10-30** (the decisions log D69; GATES, the step 3 entry): the JDBC census is a table of rows,
+  each registered class pinned to the acts it may perform (opens, checks, sends, loads, decodes, transacts, closes)
+  and measured in its source; the funnel exempts the register's classes and nothing else (one list for the two
+  guards); a new rule lets no public class outside `exec` offer a `java.sql` or driver type in a public signature;
+  the referee's SPI names no JDBC; F1.3b, the root's class-list pin, deleted as subsumed; `PostgresCells` judged
+  at last (it was not on the product jars). The revamp's three steps are built: the register holds 22 files, each
+  with its acts; the seam's own public API, where a connection changes hands, is the one left open by design.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

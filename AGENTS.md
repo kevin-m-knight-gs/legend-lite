@@ -24,7 +24,11 @@
 > mechanical, with known limits (guards catch drift, not adversaries —
 > the audit's §3): `JavaEvalLedgerTest` (shrink-only pins on the
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
-> (JDBC only at the chartered seams),
+> (JDBC and the drivers only in the JDBC census's registered classes: one
+> list with `JdbcSurfaceCensusTest.REGISTER`, each class pinned to the acts
+> it may perform -- opens, checks, sends, loads, decodes, transacts, closes
+> -- and no `java.sql` or driver type in a public signature outside `exec`,
+> `noJdbcTypeInAPublicSignatureOutsideTheSeam`; D69, 2026-10-30),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's
@@ -32,8 +36,9 @@
 > three routings, D65; a raise a MariaDB session holds is read back by the
 > seam from the two statements its connector declares as data; in core's
 > main sources the seam `JdbcStatements` and its DuckDB bulk loader are
-> the only JDBC senders -- the warehouse's server and client, the
-> datacube's Postgres tool and the test harnesses send their own) and
+> the only JDBC senders, the census's SENDS act -- the warehouse's server
+> and client, the datacube's Postgres tool and the test harnesses send
+> their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the

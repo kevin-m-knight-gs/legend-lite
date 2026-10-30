@@ -16441,3 +16441,35 @@ The decisions log D68.
    the product job's unlaned-tests guard empty.
 3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — The java.sql revamp, step 3: the JDBC surface pinned by class and act; the funnel on that one list; no JDBC type in a public signature outside the seam
+
+The decisions log D69.
+
+1. **Built:** `JdbcSurfaceCensusTest`'s register is a table of rows (the file, the acts it may perform, why); an act
+   is a set of spellings measured in comment-stripped source (OPENS, CHECKS, SENDS, LOADS, DECODES, TRANSACTS,
+   CLOSES); a third assertion, `eachRegisteredFileDoesItsActsAndNoOther`, fails on an act performed and not declared
+   and on one declared and no longer performed. The 22 rows by role: the openers, the seam, the decoders, one
+   carrier. `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam` exempts the register's classes and nothing else
+   (one list for the two guards, `registeredClasses()`), where it exempted four packages whole; the new
+   `noJdbcTypeInAPublicSignatureOutsideTheSeam` lets no public class outside `exec` offer a `java.sql` or driver type
+   in a public method's, constructor's or field's signature. `SqlReplayReferee.rows` declares no `SQLException` and
+   the SPI leaves the register; the harness's one caller loses a dead catch. Pins, dated: the register's rows (each
+   with its acts), the funnel's exemption. Both new rules proven to bite before the chain by a reverted probe: the
+   signature rule widened over `exec` named 52 public members of the seam; `JdbcDecode` un-chartered, the funnel
+   named it. The independent audit (22 findings, three named before the commit; it re-measured all 22 rows at zero drift) folded after the chain and measured on the census, the guardrails and the checks: the MongoDB statements' row said "documents inserted" where its `load` refuses (the row and the LOADS gloss corrected); the act spellings widened to the named JDBC calls a drifting file could use and still read "names only" (`prepareCall`, `executeLarge*`, `runCommand`, a data source's or a driver's open, the typed getters, `wasNull`, the metadata reads, the isolation level, savepoints, `isValid`, the JDBC `unwrap`: `DuckDbAppenderLoad` declares OPENS for its unwrap); the signature rule over every involved type (generic arguments, array components) and protected members; `PostgresCells` put on the product jars and the product-library list (a registered class no ArchitectureTest rule had judged since 2026-10-19); F1.3b `rootJavaSqlSurfaceIsPinned` deleted as subsumed (its last entry, `Execution`, held no `java.sql` since D67) and the charter's enforcement map corrected; the F1.3 javadoc states the pass-along limit and the signature rule's shipped marginal bite; a stale ledger comment
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped;
+   the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved; the two judge actions ran on the patch's jar at
+   the build, 03:14 to 03:19, and wrote reports identical to the last run's, so the ten roster shards were cache hits
+   on identical inputs and the two verdicts re-ran); the 21 PCT lanes 21 of 21; the five Postgres
+   PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the
+   headless host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard
+   empty. After the fold: `//core:census`, `//core:guardrails`, `//gates:checks` 145 of 146, 1 skipped (the new rules
+   ran: the funnel, the signature rule, the acts; F1.3b gone from the report).
+3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).

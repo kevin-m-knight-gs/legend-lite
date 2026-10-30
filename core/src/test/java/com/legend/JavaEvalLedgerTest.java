@@ -1507,9 +1507,10 @@ class JavaEvalLedgerTest {
                     "TdsObjectsWriter.java");
 
     /** The other funnel packages (documented-debts 2026-08-18,
-     * audit item 9's remainder): server and testdatagen may touch JDBC
-     * per F1.3, so their class lists close the same way exec's does; the result package (2026-10-28) closes as the
-     * edge where every value becomes text. */
+     * audit item 9's remainder): server and testdatagen could touch JDBC
+     * under F1.3's package exemption (gone 2026-10-30, D69: the funnel exempts the JDBC census register's classes
+     * only; testdatagen left 2026-10-29), so their class lists close the same way exec's does; the result package
+     * (2026-10-28) closes as the edge where every value becomes text. */
     private static final java.util.Map<String, java.util.Set<String>>
             FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
                     "core/src/main/java/com/legend", ROOT_CLASSES,

@@ -502,6 +502,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the java.sql revamp, step 3** (the decisions log D69; GATES, the step 3 entry): the JDBC census is
+  a table of classes and the acts each may perform (opens, checks, sends, loads, decodes, transacts, closes),
+  measured in its source; the funnel exempts those classes and nothing else, one list for the two guards; no public
+  class outside `exec` offers a `java.sql` or driver type in a public signature (a new rule); the referee's SPI
+  names no JDBC. The revamp's three steps are built.
 - **2026-10-30, the java.sql revamp, step 2b** (the decisions log D68; GATES, the step 2b entry): the test runners,
   the observer and the corpus harness hold sessions, not connections -- an owning session from the opener, a
   non-closing view to the program entry, the harness asking the session for the driver's object where its own

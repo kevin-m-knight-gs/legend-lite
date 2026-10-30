@@ -714,14 +714,9 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         // dropped after the verdict (the family mirror is shared state)
         List<String> allocTables = new java.util.ArrayList<>();
         try {
-            String sql = PlanReplay.finalSql(goldenPlan, bindings, s -> {
-                try {
-                    return rows(s);
-                } catch (SQLException e) {
-                    throw new RefereeVerify.Unverifiable("plan-text: allocation"
-                            + " node replay: " + e.getMessage(), e);
-                }
-            }, (name, allocSql, labels) -> {
+            // a driver failure on the referee is already Unverifiable (onReferee's bracket); the SPI's rows contract
+            // declares no SQLException since 2026-10-30 (D69)
+            String sql = PlanReplay.finalSql(goldenPlan, bindings, this::rows, (name, allocSql, labels) -> {
                 // the placeholder's columns read BARE downstream
                 // (`"tdsvar_0_1".eID`): the table is created with bare
                 // names so the referee folds them exactly as the engine's
@@ -897,8 +892,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     }
 
     @Override
-    public com.legend.exec.SqlReplayReferee.RefereeRows rows(String sql)
-            throws SQLException {
+    public com.legend.exec.SqlReplayReferee.RefereeRows rows(String sql) {
         return onReferee(recorder.seeds(),
                 VERIFY_SESSION, st -> {
                     try (java.sql.ResultSet rs = st.executeQuery(sql)) {

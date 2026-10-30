@@ -94,7 +94,10 @@ final class ArchitectureTest {
             java.util.Map.entry("server_lib", "com.legend.server.ConnectionResolver"),
             java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"),
             // MongoDB's connector, beside the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12)
-            java.util.Map.entry("mongodb_connector", "com.legend.exec.MongoDbConnector"));
+            java.util.Map.entry("mongodb_connector", "com.legend.exec.MongoDbConnector"),
+            // Postgres's JSON cells, beside its driver (the plan path program's step 9, 2026-10-19): on the product
+            // jars since 2026-10-30 (D69, the audit's finding: a registered JDBC class no rule here had judged)
+            java.util.Map.entry("postgres_cells", "com.legend.exec.PostgresCells"));
 
     /**
      * Every rule here judges {@link #CORE_PROD_CLASSES}; a product library missing from it is a library
@@ -642,13 +645,24 @@ final class ArchitectureTest {
     /**
      * <strong>F1.3 — the {@code java.sql} funnel (Charter C1/C2
      * boundary).</strong> "Java orchestrates, the DATABASE executes"
-     * becomes MECHANICAL: only the chartered egress/ingress packages may
-     * touch JDBC. Every other allowlist in this file admits {@code java..}
+     * becomes MECHANICAL: only the chartered JDBC classes may touch JDBC
+     * or a driver. Every other allowlist in this file admits {@code java..}
      * (which includes {@code java.sql}) — this rule is the narrow pin
      * that made the tenet enforceable (docs/TENET_CHARTER.md, enforcement
      * map). The audit's proof it matters: round 1's worked example
      * (hashString over rs.getString) survived 691 commits because no
      * rule forbade it.
+     *
+     * <p>The chartered classes are the JDBC census register's rows ({@code JdbcSurfaceCensusTest.REGISTER}: each
+     * file with the acts it may perform -- opens, checks, sends, loads, decodes, transacts, closes), ONE list for
+     * the two guards (2026-10-30, the java.sql revamp's step 3, D69). Until then the funnel exempted four packages
+     * whole ({@code exec}, {@code server..}, {@code test}, the root), so a class in them could reach a driver and
+     * no rule turned red; now a class joins the exemption only by a dated row of the census, and the census
+     * measures what the row lets it do. The limit, as F1.3b's javadoc stated before its deletion (D69): an
+     * ArchUnit dependency from a call is on the callee's owner, so an unregistered class that only PASSES a
+     * connection along ({@code PlanSessions.given(session.connection())}) is invisible here and to the signature
+     * rule below; "who handles a connection" is {@code theBodyDriverAndTheJudgesHoldNoJdbc}'s pin by name and the
+     * seam's own design (a session, not a connection, is what the runners hold since D68).
      */
     /** java.sql and every JDBC driver's own packages: a driver-native API rides with java.sql (F1.11). Every driver
      *  the product reaches since 2026-10-11 (the dialect program's Phase 0, 2026-10-13: the rules named DuckDB's and
@@ -659,28 +673,120 @@ final class ArchitectureTest {
             // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a client library, funnelled as a driver
             "com.mongodb..", "org.bson.."};
 
+    /** A class the census registers (a nested class counted as its top-level class). */
+    private static final com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaClass>
+            CHARTERED_JDBC_CLASSES = new com.tngtech.archunit.base.DescribedPredicate<>(
+                    "the chartered JDBC classes (the census register's rows, JdbcSurfaceCensusTest.REGISTER)") {
+                private final java.util.Set<String> names = JdbcSurfaceCensusTest.registeredClasses();
+
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaClass c) {
+                    String n = c.getName();
+                    int nested = n.indexOf('$');
+                    return names.contains(nested < 0 ? n : n.substring(0, nested));
+                }
+            };
+
     @Test
     void javaSqlIsFunnelledToTheCharteredSeam() {
         noClasses()
-            .that().resideOutsideOfPackages("com.legend.exec",
-                    // com.legend.testdatagen left this list 2026-10-29 (the doors): the generator runs every
-                    // statement through the plan runner and holds no JDBC
-                    "com.legend.server..",
-                    // the product's test runner (batch 7a): a driver like the
-                    // root's — it opens package sessions and hands the
-                    // connection to the executor, never a statement of its own
-                    "com.legend.test",
-                    "com.legend")
+            .that(com.tngtech.archunit.base.DescribedPredicate.not(CHARTERED_JDBC_CLASSES))
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat()
             // F1.11: driver-NATIVE APIs ride with java.sql — importing
             // org.duckdb/org.h2 types was a funnel bypass (the audit
             // framed the boundary as java.sql only)
             .resideInAnyPackage(JDBC_AND_DRIVERS)
-            .as("F1.3: java.sql AND the driver-native APIs are funnelled"
-                    + " to {exec, server, root} — Charter"
-                    + " clauses C1/C2")
+            .as("F1.3: java.sql AND the driver-native APIs are funnelled to the chartered JDBC classes, the census"
+                    + " register's rows (JdbcSurfaceCensusTest.REGISTER) — Charter clauses C1/C2")
             .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>No JDBC type in a public signature outside the seam</strong> (2026-10-30, the java.sql revamp's step 3,
+     * D69): a public class outside {@code com.legend.exec} declares no public or protected method, constructor or
+     * field whose signature involves a {@code java.sql} or driver type -- the return, every parameter, the field,
+     * every thrown type, and every type a generic argument or an array component names
+     * ({@code getAllInvolvedRawTypes}: an {@code Optional<Connection>} or a {@code Connection[]} offers one too;
+     * the D69 audit's finding). The seam's own public API may ({@code Sessions}' openers hand a connection out,
+     * {@code PlanSessions.given} takes one in): it is where a connection changes hands. The server's resolver keeps
+     * its connections in package-private members and an anonymous session (anonymous classes carry no public
+     * modifier, so {@code arePublic} leaves them out); the test runners hold sessions (D68). The funnel above
+     * covers the bytecode a class USES; this covers what it OFFERS. Its shipped marginal bite outside {@code exec}
+     * is the registered classes there ({@code ConnectionResolver}): an unregistered class offering a JDBC type
+     * depends on it and fails the funnel first. The probe that proved the mechanism (the rule widened over
+     * {@code exec} names the seam's public members) is recorded in the decisions log.
+     */
+    @Test
+    void noJdbcTypeInAPublicSignatureOutsideTheSeam() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().arePublic()
+            .and().resideInAPackage("com.legend..")
+            .and().resideOutsideOfPackage("com.legend.exec")
+            .should(new com.tngtech.archunit.lang.ArchCondition<com.tngtech.archunit.core.domain.JavaClass>(
+                    "offer no JDBC or driver type in a public or protected signature") {
+                @Override
+                public void check(com.tngtech.archunit.core.domain.JavaClass c,
+                        com.tngtech.archunit.lang.ConditionEvents events) {
+                    for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
+                        if (exposed(m)) {
+                            offered(events, m, m.getReturnType());
+                            for (com.tngtech.archunit.core.domain.JavaType t : m.getParameterTypes()) {
+                                offered(events, m, t);
+                            }
+                            for (com.tngtech.archunit.core.domain.ThrowsDeclaration<?> t : m.getThrowsClause()) {
+                                offered(events, m, t.getRawType());
+                            }
+                        }
+                    }
+                    for (com.tngtech.archunit.core.domain.JavaConstructor k : c.getConstructors()) {
+                        if (exposed(k)) {
+                            for (com.tngtech.archunit.core.domain.JavaType t : k.getParameterTypes()) {
+                                offered(events, k, t);
+                            }
+                            for (com.tngtech.archunit.core.domain.ThrowsDeclaration<?> t : k.getThrowsClause()) {
+                                offered(events, k, t.getRawType());
+                            }
+                        }
+                    }
+                    for (com.tngtech.archunit.core.domain.JavaField f : c.getFields()) {
+                        if (exposed(f)) {
+                            offered(events, f, f.getType());
+                        }
+                    }
+                }
+            })
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** Public or protected: what a class offers beyond its package. */
+    private static boolean exposed(com.tngtech.archunit.core.domain.JavaMember m) {
+        return m.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.PUBLIC)
+                || m.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.PROTECTED);
+    }
+
+    /** Whether {@code type} is java.sql's or a driver's ({@link #JDBC_AND_DRIVERS}). */
+    private static boolean jdbc(com.tngtech.archunit.core.domain.JavaClass type) {
+        String pkg = type.getPackageName();
+        for (String p : JDBC_AND_DRIVERS) {
+            String prefix = p.substring(0, p.length() - "..".length());
+            if (pkg.equals(prefix) || pkg.startsWith(prefix + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Every raw type {@code type} involves (itself, its generic arguments and bounds, an array's component). */
+    private static void offered(com.tngtech.archunit.lang.ConditionEvents events,
+            com.tngtech.archunit.core.domain.JavaMember m, com.tngtech.archunit.core.domain.JavaType type) {
+        for (com.tngtech.archunit.core.domain.JavaClass involved : type.getAllInvolvedRawTypes()) {
+            if (jdbc(involved)) {
+                events.add(com.tngtech.archunit.lang.SimpleConditionEvent.violated(m, m.getFullName() + " offers "
+                        + involved.getName() + " (in " + type.getName()
+                        + ") in a public or protected signature outside the seam (com.legend.exec)"));
+            }
+        }
     }
 
     /**
@@ -1026,56 +1132,12 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
-    /**
-     * <strong>F1.3b — the root package's {@code java.sql} class-list
-     * pin.</strong> WHAT IT MEASURES (2026-10-03): a class DEPENDING on a
-     * {@code java.sql} type the way ArchUnit counts it — a field, a
-     * signature, a call into JDBC. A class that only PASSES a connection
-     * along through another class's method ({@code BodyCompiler},
-     * {@code DatabaseJudge}, {@code SqlTextVerdicts}: {@code
-     * env.withConnection(side.connection())}) depends on that class, not on
-     * {@code java.sql}, and is not counted; "who handles a connection" is a
-     * different property (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md
-     * §3.3). Since 2026-10-29 (B1b) those classes pass a SESSION along, and
-     * {@link #theBodyDriverAndTheJudgesHoldNoJdbc} pins them by name. The funnel licenses {@code com.legend} ROOT, which
-     * contains BodyDriver — the audit's S1 dispatcher. Until the
-     * orchestration/exec-seam split (backlogged), root's JDBC surface is
-     * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
-     * {@code java.sql} fails this rule.
-     */
-    @Test
-    void rootJavaSqlSurfaceIsPinned() {
-        noClasses()
-            .that().resideInAPackage("com.legend")
-            // nested classes (BodyDriver$ExecEnv, ...) ride with
-            // their owner — the pin is per top-level class
-            // 2026-10-04 C2a: Compiler LEFT the pin -- the planner, java.sql-free, in //core:planner (no
-            // :exec); Execution, the execution front door, holds the execute entry points' Connection
-            // parameters it took from Compiler (a move, not growth)
-            // 2026-10-29 (the result boundary program's track B, B1b): BodyDriver LEFT the pin -- the body
-            // driver holds a session (Sessions.Session) and reaches the database only through its statements;
-            // Execution, the front door, keeps the execute entries' Connection parameters and wraps each as the
-            // driver's session (PlanSessions.session); 2026-10-29 (track D): the execute entries are gone and
-            // Execution keeps only run's and runProgram's Connection parameters
-            .and().haveNameNotMatching("com\\.legend\\.(Execution"
-                    // THE EXCEPTION SEAM (user directive 2026-09-01):
-                    // SQLException stops at the executor boundary —
-                    // verdicts throw AssertFailed, data errors arrive
-                    // as DataError. SHRUNK here: SqlTextVerdicts,
-                    // AssertErrorNative and SeedSqlForms left the pin
-                    // (zero java.sql); AssertVerdicts left it 2026-09-22
-                    // (the JDBC array cell's flatten moved behind the
-                    // exec seam — the Executor yields a Collection).
-                    + ")(\\$.*)?")
-            .should().dependOnClassesThat()
-            .resideInAPackage("java.sql..")
-            .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Execution} —"
-                    + " shrink-only (the exception seam landed"
-                    + " 2026-09-01; the carrier-type residue left 2026-09-22;"
-                    + " the body driver left 2026-10-29)")
-            .check(CORE_PROD_CLASSES);
-    }
+    // F1.3b, rootJavaSqlSurfaceIsPinned (2026-10-03 to 2026-10-30), DELETED with the java.sql revamp's step 3 (D69,
+    // the audit's finding): it pinned the root package's java.sql surface to an enumerated set while the funnel
+    // licensed the root as a package; the funnel now exempts the census register's classes only, none of them in the
+    // root, so the pin was subsumed -- and its last entry, Execution, had held no java.sql since D67 (a shrink-only
+    // pin that had not shrunk). Its javadoc's one standing lesson (a class that only passes a connection along is
+    // not a java.sql dependency the way ArchUnit counts it) moved to F1.3's.
 
     /**
      * <strong>The body driver and the judges hold no JDBC (2026-10-29, the result boundary program's track B, B1b;
@@ -1083,9 +1145,11 @@ final class ArchitectureTest {
      * ({@code BodyDriver}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
      * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
      * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
-     * on {@code java.sql} or a driver's own API. The funnel above licenses root as a package; this rule names the
-     * classes the funnel would let through. The generator itself ({@code TestDataGenerator}) joined 2026-10-29 (the
-     * doors): it runs every statement through the plan runner and holds no JDBC (D30's residue closed).
+     * on {@code java.sql} or a driver's own API. The funnel above licensed root as a package until 2026-10-30 (D69:
+     * it exempts the census register's classes only), when this rule named the classes the funnel would have let
+     * through; it stays as the pin by name, readable without the register. The generator itself
+     * ({@code TestDataGenerator}) joined 2026-10-29 (the doors): it runs every statement through the plan runner and
+     * holds no JDBC (D30's residue closed).
      */
     @Test
     void theBodyDriverAndTheJudgesHoldNoJdbc() {

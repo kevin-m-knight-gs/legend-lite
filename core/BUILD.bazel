@@ -1426,11 +1426,13 @@ junit_test(
         "--select-package=com.legend",
         "--include-tag=guardrail",
     ],
-    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary)
+    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
+    # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
     runtime_deps = [
         ":core_tests_lib",
         ":duckdb_load",
         ":mongodb_connector",
+        ":postgres_cells",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -1442,7 +1444,7 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector"],
+    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector", ":postgres_cells"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
