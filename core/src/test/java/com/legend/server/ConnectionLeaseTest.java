@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -157,23 +156,23 @@ class ConnectionLeaseTest {
         // hides it) and only on POSIX. isClosed() is exact, is the same on
         // every platform including the Windows runner where the leak first
         // showed as an undeletable file, and says what we actually mean.
-        Connection owned;
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.lease(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
-            owned = lease.connection();
-            assertTrue(!owned.isClosed(), "a lease must hand out a live connection");
+        com.legend.exec.Sessions.Session owned;
+        try (com.legend.exec.Sessions.Session session =
+                ConnectionResolver.session(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
+            owned = session;
+            assertTrue(!com.legend.exec.Sessions.closed(owned), "a session must hand out a live connection");
         }
-        assertTrue(owned.isClosed(),
+        assertTrue(com.legend.exec.Sessions.closed(owned),
                 "a file-backed connection is CALLER-OWNED: the lease must close"
                         + " it, or every auto-resolving call leaks"
                         + " one (docs/CONNECTION_LEASE_DESIGN_2026_09_09.md)");
 
-        Connection borrowed;
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.lease(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
-            borrowed = lease.connection();
+        com.legend.exec.Sessions.Session borrowed;
+        try (com.legend.exec.Sessions.Session session =
+                ConnectionResolver.session(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
+            borrowed = session;
         }
-        assertTrue(!borrowed.isClosed(),
+        assertTrue(!com.legend.exec.Sessions.closed(borrowed),
                 "an in-memory connection is STORE-OWNED: closing it would drop"
                         + " the tables HandleStore exists to keep, and break the"
                         + " persistence ConnectionIsolationTest pins");

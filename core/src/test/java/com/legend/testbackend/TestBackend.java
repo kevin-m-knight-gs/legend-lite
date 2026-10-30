@@ -36,7 +36,7 @@ public interface TestBackend {
      *  that opens no JDBC session refuses by its own name, as before). */
     default com.legend.exec.Sessions.Session openSession() {
         try {
-            return com.legend.exec.PlanSessions.owned(open());
+            return TestSessions.owning(open());
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }

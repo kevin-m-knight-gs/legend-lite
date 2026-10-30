@@ -526,7 +526,7 @@ public final class MinimalCorpus {
      *  closes the workspace, as the backend's connection did. */
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
-            return com.legend.exec.PlanSessions.owned(BACKEND.openWorkspace());
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace());
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
@@ -622,7 +622,7 @@ public final class MinimalCorpus {
         public void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {
             // the harness's own referee brackets the attempt on the driver's connection: the session's, asked for it
             try {
-                mark = effectful ? java.util.Objects.requireNonNull(referee).beginAttempt(conn.connection()) : null;
+                mark = effectful ? java.util.Objects.requireNonNull(referee).beginAttempt(com.legend.testbackend.TestSessions.connectionOf(conn)) : null;
             } catch (SQLException e) {
                 throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
             }
@@ -634,7 +634,7 @@ public final class MinimalCorpus {
             // leaves too — kept whether or not the body adjudicated anything
             if (effectful) {
                 try {
-                    com.legend.harness.ReplayReferee.commitAttempt(conn.connection());
+                    com.legend.harness.ReplayReferee.commitAttempt(com.legend.testbackend.TestSessions.connectionOf(conn));
                 } catch (SQLException e) {
                     throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
                 }
@@ -646,7 +646,7 @@ public final class MinimalCorpus {
         public void bodyFailed(com.legend.exec.Sessions.Session conn, boolean effectful) {
             if (effectful && mark != null) {
                 try {
-                    java.util.Objects.requireNonNull(referee).rollbackAttempt(conn.connection(), mark);
+                    java.util.Objects.requireNonNull(referee).rollbackAttempt(com.legend.testbackend.TestSessions.connectionOf(conn), mark);
                 } catch (SQLException e) {
                     throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
                 }
@@ -682,13 +682,13 @@ public final class MinimalCorpus {
         public com.legend.exec.Sessions.Session isolateFixture(com.legend.exec.Sessions.Session conn, String setupFqn) {
             FixtureAside set;
             try {
-                set = BACKEND.setFixtureAside(conn.connection());
+                set = BACKEND.setFixtureAside(com.legend.testbackend.TestSessions.connectionOf(conn));
             } catch (SQLException e) {
                 throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
             }
             aside = set;
             System.err.println("[fixture-aside] " + setupFqn + " -> " + set.name()
-                    + (set.connection() == conn.connection() ? " (" + BACKEND.name() + ")" : "") + " during " + currentTest);
+                    + (set.connection() == com.legend.testbackend.TestSessions.connectionOf(conn) ? " (" + BACKEND.name() + ")" : "") + " during " + currentTest);
             // the referee's MIRROR replays the seed ledger: it sets the same aside
             // its own way -- the fixture's DDL lands there, the golden SQL resolves
             // the mirror's own tables first (fixtureIsolated)
@@ -698,7 +698,7 @@ public final class MinimalCorpus {
                 }
             }
             // the fixture's session: a view the runner never closes (the aside is restored and released below)
-            return com.legend.exec.PlanSessions.session(set.connection());
+            return com.legend.testbackend.TestSessions.over(set.connection());
         }
 
         @Override

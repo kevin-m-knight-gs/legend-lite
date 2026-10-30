@@ -183,7 +183,8 @@ core/src/main/java/com/legend/
 │
 └── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
     ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
-    ├── Sessions.java + SessionState.java    (the typed session seam; PlanSessions.java wraps a Connection)
+    ├── Sessions.java + SessionState.java    (the typed session seam: a session made here alone, its state its own,
+    │                                         D70; PlanSessions.java the sessions a plan's target names)
     ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
     ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
     ├── TypedSide.java                       (the judges' collected side; ExecutionResult until 2026-10-29)

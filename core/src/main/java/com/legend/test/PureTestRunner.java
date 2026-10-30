@@ -53,7 +53,7 @@ import java.util.Set;
 public final class PureTestRunner implements AutoCloseable {
 
     /** How a session is opened (DuckDB in memory, H2, …): a session the runner OWNS -- closing it closes what it
-     *  opened ({@code PlanSessions.owned}; a test backend's {@code openSession}). D68, 2026-10-30: until then a
+     *  opened ({@code Sessions.owned}; a test backend's {@code openSession}). D68, 2026-10-30: until then a
      *  connection, which the runner closed itself. */
     @FunctionalInterface
     public interface Sessions {

@@ -754,7 +754,7 @@ class PlanMakerTest {
             com.legend.exec.PlanRunner.setUp(com.legend.setup.CsvSeed.planned(
                     com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), dialect).stream()
                     .map(com.legend.setup.CsvSeed.Planned::step).toList(),
-                    plan.answerSql().target(), com.legend.exec.PlanSessions.given(today), null);
+                    plan.answerSql().target(), com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(today)), null);
             // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
             // test data was established on
             return new String[] {PlanCases.today(model, query, "s::RT", today, output),

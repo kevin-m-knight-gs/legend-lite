@@ -654,7 +654,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 }
             }
             ATTEMPT_SQL_GOLDENS.add(goldenSql);
-            return verifyArmed(session.connection(), goldenSql, ours, mappingFqn,
+            return verifyArmed(connectionOf(session), goldenSql, ours, mappingFqn,
                     rootClassFqn, ctx, seeds, facts);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm: ", u);
@@ -740,7 +740,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 allocTables.add(name);
                 return "select * from " + name;
             });
-            return verifyArmed(session.connection(), sql, ours, mappingFqn, rootClassFqn,
+            return verifyArmed(connectionOf(session), sql, ours, mappingFqn, rootClassFqn,
                     ctx, null, facts);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-plan: ", u);
@@ -865,7 +865,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         try {
             String d = tdgSqlReplay(
                     recorder.seeds(),
-                    goldenSql, session.connection(), ourSql);
+                    goldenSql, connectionOf(session), ourSql);
             return d == null
                     ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
                     : com.legend.exec.SqlReplayReferee.RowVerdict
@@ -889,6 +889,19 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     st.execute(sql);
                     return Boolean.TRUE;
                 });
+    }
+
+    /** The driver's connection beneath the body's session, for the referee's own JDBC on it ({@code TestSessions}:
+     *  the test side's, D70). A session the test side did not make -- the system database's, a product-owned session
+     *  a body reading the metamodel store is routed to -- is DECLINED, never refereed: the referee has no connection
+     *  to send on (the D70 audit's finding; until D70 the session answered for its connection). */
+    private static Connection connectionOf(com.legend.exec.Sessions.Session session) {
+        try {
+            return com.legend.testbackend.TestSessions.connectionOf(session);
+        } catch (IllegalStateException e) {
+            throw new RefereeVerify.Unverifiable("referee: the side's session is the product's own (the system"
+                    + " database's route): no connection to send on", e);
+        }
     }
 
     @Override

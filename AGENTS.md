@@ -28,7 +28,9 @@
 > list with `JdbcSurfaceCensusTest.REGISTER`, each class pinned to the acts
 > it may perform -- opens, checks, sends, loads, decodes, transacts, closes
 > -- and no `java.sql` or driver type in a public signature outside `exec`,
-> `noJdbcTypeInAPublicSignatureOutsideTheSeam`; D69, 2026-10-30),
+> `noJdbcTypeInAPublicSignatureOutsideTheSeam`; D69, 2026-10-30; a session
+> is made by `exec` alone -- its connection the seam's, its state its own --
+> `onlyTheSeamMakesSessions`, D70, 2026-10-30),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's

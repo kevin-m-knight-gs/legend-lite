@@ -155,7 +155,7 @@ class WritePlansTest {
     }
 
     private static String answer(ExecutionPlan plan, Connection c, Map<String, ?> values) throws Exception {
-        return run(plan, PlanSessions.given(c), values);
+        return run(plan, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), values);
     }
 
     static String run(ExecutionPlan plan, PlanSessions.Source sessions, Map<String, ?> values)

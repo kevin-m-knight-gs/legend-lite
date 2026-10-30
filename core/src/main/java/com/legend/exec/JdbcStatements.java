@@ -24,6 +24,9 @@ import java.util.List;
 final class JdbcStatements implements Statements {
 
     private final Connection c;
+    /** The session's state (its memo of the session statements run, cleared by a rollback: D66); the owning
+     *  session's, handed with the connection (D70). */
+    private final SessionState state;
 
     /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
      *  the statement carried); null for a session no trace reads ({@link ExecutionTrace#stampOnly}). */
@@ -34,12 +37,13 @@ final class JdbcStatements implements Statements {
      *  known once {@link #check} has checked the session against the plan's target; null before. */
     private JdbcDecode.@com.legend.base.Nullable Driver driver;
 
-    JdbcStatements(Connection c) {
-        this(c, null);
+    JdbcStatements(Connection c, SessionState state) {
+        this(c, state, null);
     }
 
-    JdbcStatements(Connection c, @com.legend.base.Nullable ExecutionTrace trace) {
+    JdbcStatements(Connection c, SessionState state, @com.legend.base.Nullable ExecutionTrace trace) {
         this.c = c;
+        this.state = state;
         this.trace = trace;
     }
 
@@ -59,9 +63,9 @@ final class JdbcStatements implements Statements {
     /** The error a failed statement is told as: its raise where the error carries one, else the raise the session
      *  holds ({@link #held}, read then alone -- the audit of D65, 2026-10-29: read before the error's own text was
      *  looked at, every failure paid the session's metadata read), else the database's own text
-     *  ({@link PlanSessions#dataError(SQLException, java.util.function.Supplier)}). */
+     *  ({@link RaisedErrors#dataError(SQLException, java.util.function.Supplier)}). */
     private com.legend.error.DataError failed(SQLException e) {
-        return PlanSessions.dataError(e, () -> held(c));
+        return RaisedErrors.dataError(e, () -> held(c));
     }
 
     /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
@@ -188,7 +192,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
-        return Sessions.inTransaction(c, work);
+        return Sessions.inTransaction(c, state, work);
     }
 
     @Override
@@ -310,7 +314,7 @@ final class JdbcStatements implements Statements {
             // a session statement run inside the transaction may be undone with it (Postgres's SET is transactional):
             // the session's memo forgets them, and the next statement runs them again (D66) -- before the rollback,
             // whose own failure would leave the transaction's fate unknown
-            SessionState.of(c).rolledBack();
+            state.rolledBack();
             c.rollback();
         }
         if (snapshot != ExecutionPlan.Keyed.Snapshot.TRANSACTION) {

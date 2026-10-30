@@ -798,6 +798,8 @@ junit_test(
         ":core",
         ":test_backends",
         ":test_cases",
+        # the embedded server's port, the arm proof's (D70, 2026-10-30: read through the seam, no raw connection)
+        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],

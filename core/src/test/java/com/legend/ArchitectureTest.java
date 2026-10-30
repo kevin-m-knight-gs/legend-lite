@@ -660,9 +660,10 @@ final class ArchitectureTest {
      * no rule turned red; now a class joins the exemption only by a dated row of the census, and the census
      * measures what the row lets it do. The limit, as F1.3b's javadoc stated before its deletion (D69): an
      * ArchUnit dependency from a call is on the callee's owner, so an unregistered class that only PASSES a
-     * connection along ({@code PlanSessions.given(session.connection())}) is invisible here and to the signature
-     * rule below; "who handles a connection" is {@code theBodyDriverAndTheJudgesHoldNoJdbc}'s pin by name and the
-     * seam's own design (a session, not a connection, is what the runners hold since D68).
+     * connection along was invisible here and to the signature rule below -- a hole D70 closed from the other side:
+     * a session's connection is the seam's alone ({@code Sessions.Session.connection()} is package-private), so no
+     * class outside {@code exec} has a connection to pass; "who handles a connection" is also
+     * {@code theBodyDriverAndTheJudgesHoldNoJdbc}'s pin by name.
      */
     /** java.sql and every JDBC driver's own packages: a driver-native API rides with java.sql (F1.11). Every driver
      *  the product reaches since 2026-10-11 (the dialect program's Phase 0, 2026-10-13: the rules named DuckDB's and
@@ -708,14 +709,13 @@ final class ArchitectureTest {
      * field whose signature involves a {@code java.sql} or driver type -- the return, every parameter, the field,
      * every thrown type, and every type a generic argument or an array component names
      * ({@code getAllInvolvedRawTypes}: an {@code Optional<Connection>} or a {@code Connection[]} offers one too;
-     * the D69 audit's finding). The seam's own public API may ({@code Sessions}' openers hand a connection out,
-     * {@code PlanSessions.given} takes one in): it is where a connection changes hands. The server's resolver keeps
-     * its connections in package-private members and an anonymous session (anonymous classes carry no public
-     * modifier, so {@code arePublic} leaves them out); the test runners hold sessions (D68). The funnel above
-     * covers the bytecode a class USES; this covers what it OFFERS. Its shipped marginal bite outside {@code exec}
-     * is the registered classes there ({@code ConnectionResolver}): an unregistered class offering a JDBC type
-     * depends on it and fails the funnel first. The probe that proved the mechanism (the rule widened over
-     * {@code exec} names the seam's public members) is recorded in the decisions log.
+     * the D69 audit's finding). The seam's own public API may ({@code Sessions.owned} and {@code borrowed} take a
+     * connection in; the openers return sessions since D70): it is where a connection changes hands. The server's
+     * resolver and the test runners hold sessions (D68, D70). The funnel above covers the bytecode a class USES;
+     * this covers what it OFFERS. Since D70 no registered JDBC class remains outside {@code exec}, so an
+     * unregistered class offering a JDBC type depends on it and fails the funnel first; this rule stands for the
+     * day one joins. The probe that proved the mechanism (the rule widened over {@code exec} names the seam's
+     * public members) is recorded in the decisions log.
      */
     @Test
     void noJdbcTypeInAPublicSignatureOutsideTheSeam() {
@@ -756,6 +756,41 @@ final class ArchitectureTest {
                     }
                 }
             })
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>Only the seam makes sessions</strong> (2026-10-30, D70, the seam's step A): no product class outside
+     * {@code com.legend.exec} is a {@code Sessions.Session}. The Java access rules already say so -- the class's
+     * constructor and its one door to the driver's connection are package-private, so a subclass elsewhere cannot
+     * compile -- and this rule says it where the other walls are read. Until D70 the server's resolver and the
+     * test backends implemented sessions of their own over raw connections, and a session's state lived in a
+     * process-wide map keyed by the connection because of it.
+     */
+    @Test
+    void onlyTheSeamMakesSessions() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.exec")
+            .and().resideInAPackage("com.legend..")
+            .should().beAssignableTo(com.legend.exec.Sessions.Session.class)
+            .as("D70: a session is made by com.legend.exec (Sessions.owned, borrowed, view, the openers) and nowhere"
+                    + " else")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The product borrows no connection</strong> (2026-10-30, D70, the audit's finding): a product session OWNS
+     * its connection -- {@code Sessions.owned} is the openers' -- and no product class calls {@code Sessions.borrowed},
+     * the test side's door ({@code TestSessions}). A connection wrapped twice would be two sessions with two memos,
+     * and a declared seed (DROP IF EXISTS, CREATE) re-run on the second would silently drop what the first wrote;
+     * this rule is why no refusal registry replaced the connection-keyed map.
+     */
+    @Test
+    void theProductBorrowsNoConnection() {
+        noClasses()
+            .that().resideInAPackage("com.legend..")
+            .should().callMethod(com.legend.exec.Sessions.class, "borrowed", java.sql.Connection.class)
+            .as("D70: Sessions.borrowed is the test side's door; a product session owns its connection")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -1435,15 +1470,10 @@ final class ArchitectureTest {
                 "com.legend.exec.PrimitiveCensus.TALLY",
                 // and its per-test sets under primitives=per-test (the same day): bounded by tests x vocabulary
                 "com.legend.exec.PrimitiveCensus.TESTS",
-                // a SESSION's established test-data setups (2026-09-16): the
-                // engine loads a LocalH2 connection's data when it opens the
-                // connection, once; this keys that fact on the session itself
-                // (WeakHashMap — the fact lives exactly as long as the
-                // connection) and re-seeds after a writing statement.
-                // 2026-10-29 (track B's B1b): the map moved from the body driver
-                // (BodyDriver.ESTABLISHED) to the session seam, the same
-                // weak map by the same key, read through Sessions.Session.state()
-                "com.legend.exec.SessionState.OF",
+                // com.legend.exec.SessionState.OF LEFT this register 2026-10-30 (D70, the seam's step A): the
+                // process-wide weak map keyed by the driver's connection is gone -- the state is the owning session's
+                // own, shared by its views (Sessions.Session.state()); a product session owns its connection
+                // (theProductBorrowsNoConnection), so nothing is wrapped as a session anew at every call any more
                 // the bare-name rule's table (L7 "resolve once", step 3, 2026-10-10): the names a bare
                 // call may mean at an arity, computed from static tables (the engine surface, the core
                 // import group, the forms, the catalog) and kept per (name, arity) once computed; never

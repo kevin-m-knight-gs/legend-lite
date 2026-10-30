@@ -16473,3 +16473,38 @@ The decisions log D69.
    ran: the funnel, the signature rule, the acts; F1.3b gone from the report).
 3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — The seam's step A: one way into the session seam; the driver's connection the seam's alone; the session's state the owning session's own
+
+The decisions log D70.
+
+1. **Built:** `Sessions.Session` an abstract class whose constructor and whose one door to the driver's connection
+   are package-private (no class outside `exec` can be a session; `ArchitectureTest.onlyTheSeamMakesSessions`,
+   proven to bite: widened over `exec` it named the four session classes); one way in (`Sessions.owned`,
+   `borrowed`, `view`, the openers returning owned sessions, `PlanSessions.of` and `setUp`), the ten old doors and
+   the server's `Lease` gone; the session's state the owning session's own field, shared by its views, the
+   process-wide connection-keyed map deleted (its static-state register entry moved, dated); the handle stores
+   keep sessions; the test side keeps one session per connection it opened (`TestSessions`), 40 test and harness
+   files on the one way in. Pins, dated: the census register loses `PlanSessions`, `SystemDatabase`, `SessionState`
+   and `ConnectionResolver` (18 rows) and `Sessions` declares CLOSES; `staticCollectionStateIsImmutableOrRegistered`
+   loses `SessionState.OF`. The chain's one failure folded: `ConnectionIsolationTest` expected the raw `SQLException` from the server's seeding helper, which sends through the seam now and tells a `DataError` (the exception seam's rule), DuckDB's catalog error its message. The independent audit (ten findings, five to fix before the commit) folded after the chain and measured: the referee DECLINES, as a counted `Unverifiable`, a body routed to the system database's session (product-owned, no connection of the test side's) where it threw; the cloud PCT lanes' held session is one session kept by the lane (a cloud backend's `held()` answers a new unclosable proxy per call); the test side purges closed connections' entries at each registration and keys its connections by an opaque session identity (`Sessions.identity`; `Sessions.owner` gone: it handed a view-holder the closing session); `Sessions.given(session)` checks nothing at open, as D68's did; a new rule `theProductBorrowsNoConnection` (proven to bite: turned on `owned` it named the seven openers) makes "each connection wrapped once" mechanical, since a declared seed is DROP IF EXISTS then CREATE and a second session over one connection would re-seed silently, not fail loudly as the row first said; the Postgres arm test proves the resolver's session is on the arm's own server by its port read through the seam; the seam's helpers unwrap views to the root session and ask only a JDBC one for its connection; stale texts naming the deleted doors corrected (two ArchitectureTest javadocs, the test runner's, two judge-plan links, core's README, the handle store's, the start page's 22-files line and its block naming B1's cost); the resolver's fill tells a close that fails beside the setup's failure; two unused imports and a dead throws clause gone
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 176 of 178,
+   1 skipped, 1 failed (`//core:core_tests_server`: the isolation test above, fixed in the fold);
+   the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved; the two judge actions ran on the patch's jar at the
+   build and wrote reports identical to the last run's, so the ten roster shards were cache hits and the two verdicts
+   re-ran); the 21 PCT lanes 21 of 21; the five Postgres
+   PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the
+   headless host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard
+   empty. After the fold: `//core:census`, `//core:guardrails` (the two new rules ran), `//core:core_tests_server`,
+   `//core:core_tests_exec`, `//pct:pct_discipline`, `//gates:checks` 147 of 148, 1 skipped; `//core:postgres_arm_test`
+   and `//core:fixture_aside_postgres_test` as the unprivileged user 2 of 2; `//spec:judge_lanes`, both corpus gates 12 of
+   12 (the judge actions re-ran on the referee's change and wrote reports identical to the chain's: no verdict moved).
+3. **CI:** PR #82 (a draft, opened 2026-10-30 on the user's word so every push runs on every OS). On step 3's head
+   (dfbbcfa5), 49 of 50 jobs green on Linux, macOS, Windows and arm; `macos / datacube` ran no test (the remote cache
+   lost an input and Bazel's retry hit the runner's filesystem; commented on the PR, the re-run API refused to the
+   integration); this push is its re-run.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).

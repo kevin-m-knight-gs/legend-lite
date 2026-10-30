@@ -37,7 +37,7 @@ class SessionStatementsOnceH2Test {
     @Test
     void aTargetsSessionStatementsRunOncePerConnection_andAgainAfterARollback() throws Exception {
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
-            PlanSessions.Source on = PlanSessions.given(c);
+            PlanSessions.Source on = PlanSessions.of(com.legend.testbackend.TestSessions.over(c));
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
                     new ExecutionPlan.Servers.Every(), SESSION, List.of());
             ExecutionPlan read = plan(target, "SELECT CAST(@legend_session AS VARCHAR)");
@@ -55,7 +55,7 @@ class SessionStatementsOnceH2Test {
             // a rollback on the session (the seam's own bracket, as a failed effect segment rolls back): the memo
             // forgets, and the next statement for each target runs its list again
             IllegalStateException failed = assertThrows(IllegalStateException.class,
-                    () -> new JdbcStatements(c).inTransaction(() -> {
+                    () -> com.legend.testbackend.TestSessions.over(c).inTransaction(() -> {
                         throw new IllegalStateException("the work failed");
                     }));
             assertEquals("the work failed", failed.getMessage());
@@ -69,7 +69,7 @@ class SessionStatementsOnceH2Test {
     @Test
     void insideATransactionTheCallerHolds_theListRunsBeforeEveryStatement_andIsNotRemembered() throws Exception {
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
-            PlanSessions.Source on = PlanSessions.given(c);
+            PlanSessions.Source on = PlanSessions.of(com.legend.testbackend.TestSessions.over(c));
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
                     new ExecutionPlan.Servers.Every(), SESSION, List.of());
             ExecutionPlan read = plan(target, "SELECT CAST(@legend_session AS VARCHAR)");
@@ -95,7 +95,7 @@ class SessionStatementsOnceH2Test {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
                     new ExecutionPlan.Servers.Every(), List.of(), List.of());
             long before = sessionStatements();
-            assertEquals("1", PlanRunnerTest.run(plan(target, "SELECT '1'"), Map.of(), PlanSessions.given(c)));
+            assertEquals("1", PlanRunnerTest.run(plan(target, "SELECT '1'"), Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c))));
             assertEquals(0, sessionStatements() - before);
         }
     }

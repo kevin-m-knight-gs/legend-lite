@@ -112,6 +112,7 @@ audit itself and what it found: the homework README §1.
 - The java.sql revamp, step 2a (2026-10-30, D67; GATES, the step 2a entry): the full local chain on the patch alone.
 - The java.sql revamp, step 2b (2026-10-30, D68; GATES, the step 2b entry): the full local chain on the patch alone.
 - The java.sql revamp, step 3 (2026-10-30, D69; GATES, the step 3 entry): the full local chain on the patch alone.
+- The seam's step A (2026-10-30, D70; GATES, step A's entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -689,8 +690,24 @@ the places that use java.sql, pin the rest by class"):**
   and measured in its source; the funnel exempts the register's classes and nothing else (one list for the two
   guards); a new rule lets no public class outside `exec` offer a `java.sql` or driver type in a public signature;
   the referee's SPI names no JDBC; F1.3b, the root's class-list pin, deleted as subsumed; `PostgresCells` judged
-  at last (it was not on the product jars). The revamp's three steps are built: the register holds 22 files, each
-  with its acts; the seam's own public API, where a connection changes hands, is the one left open by design.
+  at last (it was not on the product jars). The revamp's three steps are built: the register held 22 files then (18
+  since step A), each with its acts; the seam's own public API, where a connection changes hands, is the one left open by design.
+
+**The seam and the wall (the user, 2026-10-30, on the revamp's assessment: "We have to do 1, 2, and 3 ... 3 is the
+huge payoff of this whole program"; the plan ratified that day: step A then B in two commits, `judge` its own package,
+no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- mostly dated guard edits):**
+
+- **Step A built 2026-10-30** (the decisions log D70; GATES, step A's entry): one way in (`Sessions.owned`,
+  `Sessions.borrowed`, `Sessions.view`, the openers returning sessions; `PlanSessions.of` and `setUp`), the driver's
+  connection the seam's alone (`Sessions.Session` an abstract class no class outside `exec` can extend:
+  `onlyTheSeamMakesSessions`), the session's state the owning session's own and the process-wide map keyed by the
+  connection deleted; the server's lease a session; the test side keeps one session per connection it opened
+  (`TestSessions`). Four more files off the census (18 rows; the server package holds no `java.sql`).
+- Step B1 next: the judge layer out of `exec` (`com.legend.judge`, its own target), the probes to the root, the
+  census's one dialect name; the ratchet shrinks to the runtime's reaches.
+- Step B2 then: the runtime's row on the plan's column (`exec.Column` replaced by `ExecutionPlan.Column`), the three
+  leaks (the timestamp fact on the connector, the session source to the driver, the system database's seed steps
+  handed in), `//core:exec`'s deps cut to the records, the ratchet a wall; zero roster movement in GATES.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

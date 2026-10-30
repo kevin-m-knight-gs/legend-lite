@@ -502,6 +502,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the seam's step A** (the decisions log D70; GATES, step A's entry): one way into the session seam
+  (`Sessions.owned`, `borrowed`, `view`; the openers return sessions), the driver's connection the seam's alone (a
+  session is an abstract class no class outside `exec` can extend), the session's state the owning session's own and
+  the process-wide connection-keyed map deleted, the server's lease a session, the test side keeping one session per
+  connection it opened. Next: B1 (the judge layer out of `exec`), B2 (the runtime walled from the compiler).
 - **2026-10-30, the java.sql revamp, step 3** (the decisions log D69; GATES, the step 3 entry): the JDBC census is
   a table of classes and the acts each may perform (opens, checks, sends, loads, decodes, transacts, closes),
   measured in its source; the funnel exempts those classes and nothing else, one list for the two guards; no public

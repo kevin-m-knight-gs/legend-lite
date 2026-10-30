@@ -51,7 +51,7 @@ class WireTypesTest {
         conn.createStatement().execute("insert into t values ('7')");
         Map<String, List<WireTypes.ReportedColumn>> memo = new HashMap<>();
         // the plan runner the reader goes through (the doors, 2026-10-29; the session seam since track B's B1a)
-        PlanSessions.Source c = PlanSessions.given(conn);
+        PlanSessions.Source c = PlanSessions.of(com.legend.testbackend.TestSessions.over(conn));
         com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
                 new com.legend.executionplan.ExecutionPlan.Database.Platform(type),
                 new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of());

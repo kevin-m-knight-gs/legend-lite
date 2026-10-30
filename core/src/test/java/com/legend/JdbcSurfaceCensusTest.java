@@ -169,7 +169,11 @@ class JdbcSurfaceCensusTest {
      *  sources the seam and its bulk loader are the only JDBC senders" is this table's SENDS column: the seam
      *  ({@code JdbcStatements}, {@code MongoDbStatements}) and DuckDB's appender load.
      *
-     *  <p>Departures, newest first (the files that left this register, each the day its JDBC went): 2026-10-30 (D69)
+     *  <p>Departures, newest first (the files that left this register, each the day its JDBC went): 2026-10-30 (D70,
+     *  the seam's step A) {@code PlanSessions} (its handle stores keep sessions, its anonymous sessions and its
+     *  liveness check the seam's), {@code SystemDatabase} (sessions opened and closed through the seam),
+     *  {@code SessionState} (no longer keyed by the driver's connection: the owning session's own) and
+     *  {@code server/ConnectionResolver} (its lease a session: the server package holds no java.sql); 2026-10-30 (D69)
      *  {@code SqlReplayReferee} (the referee's SPI declared {@code SQLException} on its rows contract; the harness
      *  tells a failure of its own); 2026-10-30 (D68) {@code PureTestRunner}, {@code ServiceTestRunner},
      *  {@code TestObserver} (sessions from the opener; core's {@code test} package holds no java.sql); 2026-10-30
@@ -194,13 +198,11 @@ class JdbcSurfaceCensusTest {
                     + " one metadata read kept out of Compiler so the plan surface needs no java.sql): a declared"
                     + " connection's URL opened (DriverManager) or an in-memory database through its connector; the"
                     + " version a handed session is checked by; the transaction bracket (autocommit off, commit,"
-                    + " rollback, the session's memo cleared first: D66). It executes nothing",
-                    Act.OPENS, Act.CHECKS, Act.TRANSACTS),
-            row("core/src/main/java/com/legend/exec/PlanSessions.java",
-                    "the sessions a plan's target names (execution plan step 3, 2026-10-09): an owned one closes with"
-                    + " the session, a given one is asked whether it is still open; the setup steps are the runner's"
-                    + " to send",
-                    Act.CLOSES),
+                    + " rollback, the session's memo cleared first: D66); the ONE WAY IN since D70 (2026-10-30): a caller's"
+                    + " connection enters as an owned session (closed with it) or a borrowed one, a session is shared"
+                    + " as a view, and the handle stores ask it whether a kept session is still open. It executes"
+                    + " nothing",
+                    Act.OPENS, Act.CHECKS, Act.TRANSACTS, Act.CLOSES),
             row("core/src/main/java/com/legend/exec/Connectors.java",
                     "which database a session is on, the driver's product name (the dialect program's Phase 5,"
                     + " 2026-10-16); the connectors found by ServiceLoader",
@@ -219,16 +221,6 @@ class JdbcSurfaceCensusTest {
                     "a client from the declared settings, closed with the session (2026-10-17, D12); its session's"
                     + " connection() refuses by name: a MongoDB session has no JDBC connection",
                     Act.OPENS, Act.CLOSES),
-            row("core/src/main/java/com/legend/exec/SystemDatabase.java",
-                    "the graph's metamodel rows in a database of their own (user ruling 2026-09-02), opened once per"
-                    + " graph per engine through Sessions or the caller's opener and closed at the end; its seed DDL"
-                    + " and rows are plan setup steps the runner sends",
-                    Act.CLOSES),
-            row("core/src/main/java/com/legend/server/ConnectionResolver.java",
-                    "the server's session source (C3b): opens through Sessions by the compiled model's target, keeps"
-                    + " a connection per handle in the handle store (a closed one re-opened), closes the leases it"
-                    + " owns",
-                    Act.CLOSES),
             // THE SEAM: the statements a session runs are sent here and nowhere else in core's main sources
             // (ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements pins the one caller)
             row("core/src/main/java/com/legend/exec/JdbcStatements.java",
@@ -272,12 +264,7 @@ class JdbcSurfaceCensusTest {
             row("core/src/main/mongodb/com/legend/exec/MongoDbDecode.java",
                     "a document's cells decoded by the plan's slots, beside its driver (D12)", Act.DECODES),
             names("core/src/main/java/com/legend/exec/WireTypes.java",
-                    "the wire-decided kinds (leg 3.3): a table keyed by java.sql.Types numbers"),
-            // THE CARRIER
-            names("core/src/main/java/com/legend/exec/SessionState.java",
-                    "what a body driver established on a session (track B's B1b, 2026-10-29) and the session"
-                    + " statements it ran (D66), keyed weakly by the session's Connection so the facts live as long"
-                    + " as the connection; it holds the key's type and sends nothing"));
+                    "the wire-decided kinds (leg 3.3): a table keyed by java.sql.Types numbers"));
 
     /** Every registered class, as the product's jars name it: the funnel's exemption. */
     static Set<String> registeredClasses() {

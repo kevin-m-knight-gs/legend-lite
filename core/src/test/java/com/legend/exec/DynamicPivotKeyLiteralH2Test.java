@@ -71,13 +71,13 @@ class DynamicPivotKeyLiteralH2Test {
                 return PlanRunner.rows(new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
                         ExecutionPlan.TdsResult.Shape.VALUE, columns,
                         new ExecutionPlan.Sql(dialect.render(query), List.of(), target, query, List.of()))),
-                        java.util.Map.of(), PlanSessions.given(conn)).rows();
+                        java.util.Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(conn))).rows();
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }
         };
         SqlQuery out = DynamicPivot.staticize(SqlSelect.starOf(pivot), dialect,
-                PlanSessions.given(conn), target, reader);
+                PlanSessions.of(com.legend.testbackend.TestSessions.over(conn)), target, reader);
         try (Statement st = conn.createStatement()) {
             st.execute("DROP TABLE T");
         }

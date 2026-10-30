@@ -6,13 +6,10 @@ import com.legend.model.DatabaseDefinition;
 import com.legend.setup.Ddl;
 import com.legend.sql.dialect.SqlDialect;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -56,18 +53,18 @@ public final class SystemDatabase {
 
     private static final java.lang.ref.Cleaner CLEANER = java.lang.ref.Cleaner.create();
 
-    /** The Cleaner action: holds the open connections, NEVER the store
+    /** The Cleaner action: holds the open sessions, NEVER the store
      * (a self-reference would keep the graph alive). */
     private static final class Closer implements Runnable {
-        private final List<Connection> open =
+        private final List<Sessions.Session> open =
                 java.util.Collections.synchronizedList(new ArrayList<>());
 
         @Override
         public void run() {
-            for (Connection c : open) {
+            for (Sessions.Session s : open) {
                 try {
-                    c.close();
-                } catch (SQLException ignore) {
+                    s.close();
+                } catch (com.legend.error.DataError ignore) {
                     // closing a dead in-memory session: nothing to report
                 }
             }
@@ -136,7 +133,7 @@ public final class SystemDatabase {
             DatabaseDefinition store, Function<String, List<List<String>>> rowsOf,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
         boolean inProcess = Sessions.inProcess(engine);
-        Connection c = inProcess ? openPrivate(engine) : openSystem(engine, systemConnections);
+        Sessions.Session c = inProcess ? openPrivate(engine) : openSystem(engine, systemConnections);
         Session s = null;
         try {
             s = seed(c, engine, inProcess, dialect, store, rowsOf);
@@ -151,10 +148,10 @@ public final class SystemDatabase {
         }
     }
 
-    private static void closeQuietly(Connection c) {
+    private static void closeQuietly(Sessions.Session c) {
         try {
             c.close();
-        } catch (SQLException ignore) {
+        } catch (com.legend.error.DataError ignore) {
             // closing after a failure: the failure is the error to report
         }
     }
@@ -164,9 +161,9 @@ public final class SystemDatabase {
      *  session statements, then each table's DDL and rows ({@link Ddl#metamodelSteps}: for the database's bulk loader
      *  where it has one, else its one INSERT) in process, or its temporary table on a server engine, read under its
      *  system name through the renames. Under the SYSTEM origin. */
-    private Session seed(Connection c, com.legend.model.ConnectionDefinition.DatabaseType engine, boolean inProcess,
-            SqlDialect dialect, DatabaseDefinition store, Function<String, List<List<String>>> rowsOf) {
-        Sessions.Session opened = PlanSessions.session(c);
+    private Session seed(Sessions.Session opened, com.legend.model.ConnectionDefinition.DatabaseType engine,
+            boolean inProcess, SqlDialect dialect, DatabaseDefinition store,
+            Function<String, List<List<String>>> rowsOf) {
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>();
         for (String setup : dialect.sessionSetup()) {
             steps.add(new ExecutionPlan.SetupStep.Statement(setup));
@@ -189,15 +186,15 @@ public final class SystemDatabase {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(engine),
                 new ExecutionPlan.Servers.Every(), List.of(), List.of());
         try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
-            PlanRunner.setUp(steps, target, PlanSessions.given(c), null);
+            PlanRunner.setUp(steps, target, PlanSessions.of(opened), null);
         }
         return new Session(opened, renames);
     }
 
-    private static Connection openPrivate(com.legend.model.ConnectionDefinition.DatabaseType engine) {
+    private static Sessions.Session openPrivate(com.legend.model.ConnectionDefinition.DatabaseType engine) {
         try {
             return Sessions.openPrivate(engine);
-        } catch (SQLException e) {
+        } catch (com.legend.error.DataError e) {
             throw new IllegalStateException("system database: cannot open the "
                     + engine + " session", e);
         }
@@ -205,7 +202,7 @@ public final class SystemDatabase {
 
     /** The host's system connection for {@code engine}, checked to be on {@code engine} (the query is planned in its
      *  runtime's dialect): another database is refused, never written to. */
-    private static Connection openSystem(com.legend.model.ConnectionDefinition.DatabaseType engine,
+    private static Sessions.Session openSystem(com.legend.model.ConnectionDefinition.DatabaseType engine,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
         Sessions.Opener opener = systemConnections.get(engine);
         if (opener == null) {
@@ -214,10 +211,10 @@ public final class SystemDatabase {
                     + " host's system connection, apart from every user connection (ExecuteOptions"
                     + ".withSystemConnections)");
         }
-        Connection c;
+        Sessions.Session c;
         try {
-            c = opener.open();
-        } catch (SQLException e) {
+            c = Sessions.open(opener);
+        } catch (com.legend.error.DataError e) {
             throw new IllegalStateException("system database: cannot open the " + engine
                     + " system connection: " + e.getMessage(), e);
         }

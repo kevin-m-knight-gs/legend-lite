@@ -239,7 +239,7 @@ class ConnectorsTest {
             if (inProcess.contains(type)) {
                 // its private instance is a session of its own database, whose errors carry their raise: no
                 // recovery declared, so the seam reads nothing back after a failure (JdbcStatements.held)
-                try (Connection c = Sessions.openPrivate(type)) {
+                try (Connection c = Connectors.of(type).openPrivate()) {
                     assertSame(Connectors.of(type), Connectors.of(c));
                     assertNull(Connectors.of(type).raiseRecovery());
                     assertNull(JdbcStatements.held(c));

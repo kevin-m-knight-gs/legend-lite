@@ -47,7 +47,7 @@ final class JudgePlans {
      * the legacy seam chose for that session, {@code SqlDialect.forServer}, so the plan is written for the session
      * it runs on; found 2026-10-19 by channel B's H2 judge, every case refused "written for H2 [2.1, 2.2], and the
      * session is H2 2.4"); no session statements and no setup -- the body's session was established by the runner
-     * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#given}).
+     * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#of}).
      */
     static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
         return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.session().version(), env.dialect());
@@ -299,7 +299,7 @@ final class JudgePlans {
         return batch == null ? plan : com.legend.sql.FrameCtes.attach(plan, batch.frames());
     }
 
-    /** {@code node} run on a session of {@code on} -- the body's own, given ({@link PlanSessions#given}): checked
+    /** {@code node} run on a session of {@code on} -- the body's own ({@link PlanSessions#of}): checked
      *  against the plan's target, never closed. */
     static PlanRunner.Rows run(ExecutionPlan.TdsResult node, PlanSessions.Source on) {
         try {
