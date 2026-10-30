@@ -1518,7 +1518,7 @@ class JavaEvalLedgerTest {
                     "core/src/main/java/com/legend/server",
                     java.util.Set.of("ConnectionResolver.java",
                             "DiagramService.java",
-                            "LegendHttpServer.java", "OutputFormat.java",
+                            "LegendHttpServer.java",
                             "PureLspServer.java",
                             // 2026-10-10/11, DataCube's Create a Class…, an Association…, a Data Space…
                             // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): the model's writer and its three
@@ -1530,10 +1530,11 @@ class JavaEvalLedgerTest {
                             "PureV1Api.java",
                             // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
                             // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
-                            "ModelInput.java",
+                            "ModelInput.java"),
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
-                            // the rules over a records interface, one implementation for the server, Python and the page)
-                            "QueryService.java"),
+                            // the rules over a records interface, one implementation for the server, Python and the page;
+                            // QueryService.java and OutputFormat.java DELETED 2026-10-30, D67: the HTTP door's runner is
+                            // ConnectionResolver.RUNNER over Execution.run, and the text conveniences were tests' alone)
                     "core/src/main/java/com/legend/testdatagen",
                     // TestDataGenerationNatives (TDG lane S1): the ORCHESTRATION-time fold
                     // of the checker's census CARRIER — computes the census

@@ -502,6 +502,12 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the java.sql revamp, step 2a** (the decisions log D67; GATES, the step 2a entry): the execution
+  front door holds a session and names no JDBC; `QueryService` and `OutputFormat` deleted -- the HTTP door's runner is
+  `ConnectionResolver.RUNNER` over `Execution.run`, and the text conveniences were tests' alone; six server
+  connectors lose an unused import; the runner's JDBC type number is the seam's. The JDBC census register shrinks by
+  nine files. Next: step 2b (the test runners, the observer and its harness on sessions), step 3 (the census by class
+  and capability).
 - **2026-10-30, the java.sql revamp, step 1** (the decisions log D66; GATES, the step 1 entry; PR #80 merged as
   `7bc0797d` the same day, the branch restarted from main): a target's session statements run once per connection
   (`SessionState`'s memo; a rollback clears it, Postgres's `SET` being transactional), where `PlanRunner.opened`

@@ -85,9 +85,10 @@ class JdbcSurfaceCensusTest {
     private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
-            // 2026-10-04 C2a: Compiler (the planner) left the register; Execution, the execution front door, holds the
-            // execute entry points it took (a session in, checked; nothing evaluated)
-            "core/src/main/java/com/legend/Execution.java",
+            // 2026-10-04 C2a: Compiler (the planner) left the register; Execution, the execution front door, held the
+            // execute entry points it took (a session in, checked; nothing evaluated). 2026-10-30 (D67, the java.sql
+            // revamp's step 2a): Execution.java LEFT this register -- it holds a Sessions.Session and asks it (its
+            // version, its check, the plan sessions of it); no JDBC
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the
             // body's); sent through the one Executor choke point
@@ -140,22 +141,20 @@ class JdbcSurfaceCensusTest {
             // (every connector opens sessions, a Connection in). 2026-10-29 (D65, the three routings):
             // MariaDbConnector.java LEFT this register -- its raise recovery is two statements it DECLARES as data
             // (DatabaseConnector.raiseRecovery), read by the seam after a failure (JdbcStatements.held); no JDBC
-            "core/src/main/java/com/legend/exec/BigQueryConnector.java",
-            "core/src/main/java/com/legend/exec/ClickHouseConnector.java",
+            // 2026-10-30 (D67): the six server connectors (BigQuery, ClickHouse, Databricks, Postgres, Snowflake,
+            // Trino) LEFT this register -- each held one unused java.sql.Connection import, D65's leftover; they name
+            // a URL and open nothing themselves. The three in-process ones open their private instances and stay.
             "core/src/main/java/com/legend/exec/Connectors.java",
             "core/src/main/java/com/legend/exec/DatabaseConnector.java",
-            "core/src/main/java/com/legend/exec/DatabricksConnector.java",
             "core/src/main/java/com/legend/exec/DuckDbConnector.java",
             "core/src/main/java/com/legend/exec/H2Connector.java",
-            "core/src/main/java/com/legend/exec/PostgresConnector.java",
-            "core/src/main/java/com/legend/exec/SnowflakeConnector.java",
             "core/src/main/java/com/legend/exec/SqliteConnector.java",
-            "core/src/main/java/com/legend/exec/TrinoConnector.java",
             // 2026-10-09, execution plan step 3 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the runner -- a
             // plan's own statement, its slots bound, the database's text carried out unread (PlanRunner); the sessions
             // a plan's target names, its setup run once (PlanSessions); an engine's bulk loader found (BulkLoads).
-            // The database executes; none of them computes a value
-            "core/src/main/java/com/legend/exec/PlanRunner.java",
+            // The database executes; none of them computes a value. 2026-10-30 (D67, the java.sql revamp's step 2a):
+            // PlanRunner.java LEFT this register -- its one JDBC name, a null's java.sql.JDBCType number, is the seam's
+            // (JdbcStatements.nullType, which the runner calls to check every null's type before a session opens)
             "core/src/main/java/com/legend/exec/PlanSessions.java",
             "core/src/main/java/com/legend/exec/BulkLoads.java",
             // 2026-10-29 (the doors' audit, D64): PrepTrace.java LEFT this register -- its timed prepare/execute arms,
@@ -218,12 +217,12 @@ class JdbcSurfaceCensusTest {
             // runner executes no SQL of its own (tenet #1)
             "core/src/main/java/com/legend/test/ServiceTestRunner.java",
             "core/src/main/java/com/legend/test/TestObserver.java",
-            "core/src/main/java/com/legend/server/ConnectionResolver.java",
             // 2026-10-29 (track B's B1b): TestDataGenerationNatives.java LEFT this register -- it hands the body's
             // session to the generator and holds no JDBC; 2026-10-29 (the doors): TestDataGenerator.java LEFT it
             // too -- every statement of a run is the plan runner's (effects, described typed rows, reported
-            // columns); the generator holds no JDBC
-            "core/src/main/java/com/legend/server/QueryService.java"
+            // columns); the generator holds no JDBC. 2026-10-30 (D67): QueryService.java DELETED -- the HTTP door's
+            // runner is ConnectionResolver.RUNNER over Execution.run; its text conveniences were tests' alone
+            "core/src/main/java/com/legend/server/ConnectionResolver.java"
     ));
 
 

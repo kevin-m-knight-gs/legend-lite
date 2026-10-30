@@ -43,6 +43,19 @@ final class JdbcStatements implements Statements {
         this.trace = trace;
     }
 
+    /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
+     *  plan format's own vocabulary, which every session reads; the runner checks every null's type by this before it
+     *  opens a session), or the plan is refused by name. The seam's, since D67 (2026-10-30): the runner names no JDBC
+     *  type. */
+    static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
+        try {
+            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
+                    + "' is no JDBC type", e);
+        }
+    }
+
     /** The error a failed statement is told as: its raise where the error carries one, else the raise the session
      *  holds ({@link #held}, read then alone -- the audit of D65, 2026-10-29: read before the error's own text was
      *  looked at, every failure paid the session's metadata read), else the database's own text
@@ -333,7 +346,7 @@ final class JdbcStatements implements Statements {
                             st.setObject(index, v.value());
                         }
                     }
-                    case PlanParameters.None none -> st.setNull(index, PlanRunner.nullType(one, slot));
+                    case PlanParameters.None none -> st.setNull(index, nullType(one, slot));
                     case PlanParameters.Many many -> throw new IllegalStateException("slot " + index + " binds one"
                             + " value of '" + slot.parameter() + "', given a list");
                 }

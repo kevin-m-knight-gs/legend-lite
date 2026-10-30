@@ -369,7 +369,7 @@ public final class PlanRunner {
     private static void nullTypes(ExecutionPlan.Sql sql) {
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                nullType(one, slot);
+                JdbcStatements.nullType(one, slot);
             }
         }
     }
@@ -395,7 +395,7 @@ public final class PlanRunner {
         for (ExecutionPlan.Sql sql : List.of(keyed.keys(), keyed.body())) {
             for (ExecutionPlan.Slot slot : sql.slots()) {
                 if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                    nullType(one, slot);
+                    JdbcStatements.nullType(one, slot);
                 }
             }
         }
@@ -592,7 +592,7 @@ public final class PlanRunner {
         // every null type checked before any session is opened: a plan whose null is of no type is refused whole
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                nullType(one, slot);
+                JdbcStatements.nullType(one, slot);
             }
         }
         List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
@@ -719,17 +719,6 @@ public final class PlanRunner {
                     + " given a value with none");
         }
         return digits;
-    }
-
-    /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
-     *  plan format's own vocabulary, which every session reads), or the plan is refused by name. */
-    static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
-        try {
-            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
-                    + "' is no JDBC type", e);
-        }
     }
 
     /** The kind of a checked value (one {@link PlanParameters} makes). */

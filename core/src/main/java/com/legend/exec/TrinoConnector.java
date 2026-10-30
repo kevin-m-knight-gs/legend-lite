@@ -7,7 +7,6 @@ import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.ConnectionSpecification;
 
-import java.sql.Connection;
 
 /** Trino's sessions: a declared connection of a Trino specification is opened by its URL (the plan path program's step
  *  9, 2026-10-19: the Trino lane on the plan route); a session handed to execution is checked against its driver's

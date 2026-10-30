@@ -64,7 +64,7 @@ library in the product.
 | The plan | `core/src/main/java/com/legend/executionplan/ExecutionPlan.java` (nodes `Sequence`, `TdsResult`, `Keyed`, `Update`, `Check`, `Effect`; `Column`), `ColumnFacts.java`, `PlanJson.java` (format 18; `PlanJsonTest` pins it), `MirJson.java`; `com/legend/PlanMaker.java`, `TypedQuery.java` (`executionPlan(...)`), `plan/QueryPlan.java`, `plan/UpstreamRelationType.java` (legend-engine's spellings of a column) |
 | Running a plan | `exec/PlanRunner.java` (`stream`, `rows`, `update`, `effect`), `exec/JdbcStatements.java` (the JDBC boundary; stamps the trace comment), `exec/JdbcDecode.java` (a JDBC cell by the plan's facts; `Driver` holds the drivers' quirks as facts), `exec/PlanSessions.java`, `exec/NonFiniteJson.java`, `core/src/main/mongodb/.../MongoDbDecode.java` |
 | The result and the writers | `result/`: `ResultSink`, `Batch`, `Batcher`, `Collector` (collect into memory), `RowDecode` (a cell from a JSON row), `HostRows` (rows a host ran), `CellText` (every cell spelling: Pure's print forms, legend-engine's tokens, lite's), `PureV1Writer` (LEGACY), `JsonRowsWriter` and `CsvWriter` (LEAN) |
-| The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`), `server/QueryService.java` (`executeUpstream`, and the streaming `execute(..., OutputStream, OutputFormat)`) |
+| The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`); the HTTP door's runner `server/ConnectionResolver.RUNNER` over `Execution.run` (`QueryService` and its streaming text routes deleted 2026-10-30, D67) |
 | The old door (DELETED, track D, 2026-10-29) | `Execution.execute*`, `executeResolved`, the materialized `ExecutionResult`, `QueryService`'s three materialized `execute` methods: gone; `exec/TypedSide` is the judges' collected side, `BodyDriver` (`StatementExecutor` until then) the body driver behind `Execution.runProgram` |
 | The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `exec/VerdictBatch`, `exec/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `PctExecuteNative` (the native the reference calls), `PctPlanRoute` (plan, run; a relation through `PureV1Api.engineWriter`), `ValueBridge` (`engineTDS` for a relation, `values` for a value), `PctBackend` (the lane's sessions, `LEGENDLITE_PCT_BACKEND`); `pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure` (the Pure adapter; `engineTDS` = legend-engine's `getTDSResultFromProtocol`), `pct_types.pure`; `pct/.../channelb/ChannelB.java` (channel B); the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java` |
@@ -109,6 +109,7 @@ audit itself and what it found: the homework README §1.
 - The doors' audit fold (2026-10-29, D64; GATES, the fold entry): the full local chain on the patch alone.
 - The three routings (2026-10-29, D65; GATES, the three routings' entry): the full local chain on the patch alone.
 - The java.sql revamp, step 1 (2026-10-30, D66; GATES, the step 1 entry): the full local chain on the patch alone.
+- The java.sql revamp, step 2a (2026-10-30, D67; GATES, the step 2a entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -674,9 +675,12 @@ the places that use java.sql, pin the rest by class"):**
 - **Step 1 built 2026-10-30** (the decisions log D66; GATES, the step 1 entry): a target's session statements run once
   per connection (the session's memo; a rollback clears it, Postgres's `SET` being transactional), where the runner
   re-sent them before every statement.
-- Step 2 next: the carriers to `Sessions.Session` (the execution front door, the test runners, the observer, the
-  server's entries), `QueryService` deleted (the HTTP door calls `Execution.run`; the text conveniences to the twin),
-  the free tier (six unused connector imports, `PlanRunner`'s JDBC type number into the seam).
+- **Step 2a built 2026-10-30** (the decisions log D67; GATES, the step 2a entry): the execution front door on
+  sessions (no JDBC); `QueryService` and `OutputFormat` deleted (the HTTP door's runner is `ConnectionResolver.RUNNER`
+  over `Execution.run`; the text conveniences were tests' alone); the free tier (six unused connector imports, the
+  runner's JDBC type number into the seam). The census register shrank by nine files.
+- Step 2b next: the test runners, the observer and its corpus harness on `Sessions.Session` instead of raw
+  connections.
 - Step 3: the JDBC census pinned by class and capability (opens, checks, sends, loads, decodes, closes), the funnel
   narrowed to the named classes, no `java.sql.Connection` in a public signature outside `exec`.
 

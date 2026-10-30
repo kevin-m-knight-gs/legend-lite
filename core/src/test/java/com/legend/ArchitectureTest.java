@@ -91,7 +91,7 @@ final class ArchitectureTest {
             java.util.Map.entry("driver", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
-            java.util.Map.entry("server_lib", "com.legend.server.QueryService"),
+            java.util.Map.entry("server_lib", "com.legend.server.ConnectionResolver"),
             java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"),
             // MongoDB's connector, beside the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12)
             java.util.Map.entry("mongodb_connector", "com.legend.exec.MongoDbConnector"));

@@ -16384,3 +16384,30 @@ The decisions log D66.
 3. **CI:** this push opens the revamp's PR and runs every OS.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`); the server round trips saved are counted
    (one SESSION list per connection where there was one per statement), not timed.
+
+## 2026-10-30 — The java.sql revamp, step 2a: the execution front door on sessions; QueryService and OutputFormat deleted; the free tier
+
+The decisions log D67.
+
+1. **Built:** `Execution.run` holds a `Sessions.Session` and asks it (`session.version()`,
+   `PlanSessions.given(session)`, `PlanSessions.setUp(session, target)`, `Sessions.check(session, type)`: new
+   overloads beside the connection ones). `server/QueryService` and `server/OutputFormat` DELETED: the HTTP door's
+   runner is `ConnectionResolver.RUNNER` over `Execution.run` (the resolver and its `SOURCE` public; the layer map's
+   representative of `server_lib`); the two tests that used the text conveniences pick the writer themselves;
+   thirteen integration tests lose an unused field. The independent audit (eleven findings, none on the code;
+   the census's walk simulated at zero drift) folded after the chain: a miscount, a stale table row, stale display
+   names and comments naming the deleted service as current, two javadoc placements -- comments, names and records
+   only, measured on the lanes they touch (root, server, integration, census, guardrails) after the chain. Six server connectors lose an unused `java.sql.Connection`
+   import; the runner's JDBC type number for a null is the seam's (`JdbcStatements.nullType`). Pins, dated: the JDBC
+   census register loses nine files (Execution, the six connectors, PlanRunner, QueryService); the Java-evaluation
+   ledger's server list loses QueryService and OutputFormat.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).

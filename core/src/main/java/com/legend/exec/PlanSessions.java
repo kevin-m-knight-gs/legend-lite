@@ -74,6 +74,13 @@ public final class PlanSessions {
         return target -> borrowed(connection);
     }
 
+    /** {@link #given(Connection)} for a session the caller holds: the source of it, its statements, state and
+     *  version the session's own, never closed here (D67, 2026-10-30: the execution front door holds a session, not a
+     *  connection). */
+    public static Source given(Sessions.Session session) {
+        return of(session, null);
+    }
+
     /** A session the body driver holds, for a plan it runs on it: its statements publish each query's
      *  execution-trace stamp to {@code trace} (an activity row records the comment its statement carried,
      *  {@link ExecutionTrace}; {@link Sessions.Session#statements(ExecutionTrace)}), its state and version the
@@ -122,10 +129,16 @@ public final class PlanSessions {
      *  on the connection they create ({@code LocalH2DataSourceSpecification.getConnection}). A plan with rows for a
      *  bulk loader is refused before any statement runs where the database has none. */
     public static Source setUp(Connection connection, ExecutionPlan.Target target) {
-        Source source = given(connection);
+        return setUp(borrowed(connection), target);
+    }
+
+    /** {@link #setUp(Connection, ExecutionPlan.Target)} for a session the caller holds (D67, 2026-10-30). */
+    public static Source setUp(Sessions.Session session, ExecutionPlan.Target target) {
+        Source source = given(session);
         if (target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)) {
             // the loader, found before any statement runs: a plan writes rows for one only where its database has one
             // (SqlDialect.loadsRowsInBulk), so none is a mismatch, refused untouched
+            Connection connection = session.connection();
             try {
                 if (BulkLoads.of(connection) == null) {
                     throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"

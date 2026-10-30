@@ -56,13 +56,12 @@ public final class Execution {
         }
         ModelContext ctx = typed.context();
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            java.sql.Connection connection = session.connection();
             com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, java.util.Set.of(),
-                    com.legend.exec.Sessions.version(connection));
+                    session.version());
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanSessions.Source on = switch (establish) {
-                case DECLARED_SETUP -> com.legend.exec.PlanSessions.setUp(connection, plan.answerSql().target());
-                case AS_GIVEN -> com.legend.exec.PlanSessions.given(connection);
+                case DECLARED_SETUP -> com.legend.exec.PlanSessions.setUp(session, plan.answerSql().target());
+                case AS_GIVEN -> com.legend.exec.PlanSessions.given(session);
             };
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
             return plan;
@@ -103,7 +102,7 @@ public final class Execution {
             @com.legend.base.Nullable String runtimeFqn,
             com.legend.exec.Sessions.Session session) {
         com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
-        com.legend.exec.Sessions.check(session.connection(), decided.type());
+        com.legend.exec.Sessions.check(session, decided.type());
         String version = session.version();
         // B6: the dialect states the session's FACTS (sessionSetup); the plan runner runs them, as the body's
         // target's session statements, before the connection's first statement and not again (JudgePlans.target)

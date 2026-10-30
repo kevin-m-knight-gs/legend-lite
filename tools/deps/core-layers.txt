@@ -64,7 +64,7 @@
 # the pure/v1 API answers an ARROW_IPC request with that stream; no other layer reaches it (ArrowClosureTest).
 # 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
 # switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
-# a program that writes from its plan (executeUpstream: the plan made, run by PlanRunner, its answer's SQL reported).
+# a program that writes from its plan (ConnectionResolver.RUNNER: the plan made, run by PlanRunner, its answer's SQL reported).
 spi	
 cache	base
 values	base

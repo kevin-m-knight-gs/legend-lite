@@ -21,7 +21,7 @@ import java.sql.SQLException;
  * gets a fresh one (an FQN-only key desynced: engine planCache scar). A specification or database type not built is
  * refused by name (the folds to in-memory are gone, C3b).
  */
-final class ConnectionResolver {
+public final class ConnectionResolver {
 
     private ConnectionResolver() {
     }
@@ -40,7 +40,7 @@ final class ConnectionResolver {
      *       {@code ConnectionIsolationTest} pins;</li>
      *   <li>every other arm is a fresh {@code DriverManager} connection that
      *       this lease closes. Before leases nobody closed them, so each call
-     *       through an auto-resolving {@link QueryService} method leaked one
+     *       through an auto-resolving route of the server (QueryService's until D67) leaked one
      *       connection — 25 calls, 25 file descriptors, measured
      *       (ConnectionLeaseTest). Silent on POSIX, and on Windows the symptom
      *       was a database file that could not be deleted.</li>
@@ -97,8 +97,9 @@ final class ConnectionResolver {
     /** The server's session source (C3b): the compiler decides the target from the compiled model
      *  ({@code Compiler.executesOn}), this opens exactly it — a declared connection by {@code Sessions}' opening,
      *  the platform's DuckDB for a runtime binding only model data. One session per query: a runtime whose
-     *  connections are DIFFERENT definitions is refused by name. */
-    static final com.legend.exec.Sessions.Source SOURCE = (target, ctx) -> {
+     *  connections are DIFFERENT definitions is refused by name. Public since D67 (2026-10-30): the tests' twin reads
+     *  the server's route through it ({@code testing.Lean.service}). */
+    public static final com.legend.exec.Sessions.Source SOURCE = (target, ctx) -> {
         try {
             Lease lease = open(target, ctx);
             return new com.legend.exec.Sessions.Session() {
@@ -120,6 +121,14 @@ final class ConnectionResolver {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
     };
+
+    /** Upstream {@code pure/v1/execution/execute} (E8), the {@link PureV1Api.Runner} the server hands the API (D67,
+     *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): a query that
+     *  reads runs on its runtime's connection, leased, established first as legend-engine establishes it on every
+     *  acquisition (its declared test data run on it); a program that writes runs from its plan on the plan's sessions
+     *  (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}. */
+    public static final PureV1Api.Runner RUNNER = (query, runtime, sinkOf) -> com.legend.Execution.run(query, runtime,
+            SOURCE, com.legend.exec.PlanSessions.shared(), com.legend.Execution.Establish.DECLARED_SETUP, sinkOf);
 
     /** The session for {@code runtimeFqn} of the compiled model {@code ctx}: the same lease a query on that runtime
      *  executes on (a caller that seeds tables before querying shares the database). */

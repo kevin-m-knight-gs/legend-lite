@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Phase K end-to-end: {@code Compiler.execute} — the core QueryService —
+ * Phase K end-to-end: {@code Compiler.execute} — the core's execution front door —
  * over a real connection, one test per {@link ResultShape}. The typed-result
  * contract is pinned: Pure types ride the result; consumers never sniff.
  */

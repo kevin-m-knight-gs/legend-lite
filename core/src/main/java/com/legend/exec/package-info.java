@@ -5,7 +5,7 @@
  * ({@link com.legend.plan.ResultShape}); cell values are raw JDBC objects and
  * the Pure {@code Type} on the result is the semantic carrier &mdash; consumers
  * convert, never sniff SQL types. Representation-identical to the engine
- * module's result types BY DESIGN: the QueryService bridge is a bijection and
+ * module's result types BY DESIGN: the server's former QueryService bridge (deleted 2026-10-30, D67) was a bijection and
  * dies with the engine module.
  */
 package com.legend.exec;

@@ -120,6 +120,12 @@ public final class Sessions {
         return Connectors.of(type).jdbcProduct();
     }
 
+    /** {@link #check(Connection, DatabaseType)} of a session (D67, 2026-10-30: the execution front door holds no
+     *  connection). */
+    public static void check(Session session, DatabaseType declared) {
+        check(session.connection(), declared);
+    }
+
     /** {@code session} is a session on {@code declared}: a session on another database is refused, never reinterpreted. */
     public static void check(Connection session, DatabaseType declared) {
         String product = metadata(session, true);
