@@ -1,5 +1,7 @@
 package com.legend;
 
+import com.legend.driver.GridProbe;
+
 import com.legend.protocol.TypeExpression;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -209,6 +211,9 @@ final class ArchitectureTest {
     void phasesNeverDependOnTheDriverLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
+            // the top layer is three packages since step C (D73, 2026-10-30): the root's doors, the plan machinery
+            // (com.legend.planner) and the execution side's machinery (com.legend.driver)
+            .and().resideOutsideOfPackages("com.legend.driver", "com.legend.planner")
             // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
             // of Compiler) — a top-layer sibling, not a phase
             .and().resideOutsideOfPackage("com.legend.server..")
@@ -218,9 +223,9 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.BodyDriver.class)
-            .as("Invariant 4c: the com.legend root (driver) is the top"
-                    + " layer — audit 19")
+                    com.legend.driver.BodyDriver.class)
+            .as("Invariant 4c: the root's doors, the planner and the driver are the top"
+                    + " layer — audit 19; step C, D73")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -234,7 +239,10 @@ final class ArchitectureTest {
     @Test
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
-            .that().resideOutsideOfPackage("com.legend")
+            // the root layer's execution side is com.legend.driver since step C (D73, 2026-10-30: EngineText, the
+            // engine-text registry, lives there); the root's doors reach no engine-style renderer, so the root's own
+            // exemption, which the rule carried since audit 19, named nothing and left (the D73 audit)
+            .that().resideOutsideOfPackage("com.legend.driver")
             .and().resideInAPackage("com.legend..")
             // the engine-style FAMILY (H2 + DB2 golden-text renderers)
             // may compose internally; the quarantine is against the
@@ -260,7 +268,9 @@ final class ArchitectureTest {
     @Test
     void engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter() {
         noClasses()
-            .that().resideOutsideOfPackages("com.legend", "com.legend.sql.dialect", "com.legend.testdatagen")
+            // com.legend.driver since step C (D73, 2026-10-30): the root layer's execution side; the root's own
+            // exemption left the same day (no door holds the interface; the D73 audit)
+            .that().resideOutsideOfPackages("com.legend.driver", "com.legend.sql.dialect", "com.legend.testdatagen")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
@@ -527,6 +537,41 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
                     .haveSimpleName("POpaqueElement")
             .as("Invariant 12: only the OVERLAY seam mints opaque records")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The driver has one caller (step C, D73, 2026-10-30).</strong> {@code BodyDriver} was package-private by
+     * design while it shared the root package with the execution door; the driver's machinery is its own package now
+     * ({@code com.legend.driver}), so the class is public for exactly the caller the design named,
+     * {@code Execution.runProgram}: no other class outside the driver depends on it.
+     */
+    @Test
+    void theDriverHasOneCaller() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.driver")
+            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyDriver(\\$.*)?")
+            .as("step C: the body driver is the execution door's alone (Execution.runProgram)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The planner is execution-free at the class level (step C, D73, 2026-10-30).</strong> The build says it
+     * ({@code //core:planner} depends on neither {@code :driver} nor {@code :exec}); this rule says it where a reach by
+     * name would show: the plan machinery ({@code com.legend.planner}) and the root's three plan-side doors
+     * ({@code Compiler}, {@code TypedQuery}, {@code HeldModels}) depend on no class of the driver, the runtime or the
+     * judge.
+     */
+    @Test
+    void plannerIsExecutionFree() {
+        noClasses()
+            .that().resideInAPackage("com.legend.planner")
+            .or().haveFullyQualifiedName("com.legend.Compiler")
+            .or().haveFullyQualifiedName("com.legend.TypedQuery")
+            .or().haveFullyQualifiedName("com.legend.HeldModels")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.driver", "com.legend.exec..", "com.legend.judge")
+            .as("step C: planning never touches the driver, the runtime or the judge")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -1064,7 +1109,7 @@ final class ArchitectureTest {
                     // (2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3)): the plan's typed tree read back from its JSON, exactly as the planner
                     // wrote it -- no text composed
                     // GridProbe at the root since 2026-10-30 (D71: the probes out of exec)
-                    "com\\.legend\\.(GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
+                    "com\\.legend\\.(driver\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -1150,11 +1195,9 @@ final class ArchitectureTest {
             // the whole judge package since 2026-10-30 (D71: the judges out of exec into com.legend.judge), and
             // the probes with them at the root (ColumnProbe, GridProbe, WireProbe, DynamicPivot: a probe asks the
             // plan runner, never a connection)
-            .that().haveNameMatching("com\\.legend\\.(BodyDriver|BodyCompiler|HostJudge|DatabaseJudge"
-                    + "|JudgePlans|AssertVerdicts|SqlTextVerdicts|AgreementArm|VerdictArm|CsvLoad|SeedSqlForms"
-                    + "|AssertErrorNative|ColumnProbe|GridProbe|WireProbe|DynamicPivot"
-                    // the system database since 2026-10-30 (D72: the driver's; it holds sessions through the seam)
-                    + "|SystemDatabase"
+            // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
+            // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
+            .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
                     + "|judge\\.[A-Za-z0-9_]+"
                     + "|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
                     + "(\\$.*)?")
@@ -1267,13 +1310,13 @@ final class ArchitectureTest {
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
         noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.AssertVerdicts")
+            .that().doNotHaveFullyQualifiedName("com.legend.driver.AssertVerdicts")
             // task #27 (2026-09-21): the verdict seam's two arms — the host judge
             // (Java compare over database rows) and the database judge (the verdict
             // statement) — split out of the router
-            .and().doNotHaveFullyQualifiedName("com.legend.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.AssertErrorNative")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.driver.AssertErrorNative")
             .and().doNotHaveFullyQualifiedName("com.legend.judge.PureAsserts")
             .and().doNotHaveFullyQualifiedName("com.legend.judge.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.judge.CanonicalForm")

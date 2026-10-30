@@ -203,11 +203,22 @@ core/src/main/java/com/legend/
 │   └── Column.java + Row.java               (a judged side's column in the compiler's Type, and its row; exec's
 │                                            until D72)
 │
-└── (the root)                         the driver side's probes (D71): ColumnProbe, GridProbe, DynamicPivot and
-                                       WireProbe (the probe half of WireTypes) ask the plan runner and read the
-                                       compiler's types; SystemDatabase (D72): the graph's system store, keyed by
-                                       the compiled graph, seeded through the plan side's DDL; Execution.Source
-                                       (D72): where execution gets the session for the target the compiler decided
+├── planner/                           the plan machinery behind the plan-side doors (step C, D73, 2026-10-30):
+│   ├── PlanMaker.java                       a typed query to its plan; MetamodelSeeds + OpSeeds the system store's
+│   ├── QueryParameters.java                 rows; ProgramFacts; the cross-store guard. Part of //core:planner;
+│   └── ...                                  depends on no execution class (ArchitectureTest.plannerIsExecutionFree)
+│
+├── driver/                            the execution side's machinery behind the execution doors (step C, D73):
+│   ├── BodyDriver.java + BodyCompiler       a test body as a sequence of plans (BodyDriver has one caller,
+│   ├── HostJudge + DatabaseJudge + ...      Execution.runProgram); the judges' arms and their plans (JudgePlans,
+│   ├── CsvLoad + SeedSqlForms + ...         AssertVerdicts, AgreementArm, SqlTextVerdicts); the seeds and loads;
+│   ├── ColumnProbe + GridProbe + ...        the schema probes (D71: ColumnProbe, GridProbe, DynamicPivot,
+│   └── SystemDatabase.java                  WireProbe); the graph's system database (D72). //core:driver
+│
+└── (the root)                         THE FIVE DOORS, and nothing else since D73: Compiler, TypedQuery, HeldModels
+                                       (the plan side) and Execution, ExecuteOptions (the execution side); the
+                                       product's API, the five classes named outside core. Execution.Source (D72):
+                                       where execution gets the session for the target the compiler decided
 ```
 
 ## Naming conventions

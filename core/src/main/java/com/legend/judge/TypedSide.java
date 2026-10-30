@@ -1,6 +1,5 @@
 package com.legend.judge;
 
-
 import com.legend.compiler.element.type.Type;
 
 import java.util.Collections;

@@ -4,7 +4,6 @@ import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.plan.ResultShape;
 
-import com.legend.Compiler;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;

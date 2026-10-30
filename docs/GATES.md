@@ -16583,3 +16583,45 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — Step C, the root dissolved: the five doors at the root; the plan machinery com.legend.planner, the execution side com.legend.driver
+
+The decisions log D73.
+
+1. **Built:** a move, no behavior. The root package holds the product's five public doors alone (`Compiler`,
+   `TypedQuery`, `HeldModels`; `Execution`, `ExecuteOptions`: the five classes named outside core); six files to
+   `com.legend.planner` (`PlanMaker`, `MetamodelSeeds`, `OpSeeds`, `ProgramFacts`, `QueryParameters`,
+   `CrossStoreGuard`), twenty-five to `com.legend.driver` (the body driver and compiler, the judges' arms and their
+   plans, the seeds and loads, the schema probes, the system database), each a `git mv` with its package line and
+   imports; the BUILD names the three plan-side doors and globs each package; two new lanes (`core_tests_planner`,
+   `core_tests_driver`). The members that crossed a package line are public and marked as not the API's (`PlanMaker`
+   and four statics; `BodyDriver` and `execute`; seven of `TypedQuery`'s internals). Pins, dated: two new rules
+   (`theDriverHasOneCaller`: no class outside the driver but `Execution` depends on `BodyDriver`, nested types
+   included; `plannerIsExecutionFree`: the planner and the plan-side doors depend on no driver, exec or judge class);
+   the no-JDBC rule names the whole driver package; three root-layer rules name the driver and planner as the top
+   layer and the two engine-style quarantines drop the root from their exemptions (no door reaches a renderer); the
+   ledger's `ROOT_CLASSES` is the five doors, `PLANNER_CLASSES` (7) and `DRIVER_CLASSES` (26) new, exact both ways;
+   size pins re-pathed, two risen by the import lines the move needs (AssertVerdicts 1258 -> 1259, BodyDriver
+   2313 -> 2321); the RawSql seam, the verdict-channel register, the lane-order guard, the SQL-text ratchet's row,
+   the owners' engine-text path re-pathed; the harness discipline's roots gain the driver, the host judge's four
+   sorts, the body driver's two reorders and the plan allocations' accessor registered (the audit). Eight tests
+   moved with their classes (six plan tests sharing `PlanMakerTest`'s package-private helpers to the planner's
+   lane, two to the driver's). The audit's thirteen findings (no blocker; residue of the rewrite and the write-up)
+   folded: thirty unused imports deleted, the dead root exemptions, the discipline's reach, the row's counts, the
+   cosmetics.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user; l21):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test
+   skipped), `//core:core_tests` (every lane, the two new ones among them), `//core:core_tests_lanes` (the floors
+   unmoved), `//core:guardrails` (the two new rules among them), `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test`, the four DuckDB parity lanes: 180 of 181, 1 skipped; the nine Postgres targets 9 of
+   9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the judge actions ran on the
+   patch's jars at the build and wrote reports identical to the last run's, so the ten roster shards were cache
+   hits and the two verdicts re-ran: zero roster movement, the move's oracle); the 21 PCT lanes 21 of 21; the five
+   Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at
+   the headless host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests
+   guard empty. After the fold (imports, the exemptions, the discipline, the cosmetics): `bazel build //core:all
+   //spec:spec_tests_lib //pct:all` green; `//core:guardrails`, `//core:census`, `//core:core_tests_driver`,
+   `//core:core_tests_planner`, `//core:core_tests_root`, `//gates:checks`, `//tools/deps:core_layering_test` 148 of 148.
+3. **CI:** PR #82 (a draft). On step B2's head (9f44d43c), 51 of 51 checks green on Linux, macOS, Windows and arm
+   (`gates green` included); this push runs again.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+

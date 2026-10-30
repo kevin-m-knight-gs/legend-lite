@@ -6,7 +6,7 @@ package com.legend.test;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.ExecuteOptions;
-import com.legend.ProgramFacts;
+import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
 import com.legend.judge.AssertListener;
 import com.legend.judge.SqlReplayReferee;

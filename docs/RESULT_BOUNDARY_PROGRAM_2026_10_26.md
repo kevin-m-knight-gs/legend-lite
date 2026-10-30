@@ -502,6 +502,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, step C, the root dissolved** (the decisions log D73; GATES, step C's entry): the root package holds the
+  five public doors alone; the plan machinery is `com.legend.planner`, the execution side's `com.legend.driver`; the
+  planner-driver wall is the language's as well as the build's (`theDriverHasOneCaller`, `plannerIsExecutionFree`).
+  A move: zero roster movement. The seam-and-wall program is complete.
 - **2026-10-30, the seam's step B2, the wall** (the decisions log D72; GATES, step B2's entry): `exec` depends on no
   planning library -- the judges' column and row to `judge`, the driver's four decode facts from the dialect to the
   connector, the session source to the execution door, the system database to the driver, the wire table a name of a

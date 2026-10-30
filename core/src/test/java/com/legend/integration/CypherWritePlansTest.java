@@ -7,7 +7,6 @@ import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
 
-import com.legend.TypedQuery;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;

@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.driver.DynamicPivot;
+
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 

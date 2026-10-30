@@ -232,20 +232,16 @@ legend_java_library(
 # THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
 # model text to a compiled model, a query to its SQL. No :exec, no :testdatagen: planning never touches a database
 # (the build enforces it; a plan-only consumer carries no driver).
-_PLANNER_SRCS = [
+# step C (D73, 2026-10-30): the root package holds the five public doors alone -- the planner's three here, the driver's two
+# (Execution, ExecuteOptions) in :driver -- and the machinery is its own package on each side (com.legend.planner,
+# com.legend.driver), so the planner-driver wall is the language's as well as the build's.
+_PLANNER_DOORS = [
     "src/main/java/com/legend/Compiler.java",
-    "src/main/java/com/legend/CrossStoreGuard.java",
     # the models a host holds, compiled once and planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
     "src/main/java/com/legend/HeldModels.java",
-    # the system metamodel store's rows, written into a plan's setup by the plan maker (the plan path program's
-    # step 9, 2026-10-18); until then the legacy executor's seed of the graph's system database
-    "src/main/java/com/legend/MetamodelSeeds.java",
-    "src/main/java/com/legend/OpSeeds.java",
-    "src/main/java/com/legend/PlanMaker.java",
-    "src/main/java/com/legend/ProgramFacts.java",
-    "src/main/java/com/legend/QueryParameters.java",
     "src/main/java/com/legend/TypedQuery.java",
 ]
+_PLANNER_SRCS = _PLANNER_DOORS + glob(["src/main/java/com/legend/planner/*.java"])
 
 legend_java_library(
     name = "planner",
@@ -258,10 +254,11 @@ legend_java_library(
     ],
 )
 
-# the root package's execution side: Execution (the front door), BodyDriver, the judges
+# the execution side: the root's two execution doors (Execution, ExecuteOptions) and com.legend.driver, the machinery
+# behind them (the body driver, the judges' arms, the seeds, the probes, the system database; step C, D73, 2026-10-30)
 legend_java_library(
     name = "driver",
-    srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
+    srcs = glob(["src/main/java/com/legend/*.java", "src/main/java/com/legend/driver/*.java"], exclude = _PLANNER_DOORS),
     # //json since 2026-10-29 (the doors, door 1): the body driver writes a graph fetch's objects as host rows, one per
     # object of the array the database built, read as JSON nodes
     deps = [
@@ -602,6 +599,7 @@ _CORE_TEST_PACKAGES = [
     "builtin",
     "cache",
     "compiler",
+    "driver",
     "exec",
     "ide",
     "integration",
@@ -613,6 +611,7 @@ _CORE_TEST_PACKAGES = [
     "model",
     "normalizer",
     "parser",
+    "planner",
     "platform",
     "protocol",
     "resolver",

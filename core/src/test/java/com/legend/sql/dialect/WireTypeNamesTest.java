@@ -23,7 +23,7 @@ class WireTypeNamesTest {
 
     private static @com.legend.base.Nullable Type typed(SqlDialect dialect, String driverName) {
         String wire = dialect.typingWireName(driverName);
-        return wire == null ? null : com.legend.WireProbe.pureOfSqlTypeOrNull(wire);
+        return wire == null ? null : com.legend.driver.WireProbe.pureOfSqlTypeOrNull(wire);
     }
 
     /** The three names the defect named: none has a type as the driver gives it, each has one through its dialect. */

@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.driver.WireProbe;
+
 import com.legend.exec.PlanSessions;
 import com.legend.exec.WireTypes;
 

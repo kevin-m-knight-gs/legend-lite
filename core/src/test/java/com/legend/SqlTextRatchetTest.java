@@ -81,7 +81,7 @@ class SqlTextRatchetTest {
         // population statement (`select distinct <col> from <table>`) in
         // a GOLDEN — a referee's read of the spec text's shape (the let
         // it populates supplies our rows), never an emission of ours.
-        REGISTER.put("SqlTextVerdicts.java", 1);
+        REGISTER.put("driver/SqlTextVerdicts.java", 1);   // the root's until step C (D73, 2026-10-30): com.legend.driver
         // 0 -> 2 (2026-10-13, the dialect program's Phase 0, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): not new
         // sites -- the rule now sees `create schema`, and two were there: dropAndCreateSchemaInDb's H2 text and a
         // schema's create in the module DDL. They go to the dialect (a SqlDdl node) with the program's Phase 3

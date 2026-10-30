@@ -32,7 +32,8 @@
 > is made by `exec` alone -- its connection the seam's, its state its own --
 > `onlyTheSeamMakesSessions`, D70, 2026-10-30; the judges and the
 > probes are planning-side work the runtime does not carry --
-> `com.legend.judge` and the root, D71, 2026-10-30 -- and THE WALL:
+> `com.legend.judge` and the driver (the root until step C), D71,
+> 2026-10-30 -- and THE WALL:
 > `exec` depends on no planning library: `//core:exec`'s deps are base,
 > json, the records (model, execution_plan, sql, values, result) and the
 > switchboards (cache, diagnostics, error), pinned by
@@ -185,8 +186,11 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is **package-private by design** — reachable
-only through `Execution.runProgram`. The driver never re-implements a step; the body driver never decides pipeline
+`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
+D73, 2026-10-30) and **has one caller by design**, `Execution.runProgram` (`ArchitectureTest.theDriverHasOneCaller`;
+package-private while it shared the root package with the door). The root package holds the five public doors alone:
+`Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
+machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline
 order.
 
 ## Layer ownership (the contract)
