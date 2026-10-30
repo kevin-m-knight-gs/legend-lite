@@ -502,6 +502,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the java.sql revamp, step 1** (the decisions log D66; GATES, the step 1 entry; PR #80 merged as
+  `7bc0797d` the same day, the branch restarted from main): a target's session statements run once per connection
+  (`SessionState`'s memo; a rollback clears it, Postgres's `SET` being transactional), where `PlanRunner.opened`
+  re-sent them before every statement -- a round trip per statement on a server, seven on MariaDB. Next: step 2 (the
+  carriers to sessions, `QueryService` deleted, the free tier), step 3 (the census pinned by class and capability).
 - **2026-10-29, the three routings** (the decisions log D65; GATES, the three routings' entry): the plan path's
   seeds and the server's held-database fill run as plan setup steps through the runner's `setUp` (the target's
   session statements first, the order upstream's test connections keep); the MariaDB raise recovery is two

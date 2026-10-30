@@ -294,6 +294,10 @@ final class JdbcStatements implements Statements {
     private void restore(ExecutionPlan.Keyed.Snapshot snapshot, boolean autoCommit, int isolation, boolean rollback)
             throws SQLException {
         if (rollback) {
+            // a session statement run inside the transaction may be undone with it (Postgres's SET is transactional):
+            // the session's memo forgets them, and the next statement runs them again (D66) -- before the rollback,
+            // whose own failure would leave the transaction's fate unknown
+            SessionState.of(c).rolledBack();
             c.rollback();
         }
         if (snapshot != ExecutionPlan.Keyed.Snapshot.TRANSACTION) {

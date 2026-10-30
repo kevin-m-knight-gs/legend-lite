@@ -50,20 +50,22 @@ final class JudgePlans {
      * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#given}).
      */
     static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
-        return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.session().version());
+        return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.session().version(), env.dialect());
     }
 
-    /** {@link #target(BodyDriver.ExecEnv)} for the target the compiler {@code decided} and the session's server
-     *  {@code version}: the program entry's own session statements run on it too ({@link Execution#dialectOf}, the
-     *  doors, 2026-10-29). */
-    static ExecutionPlan.Target target(com.legend.database.Target decided, String version) {
+    /** {@link #target(BodyDriver.ExecEnv)} for the target the compiler {@code decided}, the session's server
+     *  {@code version} and the body's {@code dialect}, whose session statements are the target's: the runner runs
+     *  them on the body's connection once (D66, 2026-10-30; the program entry ran them as setup steps per program,
+     *  the doors, 2026-10-29). */
+    static ExecutionPlan.Target target(com.legend.database.Target decided, String version,
+            com.legend.sql.dialect.SqlDialect dialect) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(d.connections().get(0));
         };
-        return new ExecutionPlan.Target(database, PlanMaker.serversFor(decided.type(), version), List.of(),
-                List.of());
+        return new ExecutionPlan.Target(database, PlanMaker.serversFor(decided.type(), version),
+                dialect.sessionSetup(), List.of());
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three

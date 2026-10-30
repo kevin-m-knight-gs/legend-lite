@@ -35,6 +35,14 @@ public final class SessionState {
     /** the database's reported column types per prepared statement text */
     private final Map<String, List<WireTypes.ReportedColumn>> wireTypes = new HashMap<>();
 
+    /** The targets' session statement lists that have run on this session, each once: the dialect's session setup is
+     *  idempotent by contract ({@code SqlDialect.sessionSetup}), so a list runs before the connection's first
+     *  statement for its target and not again (D66, 2026-10-30; until then the plan runner re-sent it before EVERY
+     *  statement -- a round trip per statement on a server, seven on MariaDB). Cleared by a rollback
+     *  ({@link #rolledBack}): Postgres's {@code SET} is transactional, so a list run inside a transaction that rolled
+     *  back is undone with it, and the next statement runs it again. */
+    private final Set<List<String>> sessionStatementsRun = new HashSet<>();
+
     private boolean dirty;
 
     /** A session no connection keys (a connector's own): its state is its own. */
@@ -60,5 +68,22 @@ public final class SessionState {
     /** The session's memo of the database's reported column types per prepared statement text. */
     public Map<String, List<WireTypes.ReportedColumn>> wireTypes() {
         return wireTypes;
+    }
+
+    /** Whether {@code statements}, a target's session statements, have still to run on this session: not run since
+     *  the connection was opened or last rolled back. */
+    public synchronized boolean needsSessionStatements(List<String> statements) {
+        return !sessionStatementsRun.contains(statements);
+    }
+
+    /** {@code statements}, a target's session statements, all ran on this session just now. */
+    public synchronized void sessionStatementsRan(List<String> statements) {
+        sessionStatementsRun.add(List.copyOf(statements));
+    }
+
+    /** The session's transaction was rolled back: what a session statement set inside it may be undone (Postgres), so
+     *  every target's session statements run again before its next statement. */
+    public synchronized void rolledBack() {
+        sessionStatementsRun.clear();
     }
 }

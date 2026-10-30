@@ -108,6 +108,7 @@ audit itself and what it found: the homework README §1.
 - Door 1 (2026-10-29, D63; GATES, the door 1 entry): the full local chain on the patch alone.
 - The doors' audit fold (2026-10-29, D64; GATES, the fold entry): the full local chain on the patch alone.
 - The three routings (2026-10-29, D65; GATES, the three routings' entry): the full local chain on the patch alone.
+- The java.sql revamp, step 1 (2026-10-30, D66; GATES, the step 1 entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -665,7 +666,19 @@ a class that reaches `Statements` or a JDBC connection around it. The map (the d
   its connector as data and read by the seam (`JdbcStatements.held`); `DatabaseConnector.raisedMessage` and
   `Sessions.raisedMessage` deleted. In core's main sources the seam and its DuckDB bulk loader are the only JDBC
   senders. The audit of the routings (twelve findings, one on the code: the held raise read in HEAD's order again)
-  is folded in D65.
+  is folded in D65. **PR #80 merged 2026-10-30 (`7bc0797d`)**; the branch restarted from main.
+
+**The java.sql revamp (the user, 2026-10-29/30: "all the sql fixes ... the session values and deleting or fixing all
+the places that use java.sql, pin the rest by class"):**
+
+- **Step 1 built 2026-10-30** (the decisions log D66; GATES, the step 1 entry): a target's session statements run once
+  per connection (the session's memo; a rollback clears it, Postgres's `SET` being transactional), where the runner
+  re-sent them before every statement.
+- Step 2 next: the carriers to `Sessions.Session` (the execution front door, the test runners, the observer, the
+  server's entries), `QueryService` deleted (the HTTP door calls `Execution.run`; the text conveniences to the twin),
+  the free tier (six unused connector imports, `PlanRunner`'s JDBC type number into the seam).
+- Step 3: the JDBC census pinned by class and capability (opens, checks, sends, loads, decodes, closes), the funnel
+  narrowed to the named classes, no `java.sql.Connection` in a public signature outside `exec`.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

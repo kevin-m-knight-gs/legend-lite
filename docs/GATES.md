@@ -16353,3 +16353,34 @@ that rules the seeds' order; the shape of the raise recovery; the bulk loader's 
    entries above that said "the MariaDB lane (CI alone)" were wrong on that. The raise recovery's mechanism is
    measured on H2 (item 1); MariaDB's own behavior (the raise sets the variable; a CASE arm not taken raises
    nothing) is unchanged and stands on its October measurement.
+
+## 2026-10-30 — The java.sql revamp, step 1: a target's session statements once per connection, again after a rollback
+
+The user's word after PR #80 merged (`7bc0797d`, 2026-10-30): "all the sql fixes above including the session values".
+The decisions log D66.
+
+1. **Built:** `exec/SessionState` remembers the session statement lists that ran on a connection
+   (`needsSessionStatements`, `sessionStatementsRan`, recorded after every statement of the list ran) and forgets
+   them on a rollback (`rolledBack`, called where the seam rolls back: `JdbcStatements.restore`, `Sessions.unwind`;
+   Postgres's `SET` is transactional); `PlanRunner.opened` runs a target's list only when the memo says so, where
+   it re-sent the list before every statement (a round trip per statement on a server, seven on MariaDB).
+   `SqlDialect.sessionSetup`'s javadoc brought current. Test: `exec/SessionStatementsOnceH2Test` (new: three
+   statements, the list once; another target's list, once; after the seam's bracket rolled back, once again; a target
+   with none sends none; inside a transaction the caller holds, before every statement and not remembered). The
+   independent audit (seven findings, none blocking; the rest confirmed) folded before the chain: the sequence and
+   the keyed plan through `opened` (they sent the list with loops of their own); the memo only where the session
+   owns its transactions (a caller's rollback undoes a `SET` on Postgres unseen); the memo cleared before the
+   rollback; the program entry's list the body target's (it ran as setup steps once per program, seven round trips
+   per test body on MariaDB); the metamodel session statements' scope and the URL-per-statement opening named. No
+   pin moves: no register counts SESSION.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** this push opens the revamp's PR and runs every OS.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`); the server round trips saved are counted
+   (one SESSION list per connection where there was one per statement), not timed.

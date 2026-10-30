@@ -179,6 +179,10 @@ public final class Sessions {
     /** The transaction rolled back and autocommit restored after {@code failure}; a failure of either is suppressed
      *  into it, so the work's own failure is the one reported. */
     private static void unwind(Connection session, Throwable failure) {
+        // a session statement run inside the transaction may be undone with it (Postgres's SET is transactional): the
+        // session's memo forgets them, and the next statement runs them again (D66) -- before the rollback, whose own
+        // failure would leave the transaction's fate unknown
+        SessionState.of(session).rolledBack();
         try {
             session.rollback();
         } catch (SQLException e) {

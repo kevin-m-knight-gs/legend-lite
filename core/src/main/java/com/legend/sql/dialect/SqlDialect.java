@@ -26,9 +26,10 @@ public interface SqlDialect {
     /** B6 (truthfulness burn) — SESSION SETUP IS DIALECT-OWNED as a
      * FACT: the statements a backend's session needs for the
      * platform's value contracts. The dialect DECIDES; the exec layer
-     * EXECUTES (F1.3: java.sql never enters this package) — applied at
-     * {@code Compiler.dialectOf}'s connection seam, idempotent by
-     * contract. Default: none. */
+     * EXECUTES (F1.3: java.sql never enters this package) — the plan
+     * runner runs them on a connection before its first statement for
+     * the target, once per connection and again after a rollback
+     * (D66, 2026-10-30), idempotent by contract. Default: none. */
     default java.util.List<String> sessionSetup() {
         return java.util.List.of();
     }

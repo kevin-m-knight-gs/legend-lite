@@ -94,9 +94,10 @@ public final class Execution {
     /**
      * THE dialect of a program that runs on {@code session}: the database its runtime executes on
      * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}), refined by the server's
-     * version ({@code SqlDialect.forServer}), with its session setup run once. The session is only
-     * CHECKED ({@code Sessions.check}): connected to another database than the one declared is refused,
-     * never reinterpreted.
+     * version ({@code SqlDialect.forServer}). Its session setup is the body's target's, which the plan runner runs
+     * on the connection once (D66, 2026-10-30; until then this entry ran it as setup steps, once per program). The
+     * session is only CHECKED ({@code Sessions.check}): connected to another database than the one declared is
+     * refused, never reinterpreted.
      */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn,
@@ -104,18 +105,9 @@ public final class Execution {
         com.legend.database.Target decided = Compiler.executesOn(ctx, runtimeFqn);
         com.legend.exec.Sessions.check(session.connection(), decided.type());
         String version = session.version();
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(decided.type())
-                .forServer(version);
-        // B6: session setup rides the connection-dialect resolution -- the ONE seam every connection-bearing entry
-        // passes through; the dialect states the FACTS, the plan runner runs them as the program's setup steps on
-        // its target (the doors, 2026-10-29; until then SetupRunner sent them on the session's statements)
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
-            com.legend.exec.PlanRunner.setUp(dialect.sessionSetup().stream()
-                    .<com.legend.executionplan.ExecutionPlan.SetupStep>map(
-                            com.legend.executionplan.ExecutionPlan.SetupStep.Statement::new).toList(),
-                    JudgePlans.target(decided, version), com.legend.exec.PlanSessions.of(session, null), null);
-        }
-        return dialect;
+        // B6: the dialect states the session's FACTS (sessionSetup); the plan runner runs them, as the body's
+        // target's session statements, before the connection's first statement and not again (JudgePlans.target)
+        return com.legend.database.Databases.dialect(decided.type()).forServer(version);
     }
 
     /**
