@@ -2934,8 +2934,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`, D74): it will touch `executionplan/ExecutionPlan.java` (new node kinds),
   `exec/PlanRunner.java` (their arms), `planner/` (a body planner grown from `PlanMaker.program`; `JudgePlans` moves in),
   `driver/` (`BodyCompiler` and the four probes deleted; `BodyDriver` the interpreter), `TypedQuery` (its internals into
-  `planner/`), the guards and `tools/deps/core-layers.txt`. Nothing starts before the user rules on the plan's §6, and
-  then on a fresh branch from `main` after PR #82 lands.
+  `planner/`), the guards and `tools/deps/core-layers.txt`. Rewritten the same day in lite's execution model after the
+  user's correction (D75: no allocation node, no variable map; the database executes, the verdict is its or the host
+  judge's, the `Keyed` pattern for a shape the planner cannot know). Nothing starts before the user rules on the plan's
+  §6, and then on a fresh branch from `main` after PR #82 lands.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

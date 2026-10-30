@@ -737,9 +737,13 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
 - **Next program, PLANNED 2026-10-30, not ratified: the planner-driver seam** (`docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`,
   its evidence `docs/planner-driver-seam-homework/`; the decisions log D74). Step C left the driver talking to the planner
   through a wide informal interface (it takes `specs()` and `resolved()` off the query and re-runs G½/H/I/J itself; four
-  probes read the session to finish planning). The plan: the test body planned ONCE as one `Sequence` (upstream's own
-  one-pass form for a multi-statement lambda, read in the pinned sources), the driver an interpreter over it, the probes
-  retired shape by shape, the widenings reverted. Starts after PR #82 lands, on the user's rulings on the plan's §6.
+  probes read the session to finish planning, their answers re-entering the compiler). The plan: lite's own execution
+  model applied to the body -- planned ONCE as one `Sequence` the database executes, the verdict the database's (or the
+  host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed`
+  pattern, the user 2026-10-20), the driver the runner plus the judges, the probes retired shape by shape, the widenings
+  reverted. Upstream was read as spec input (a body with lets needs no result to plan the next statement; planning
+  reaches no database), not as an execution model (the user's correction, D75). Starts after PR #82 lands, on the
+  user's rulings on the plan's §6.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

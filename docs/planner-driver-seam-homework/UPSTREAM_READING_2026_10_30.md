@@ -1,6 +1,6 @@
 # Seam homework: how upstream structures plans, executors, lets, data-dependent shapes and test bodies
 
-> Evidence for `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`. Read by an independent read-only agent on 2026-10-30 from the pinned checkouts (Bazel external repositories `+http_archive+legend_engine_src` and `+http_archive+legend_pure_src`; `<bazel output base>` is `bazel info output_base`). Every line number is the line in the pinned source. Nothing here was recalled from memory.
+> Evidence for `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`. Read by an independent read-only agent on 2026-10-30 from the pinned checkouts (Bazel external repositories `+http_archive+legend_engine_src` and `+http_archive+legend_pure_src`; `<bazel output base>` is `bazel info output_base`). Every line number is the line in the pinned source. Nothing here was recalled from memory. **This reading is SPEC INPUT in the upstream-fidelity tenet's sense (what a let and an assert mean; planning needs no database), not a model to copy: lite's execution model is the plan the database executes with the verdict in the database or the host judge (the user, 2026-10-30; D75).**
 
 Read-only reading of the pinned checkouts, 2026-10-30. Every claim cites a file and line; nothing is recalled.
 

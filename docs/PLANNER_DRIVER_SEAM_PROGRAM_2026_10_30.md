@@ -1,13 +1,22 @@
-# The planner-driver seam program (2026-10-30): a test body as one plan, the driver an interpreter
+# The planner-driver seam program (2026-10-30): a test body as one plan the database executes
 
-> **Status: PLANNED, NOT RATIFIED. No code.** This document is the end-to-end plan the user asked for on 2026-10-30
-> ("Let's definitely do full detailed end to end plan - with homework and research, not guesses"). Every claim about
-> lite's code is a measurement in `docs/planner-driver-seam-homework/CODE_MEASUREMENTS_2026_10_30.md` (cited below
-> as **CODE §n**) and every claim about upstream is a line read in the pinned legend-engine and legend-pure sources,
-> in `docs/planner-driver-seam-homework/UPSTREAM_READING_2026_10_30.md` (cited as **UPSTREAM §n**). Nothing in
-> either was recalled from memory. The user rules on §6 before any step is built; each step is then planned with
-> the user in its own brief, built, chained, audited, folded and pushed as the seam-and-wall program's steps were
-> (`docs/result-boundary-homework/DECISIONS_LOG.md` D70 to D73).
+> **Status: PLANNED, NOT RATIFIED. No code.** This is the end-to-end plan the user asked for on 2026-10-30 ("Let's
+> definitely do full detailed end to end plan - with homework and research, not guesses"), rewritten the same day
+> after the user's correction ("Who said to copy upstream? That's not our execution model in lite ours is in
+> database or host judge"): the first draft used legend-engine's host executor (its allocation node, its variable
+> map, its text holes) as the design template. It is not the template. **Lite's execution model is the one in force:
+> everything executes through a plan; the DATABASE holds the rows and computes the verdict; the host judge is the one
+> kept exception (D7); a shape the planner cannot know is a plan step whose rows fill the next statement's regions
+> (the user, 2026-10-20: the keys probe plan, register rows S106 to S110).** This program applies that model to the
+> test body, which is the one place it does not yet hold.
+>
+> Every claim about lite's code is a measurement in `docs/planner-driver-seam-homework/CODE_MEASUREMENTS_2026_10_30.md`
+> (cited as **CODE §n**). The upstream reading, `docs/planner-driver-seam-homework/UPSTREAM_READING_2026_10_30.md`
+> (cited as **UPSTREAM §n**), is SPEC INPUT in the tenet's sense: what a let and an assert mean, and the evidence that
+> planning needs no database for anything but one shape. It is not a model to copy. Nothing in either file was
+> recalled from memory. The user rules on §6 before any step is built; each step is then planned with the user in its
+> own brief, built, chained, audited, folded and pushed as the seam-and-wall program's steps were (the decisions log
+> D70 to D73).
 >
 > **Prerequisite:** the seam-and-wall program (steps A, B1, B2, C; PR #82) lands first. This program starts on a
 > fresh branch from `main` after it.
@@ -15,36 +24,33 @@
 ## 0. In plain words
 
 A product query is a VALUE the planner makes once (`TypedQuery.plan` → `PlanMaker.plan` → one `ExecutionPlan`) and
-the runtime executes (`Execution.run` → `PlanRunner`). The planner never sees a session; the runtime never sees the
-compiler (D72, the wall). That split is complete and is not what this program is about.
+the runtime sends to the database (`Execution.run` → `PlanRunner`). The planner never sees a session; the runtime
+never sees the compiler (D72, the wall); the runner carries rows and computes nothing. That is lite's model, and for
+a product query it is complete, lets and dynamic pivot included: a let is spliced at planning or staged as a table
+the database holds (`PlanMaker.program`, CODE §1d); an uncast dynamic pivot is a `Keyed` plan, the keys read first
+and the body's per-key regions filled by the runner from those rows (CODE §3e; S110).
 
-A TEST BODY (a PCT test, a corpus test, a service test: lets, asserts, effects, then an answer) is NOT a value today.
-The body driver (`com.legend.driver`) improvises a PROCEDURE: it takes the query's own compiler off `TypedQuery`
-(`specs()`, `resolved()`: CODE §1a, §1b), and for every statement and every assert side it re-runs the inliner,
-the store resolver, the lowerer and the renderer itself (14 inliner sites, 6 resolver uses, 2 lowerers, 20+ renders:
-CODE §2b), runs the statement, holds the rows, and plans the next statement against them. Four probes read the
-live session to finish planning (CODE §3). One loop of 247 lines drives a 2,321-line driver and ~4,350 lines of
+A TEST BODY (a PCT test, a corpus test, a service test: lets, asserts, effects, then an answer) does not have that
+model yet. The body driver (`com.legend.driver`) improvises a PROCEDURE: it takes the query's compiler off
+`TypedQuery` (`specs()`, `resolved()`: CODE §1a, §1b) and, for every statement and every assert side, re-runs the
+inliner, the store resolver, the lowerer and the renderer itself (14 inliner sites, 6 resolver uses, 2 lowerers, 20+
+renders: CODE §2b), sends the statement, and plans the next one against what came back. Four probes read the live
+session to finish planning, and their answers re-enter the COMPILER (a lowering callback, a resolver referee, a plan
+edit, a DESCRIBE re-typing: CODE §3). One loop of 247 lines drives a 2,321-line driver and about 4,350 lines of
 judges (CODE §5e).
 
-Upstream shows the right shape, read in its sources (UPSTREAM §3): a multi-statement lambda is planned in ONE pass
-as a `SequenceExecutionNode`; each `let` is an `AllocationExecutionNode`; each later statement is planned against a
-placeholder carrying only the SHAPE of the let-bound value (its type, or its TDS columns), never its value; the SQL of
-a later statement carries `${var}` holes the executor fills at run time from one variable map. No statement's result
-is needed to plan the next. Planning never opens a connection (UPSTREAM §6: zero `executeInDb` calls in every
-plan-generation file).
+**The program, in one sentence:** the body becomes a plan the planner makes once, in lite's own vocabulary (which
+already holds `Sequence`, `Update`, `Effect`, `Check`, `TdsResult` and `Keyed`), with a verdict step for the asserts;
+the database executes it statement by statement as it executes a write program today; and the driver becomes the
+runner plus the judges at the verdict steps, so that after planning no compiler runs and nothing a probe reads
+re-enters the compiler.
 
-**The program, in one sentence:** the body becomes a plan the planner makes once (upstream's one-pass sequence, in
-lite's own vocabulary, which already holds `Sequence`, `Update`, `Effect`, `Check`, `TdsResult` and `Keyed`), and
-the driver becomes an interpreter over it (the plan runner plus the judges at the verdict steps), so that after
-planning no compiler runs and no probe is sent.
-
-What upstream does with the test body itself is NOT available to lite: legend-pure runs a PCT test function in its
-Pure interpreter and plans only the lambda handed to the adapter; legend-engine's mapping and service tests plan the
-query once and evaluate assertions in Java as data (UPSTREAM §5). Lite has no host interpreter by its execution
-tenet (`AGENTS.md`; D29, D30), and its judges are SQL verdicts or a typed lattice over rows the database returned.
-So lite does the nearest thing upstream itself does for a multi-statement lambda: one plan for the whole body. That
-divergence is already the ruled form of track B (D29); this program changes WHO makes the plan and WHEN, not what
-is compared.
+What the upstream reading contributes (UPSTREAM §3, §6): legend-engine plans a multi-statement lambda in one pass,
+each later statement against the SHAPE of the lets before it, never their values, and reaches no database while
+planning. That is the spec fact this program rests on: a body with lets needs no result to plan the next statement.
+How legend-engine then EXECUTES (a Java node visitor, a variable map, text holes filled at run time, assertions
+evaluated in Java) is its host executor and is not lite's model; lite's answer to the same needs is the staged table,
+the compile-time splice, the `Keyed` regions and the in-database verdict.
 
 ## 1. The homework, in ten facts
 
@@ -59,11 +65,11 @@ Lite (CODE):
    staged tables), helper bodies typed lazily at inlining, deferred TDS text, the metamodel system route, the four
    dynamic shapes read from the session, provisioning before planning (seeded tables' wire types), effects sent
    between statements, and engine-text plan asserts.
-3. The four probes reach the database only through `PlanRunner.columns`/`describe` (CODE §3d), and re-enter planning
-   as: a callback into `lowering.Render.resolveAllDeferredTds` (ColumnProbe), a `SchemaReferee` into
+3. The four probes reach the database only through `PlanRunner.columns`/`describe` (CODE §3d), and re-enter
+   PLANNING as: a callback into `lowering.Render.resolveAllDeferredTds` (ColumnProbe), a `SchemaReferee` into
    `resolver.RawGridSchema.stamp` (GridProbe), a plan edit after lowering (DynamicPivot), a re-typing of outputs
-   after a DESCRIBE (WireProbe).
-4. The product path has a plan node for ONE of the four probe shapes: the dynamic pivot, as `ExecutionPlan.Keyed`
+   after a DESCRIBE (WireProbe). This re-entry is the design flaw: a database answer flows back into the compiler.
+4. The product path has a plan step for ONE of the four probe shapes: the dynamic pivot, as `ExecutionPlan.Keyed`
    run by `PlanRunner.keyed` (CODE §3e). A deferred TDS is REFUSED by the renderer there. A late-bound raw grid is
    NEITHER stamped NOR refused there: the plan carries zero columns (finding F1 below). A wire-decided kind is carried
    as the compiler's slot, neither probed nor refused.
@@ -74,20 +80,18 @@ Lite (CODE):
    driver, exec, integration with its two twins, judge); the PCT main and heavy lanes already run the PRODUCT path
    (`PctPlanRoute`) and are untouched by this program (CODE §7a). A deferred TDS has no core test at all (CODE §7b).
 
-Upstream (UPSTREAM):
+Upstream, as spec input (UPSTREAM):
 
-7. The plan is a typed tree of data-only nodes; SQL text (`SQLExecutionNode.sqlQuery`) and column typing (the
-   wrapping instantiation node's `TDSResultType`) sit on two nodes; a `let` is a first-class node
-   (`AllocationExecutionNode.varName`) (UPSTREAM §1).
-8. The executor is one visitor with one mutable `Map<String, Result>`; a let is stored as a `Result` (constant,
-   deferred, streaming); later SQL reads it by text substitution at execution; a let-bound TDS referenced as
-   `(${var})` is loaded into a temp table at that moment (UPSTREAM §2, `RelationalExecutor.java:284-300`).
-9. Exactly one plan-time-unknown shape exists upstream, the dynamic pivot: a flag on the SQL node
-   (`isResultColumnsDynamic`) and a run-time `ResultSetMetaData` read that replaces the column list and infers Pure
-   types from database type names (UPSTREAM §4). Lite's ruled form is the keys probe plan (`Keyed`; register rows
-   S106 to S110, the user 2026-10-20) and stays.
-10. Upstream never plans a test body (UPSTREAM §5) and never reaches a database while planning (UPSTREAM §6):
-    every run-time dependency is carried as a hole, a flag, a conditional node or a keyed set of plans.
+7. A multi-statement lambda is planned in ONE pass; each later statement is planned against the SHAPE of a let
+   (`PlanSetPlaceHolder` with its TDS columns, `PlanVarPlaceHolder` with a type), never its value (UPSTREAM §3).
+   Spec fact: no statement's result is needed to plan the next.
+8. Planning never reaches a database: zero `executeInDb` calls in every plan-generation file (UPSTREAM §6).
+9. The one plan-time-unknown shape is the dynamic pivot (UPSTREAM §4). Lite's ruled form for it is the keys probe
+   plan (`Keyed`; S106 to S110) and stays.
+10. Upstream never plans a test body: legend-pure interprets it, legend-engine evaluates assertions in Java as data
+    (UPSTREAM §5). Lite's ruled form is the opposite by its execution tenet (no host interpreter; D29, D30): the body
+    runs through plans and the verdict is the database's (or the host judge's, D7). This program keeps that form and
+    changes WHO makes the plan and WHEN.
 
 ## 2. Findings posted to the user (defects and gaps the homework found)
 
@@ -107,65 +111,70 @@ Upstream (UPSTREAM):
 - **F6.** The test-data generator's fold reads the session before planning the next statement (`foldCensus`, CODE
   §5a; the named residue D30 said to revisit as "a two-plan body"). Step S2j.
 
-## 3. The target shape
+## 3. The target shape: lite's model applied to the body
 
-### 3.1 Upstream's model, in lite's vocabulary
+### 3.1 The model, as ruled, and the body's gap against it
 
-| upstream (read) | lite today | lite after this program |
+| what a body does | lite's ruled form (where it holds today) | the body driver today (the gap) |
 |---|---|---|
-| `SequenceExecutionNode`: children in order, the last one's result (UPSTREAM §1) | `ExecutionPlan.Sequence(steps)`: one target, one transaction if any step changes; the write program's form (CODE §4) | the same record, now the BODY's root: every statement one step |
-| `AllocationExecutionNode(varName)`: run one child, store its result under the name (UPSTREAM §1, §2) | a staged let is `Update` + a temp table in a write program (`PlanMaker.program`, CODE §1d); in a body the driver's `letPrefix`, `execFrames`, `queryLets` (CODE §5b) | `Sequence.Allocation(name, step)`: a let held under its name, its rows a staged table or a CTE the readers splice (lite's compile-time splice is the ruled form of lets, the plan path program §5) |
-| `PlanSetPlaceHolder(name, tdsColumns)` / `PlanVarPlaceHolder(name, type, mult)`: later statements planned against the SHAPE of a let (UPSTREAM §3) | `PlanMaker`'s `with(lets, stmt)`: each statement resolved with the lets before it (CODE §1d) | the same mechanism, one pass over the whole body, in the body planner |
-| `${var}` holes filled at execution by FreeMarker; `(${var})` loads a temp table (UPSTREAM §2) | a staged table's name written at planning; a slot bound at run time (`Binding`) | unchanged: lite splices at planning and binds values through slots; no text templating is added (divergence already in force: the plan path program §0) |
-| `isResultColumnsDynamic` + `ResultSetMetaData` (UPSTREAM §4) | `Keyed` for the pivot (ruled S106 to S110); GridProbe, ColumnProbe, WireProbe for the rest (CODE §3) | `Keyed` stays; a `TdsResult` may declare its columns WIRE-DECIDED (the runner reads the column list, or a column's kind, from the wire at decode time; S3b, S3c) |
-| `FreeMarkerConditionalExecutionNode` (UPSTREAM §1) | none | none, unless H4 finds a body needing one (none expected: lite's conditionals are SQL `CASE`s by the world-map tenet) |
-| the PCT body in the Pure interpreter; only the adapter's lambda planned (UPSTREAM §5) | the body driver plans and runs statement by statement with judges (CODE §5) | the body planned ONCE as one `Sequence`; the judges its `Verdict` steps; the driver the interpreter (no host interpreter: the execution tenet, D29) |
-| mapping and service tests: one plan, assertions evaluated in Java as data (UPSTREAM §5) | `ServiceTestRunner` → `Execution.runProgram` (CODE §6a) | the same body planner |
+| runs a statement | a plan step the runner sends; the database executes; typed rows to a sink (`TdsResult`, `Check`) | the same, but the step is made mid-run by the driver's own lowerer and renderer (CODE §2b) |
+| binds a let | spliced into its readers at planning (`with(lets, stmt)`), or staged as a table the DATABASE holds (`Update` create-as, dropped at the end): `PlanMaker.program` (CODE §1d); never a value Java holds | `letPrefix`, `execFrames`, `queryLets`, `planRows` carried in the driver's environment (CODE §5b); frames run eagerly and re-planned per reader (CODE §2d.1) |
+| asserts | the verdict is ONE CELL the database computes (`VerdictSql`, the verdict batch); the host judge over typed rows is the kept exception (D7, `com.legend.judge`); BOTH runs both and the agreement arm | the same judges, but each side planned mid-run by the driver (`planHostSide`, `planStaged`, `wrapSide`: CODE §5d) |
+| performs an effect | an `Effect` step in place (`Update`, `Effect`, the setup steps on a `Target`) | a script collected per segment and sent before the next statement is planned, because planning may probe (CODE §2d.7) |
+| needs a shape the planner cannot know | a plan step whose ROWS fill the next statement's REGIONS, executed by the runner (`Keyed`: the keys read first, the body's per-key regions filled from those rows; the user 2026-10-20, S110); a kind the plan cannot know is decoded by the wire at the row (D72: the runtime's row on the plan's column) | four probes whose answers re-enter the COMPILER (CODE §3) |
+| reads the metamodel store | the step's `Target` is the system database with its setup (`PlanMakerTest.theMetamodelStoresTablesAreThePlansSetupInProcess...`) | the session switched per planned statement (`routeSystemDatabase`, CODE §2d.4) |
+
+Nothing in the left column is new. The program is the right column becoming the middle one.
 
 ### 3.2 The plan vocabulary after (step S1)
 
 Added to `executionplan/ExecutionPlan.java`, each a record with a runner arm and a JSON round trip, none with a
-`default`:
+`default`, none holding a value the runner would compute:
 
-- `Allocation(String name, Node value)` inside a `Sequence`: upstream's allocation node. The runner runs `value` and
-  holds its answer under `name` (rows as a staged table the plan itself created with an `Update`, or the typed rows
-  held in the session's state for a host-judge side; H4 decides which forms exist).
-- `Verdict`: an assert as a step. Two forms, the two judges (D7 keeps both): `Verdict.Database(Sql verdict)`, one
-  cell the database computes (today's `VerdictBatch` statement); `Verdict.Host(TdsResult left, TdsResult right,
-  Arm arm)`, both sides' typed rows streamed to the host judge's lattice (`com.legend.judge`). Both carry the
-  message facts the listener reports. `ExecuteOptions.JudgeMode.BOTH` runs both and the agreement arm.
-- `TdsResult.columns` may be WIRE-DECIDED: a column whose `Type.wireDecided` kind (String, Number, Any:
-  `compiler/element/type/Type.java:693-696`) is decoded by the kind the wire reports, recorded on the column
-  (`Column.slot` gains the fact; no DESCRIBE round trip). Upstream's "the plan is the authority; the wire decides
-  only where the plan flagged it" (UPSTREAM §2, `RelationalResult.java:243-256`).
+- `Verdict`: an assert as a step, in the two ruled forms. `Verdict.Database(Sql verdict, Message facts)`: the one
+  cell the database computes (today's verdict batch statement, as a step the runner sends and whose cell the
+  listener receives). `Verdict.Host(TdsResult left, TdsResult right, Arm arm, Message facts)`: both sides' typed
+  rows streamed to the host judge's lattice in `com.legend.judge` (the kept exception). Under
+  `ExecuteOptions.JudgeMode.BOTH` a verdict carries both and the agreement arm.
+- A **wire-decided column** fact on `TdsResult.columns`: a column whose declared kind is wire-decided
+  (`Type.wireDecided`: String, Number, Any; `compiler/element/type/Type.java:693-696`) is decoded by the kind the
+  wire reports, at the row (D72's carriage), recorded on `Column.slot`. No DESCRIBE round trip, no re-typing of the
+  plan.
+- A **region filled from rows** generalized from `Keyed`: today a `Keyed` body's regions are filled from the keys
+  step's cells (`Region`, `Binding.Key`; CODE §4). Where H1 and H2 show a deferred TDS or an undemanded raw grid
+  needs a column LIST the planner cannot write (the pivot's generated columns, a raw read's names), the same
+  mechanism names them: a first step reads the names (as `PlanRunner.columns` reads them today, carriage), the
+  next statement's region repeats per name. Whether this is `Keyed` itself (a keys step whose "keys" are column
+  names) or a sibling record is decided at S1's brief from H1's and H2's counts; no new runner capability is
+  involved beyond the existing region expansion.
 - `Keyed` inside a `Sequence` (F5) if H6 counts a body that needs it.
 - A step's `Target` may differ inside one `Sequence` where H7 shows bodies that mix the platform (a verdict's
   canonical rows) and a declared database; otherwise the one-target rule stays and the mixing refusal stays.
 
-Nothing is removed from the vocabulary. The legacy plan document (`plan/PlanNode`, the engine-shaped JSON) gains
-`AllocationExecutionNode` / `SequenceExecutionNode` kinds for free when the read/write side is built (deferred by
-the user; not this program).
+No allocation node, no variable map, no text hole: a let is a staged table or a splice (§3.1), and a step's rows go
+to the database (a staged table) or to a sink (the judge, the caller), never into a Java-held environment the next
+step reads.
 
 ### 3.3 The body planner (step S2): one pass, each statement a step
 
 `planner/BodyPlanner.plan(TypedQuery, runtime, options) → ExecutionPlan` (the name is provisional), grown out of
-`PlanMaker.program` (the write program's `Sequence`, CODE §1d), which already does upstream's fold: each statement
-resolved with the lets before it, a let bound to rows staged. The kinds, each a step, in the order H4's census ranks
-them (provisional order here, by the driver's branches at `driver/BodyCompiler.java:71-176`, CODE §5a):
+`PlanMaker.program` (the write program's `Sequence`, CODE §1d), which already plans a program in one pass: each
+statement resolved with the lets before it, a let bound to rows staged. The kinds, each a step, in the order H4's
+census ranks them (provisional order here, by the driver's branches at `driver/BodyCompiler.java:71-176`, CODE §5a):
 
-| kind (the driver's branch today) | the step after | upstream's twin |
+| kind (the driver's branch today) | the step after | the ruling it follows |
 |---|---|---|
-| a value statement (`prepareValue` + `runValue`) | `TdsResult`/`Check`, last one the answer | the last child of the Sequence |
-| a value let, a handle let (`letPrefix.add`, `PlanAllocations.registerHandlesIn`) | `Allocation` over the value's step; readers spliced at planning | `Allocation` + `PlanVarPlaceHolder` |
-| an alias let (a frame shared) | no step: a substitution at planning | a let over a variable, folded |
-| a staged let (`stage()`, `StagedRows.boundTo`) | `Update` (create as) + `Allocation` naming the table + `Update` (drop) at the end, as `PlanMaker.program` does | `Allocation` over a TDS + `(${var})` temp table |
-| an effect (`executeInDb`, DDL natives, scripts; `collectEffect`/`sendScript`) | `Effect` steps in place (the segment script's batching kept as one `Effect` with several statements where the dialect sends scripts) | `RelationalBlockExecutionNode`'s leading nodes (UPSTREAM §5, the PCT adapter's `setupDatabase`) |
-| an assert (`AssertVerdicts.tryAdjudicate`) | `Verdict.Database` / `Verdict.Host` / both | none (upstream judges in Pure or Java); lite's ruled form D7, D29 |
-| a frame let (`execute(...)`, `legendQuery`; `buildFrame`, the splice hook) | `Allocation` whose readers splice the frame's chain at planning (today's "re-plan of a spliced chain" done once, by the planner); the eager run dropped where nothing reads rows before the end (H4 counts; each dropped run posted) | `Allocation` over a `RelationalTdsInstantiationExecutionNode`, `DeferredRelationalResult` |
-| the metamodel system route (`routeSystemDatabase`) | the step's `Target` is the system database with its setup (the product path's form: `PlanMakerTest.theMetamodelStoresTablesAreThePlansSetupInProcess...`) | none |
-| an engine-text plan assert (`SqlTextVerdicts`, `engineSql`) | a `Verdict` over two constants, the text lowered at planning by the engine-text dialect (planning-side work, no session) | none |
-| the generator's fold (`foldCensus`, D30) | S2j: a two-plan body — the generator's plan run first, its facts handed to the body planner as DECLARED inputs (the one place a plan feeds another plan; posted to the user as a divergence row if any shape must stay) | none |
-| `print`, `$plan` navigation, `planToString`, `toSQLString`, `assertError` (D30's Java residue) | unchanged: plan-time values or carriage of an error; each stays pinned in `JavaEvalLedgerTest` | none |
+| a value statement (`prepareValue` + `runValue`) | `TdsResult`/`Check`, the last one the answer | the plan path program |
+| a value let, a handle let (`letPrefix.add`, `PlanAllocations.registerHandlesIn`) | no step of its own: spliced into its readers at planning; a handle's lineage rows the plan's facts | the plan path program §5 (lets) |
+| an alias let (a frame shared) | no step: a substitution at planning | the same |
+| a staged let (`stage()`, `StagedRows.boundTo`) | `Update` (create as) naming the table, `Update` (drop) at the end, readers written against the table: `PlanMaker.program`'s form | S-rows of the plan path program (staged lets) |
+| an effect (`executeInDb`, DDL natives, scripts; `collectEffect`/`sendScript`) | `Effect` steps in place; a segment's script one `Effect` of several statements where the dialect sends scripts | D65 (the routings) |
+| an assert (`AssertVerdicts.tryAdjudicate`) | `Verdict.Database` / `Verdict.Host` / both | D7, D29 |
+| a frame let (`execute(...)`, `legendQuery`; `buildFrame`, the splice hook) | its chain spliced into its readers at planning (today's "re-plan of a spliced chain", done once by the planner) or staged where its rows are read more than once; the eager run dropped where nothing reads its rows before the end (H4 counts; each dropped run posted, since it changes a lane's statement count) | the plan path program §5 |
+| the metamodel system route (`routeSystemDatabase`) | the step's `Target` is the system database with its setup | the product path's form (CODE §7b) |
+| an engine-text plan assert (`SqlTextVerdicts`, `engineSql`) | a `Verdict` over two constants, the text lowered at planning by the engine-text dialect (planning-side work, no session) | D30 (`planToString`, `toSQLString` plan-time values) |
+| the generator's fold (`foldCensus`, D30) | S2j: a two-plan body: the generator's plan runs first through the runner, its facts handed to the body planner as DECLARED inputs (the one place a plan's answer feeds another plan's making; posted to the user as a divergence row if any shape must stay) | D30's "revisit as a two-plan body" |
+| `print`, `$plan` navigation, `planToString`, `toSQLString`, `assertError` (D30's Java residue) | unchanged: plan-time values or carriage of an error; each stays pinned in `JavaEvalLedgerTest` | D30 |
 
 The body planner is a function over immutable values: it takes the typed query and returns a plan. It holds no
 session, no probe, no referee. `plannerIsExecutionFree` already forbids it to reach `exec`, `driver`, `judge`; a
@@ -174,14 +183,14 @@ new rule `theBodyPlannerHoldsNoSession` pins that no type of `exec` appears in i
 `JudgePlans` (CODE §5c), which BUILDS the judges' plans, is planning work and moves into `planner/` (its `run`
 helpers stay in the driver). `VerdictSql`/`VerdictQueries` already live in the compiler.
 
-### 3.4 The driver after (step S4): an interpreter
+### 3.4 The driver after (step S4): the runner and the judges
 
 `driver/BodyDriver.execute` becomes: `plan = BodyPlanner.plan(typed, runtime, options)`; `PlanRunner.sequence(plan,
-session, listener, answer)`; the verdict steps call the judges (`com.legend.judge`) over the rows the runner
-streams; the listener gets the verdicts; the last step's answer goes to the caller's sink (`Execution.Answer`,
-unchanged). `BodyCompiler`, its `Segments`, `ExecEnv`'s `queryLets`/`planRows`/`frame`, the four probes, the
-inliner/resolver/lowerer constructions and the 20+ renders leave the driver. What remains of `BodyDriver` is the
-interpreter's glue and D30's residue, each pinned.
+session, listener, answer)`; at a verdict step the runner hands the cell (database judge) or the two sides' rows
+(host judge) to `com.legend.judge`, and the listener gets the verdict; the last step's answer goes to the caller's
+sink (`Execution.Answer`, unchanged). `BodyCompiler`, its `Segments`, `ExecEnv`'s `queryLets`/`planRows`/`frame`,
+the four probes, the inliner/resolver/lowerer constructions and the 20+ renders leave the driver. What remains of
+`BodyDriver` is the glue and D30's residue, each pinned.
 
 After planning NOTHING compiles: a new ArchUnit rule `theDriverCompilesNothing` (no class of `com.legend.driver`
 depends on `compiler.spec..`, `resolver..`, `lowering..`, `sql.dialect..`), and `tools/deps/core-layers.txt`'s driver
@@ -189,22 +198,21 @@ line loses `compiler`, `compiler_element_type`, `lowering`, `resolver`, `normali
 `sql_dialect`, `validation`, `builtin`, `protocol` (the exact list is the measurement at S5; the target is "the
 runtime's libraries plus `:planner`'s doors, `:judge` and `:execution_plan`").
 
-### 3.5 Where planning may still touch the database: one question, not four probes
+### 3.5 Where a database answer may still reach the planner: one question, not four probes
 
-By construction everything in §3.3 is planned without a session, as upstream's §6 shows is possible for every
-shape but one. The remaining question is the RAW GRID whose columns a LATER statement names (`columnNames`, a typed
-read: `exec/ExecuteInDbProbeCountTest.columnNamesDemandsProbe`, CODE §7b). Upstream has no planned form for it at
-all (`executeInDb` is a Pure-runtime native there, UPSTREAM §5); its dynamic-pivot answer (read the columns from the
-wire at run time) covers the UNDEMANDED grid (`undemandedGridSingleQuery`) but not a statement typed against them.
-Two honest forms, decided by H2's count and the user:
+By construction everything in §3.3 is planned without a session (UPSTREAM §6 is the spec evidence it can be), and
+every shape the planner cannot know is a rows-fill-regions step or a wire-decoded kind (§3.2), executed by the runner.
+The remaining question is the RAW GRID whose columns a LATER statement NAMES (`columnNames`, a typed read:
+`exec/ExecuteInDbProbeCountTest.columnNamesDemandsProbe`, CODE §7b). The names can be region-filled and the kinds
+wire-decoded, but the COMPILER must type the later statement, and a region cannot type-check a program. Two honest
+forms, decided by H2's count and the user:
 
-- **(i) declared in the program** (upstream's shape for every other dynamic case: the program casts, the plan knows):
-  a typed `executeInDb` overload or a cast names the columns; the probe goes; a body that names columns it did not
-  declare is refused by name. Zero roster movement only if H2 finds every demanding body declares or can declare
-  (each one posted).
+- **(i) declared in the program**: a typed `executeInDb` overload or a cast names the columns; the probe goes; a
+  body that names columns it did not declare is refused by name. Zero roster movement only if H2 finds every
+  demanding body declares or can declare (each one posted).
 - **(ii) a schema oracle door**: `planner.SchemaOracle { List<Type.Column> columnsOf(sql, writtenFor) }`, an
   interface the PLANNER owns and takes as an argument; the product path passes the refusing one, the test runner
-  passes one backed by a `PlanRunner.columns` probe on the body's session. Planning still asks the database in test
+  passes one backed by a `PlanRunner.columns` read on the body's session. Planning still asks the database in test
   bodies, through one named door the planner declares, instead of a referee threaded through the resolver. This is
   the hack-free form of today's `RawGridSchema.SchemaReferee`, and the ONLY place a session would remain upstream of
   a plan.
@@ -234,12 +242,12 @@ and the five core lanes, plus the statement-origin census (`StatementOrigin.PROB
 |---|---|---|---|
 | **H** | the homework completions, read-only, lanes measure only: **H1** deferred TDS registrations by origin (pivot vs other) on the corpus and channel B; **H2** raw grids demanded vs undemanded, and whether each demanding body declares its columns; **H3** `WIRE_RETYPED` / `WIRE_SLOT_SKEW` per lane; **H4** a statement-kind census per body (the table in §3.3) and the frame lets whose rows are read before the end; **H5** bodies on the system route, bodies with the generator's fold; **H6** bodies whose non-last statement is an uncast dynamic pivot; **H7** bodies mixing the platform and a declared target | 2 to 3 days | none: measurements, posted as a report |
 | **S0** | F1 closed: the plan side refuses a late-bound raw grid by name | half a day | a new planner test; no roster moves (the product lanes never plan one: measured by the refusal firing nowhere in the PCT main lanes) |
-| **S1** | the vocabulary: `Allocation`, `Verdict.Database`, `Verdict.Host`, the wire-decided column fact, (`Keyed` in a `Sequence`, per-step targets if H6/H7 say so); runner arms; JSON round trip (`testcases/PlanRoundTrip`); no caller yet | 3 days | `core_tests_planner`, `exec`, `testcases`; nothing in the driver changes |
-| **S2a–S2j** | the body planner, kind by kind, as a strangler: the driver keeps its loop but, kind by kind, asks the body planner for the step and runs it through the runner; the driver's own branch for that kind is deleted in the same commit. Order from H4's frequencies; provisional: a (values, value lets), b (alias, handle lets), c (staged lets), d (effects), e (database-judge asserts), f (host-judge asserts, BOTH), g (frames), h (the system route), i (engine-text asserts), j (the generator's fold) | 1 to 3 days each, 2 to 3 weeks in all | each: zero roster movement; `BodyDriver`'s size pin shrinks (dated); the `JavaEvalLedgerTest` registers move by name; D30's residue list re-pinned |
-| **S3a** | the dynamic pivot in bodies as `Keyed` (the product path's form, S110); `DynamicPivot.staticize` deleted; ColumnProbe deleted where H1 shows the deferred TDS is the pivot's alone (else the deferred TDS as a per-key region of the `Keyed` body, S110's form) | 3 to 5 days | zero roster movement; `PROBE` census drops by the pivots' count; `DynamicPivotKeyLiteralH2Test` becomes a planner test; `JavaEvalLedgerTest:217` (DynamicPivot's pin) deleted |
-| **S3b** | wire-decided kinds decoded by the wire (§3.2); `WireProbe.reconcile`/`staticized` deleted; `describe` has no caller in the driver | 3 to 5 days | `WIRE_RETYPED` before equals the wire-decoded count after; zero roster movement; `WireProbeTest` rewritten as a decode test in `exec` |
-| **S3c** | raw grids: undemanded as wire-decided columns; demanded per the user's ruling (§3.5); `GridProbe` deleted; `RawSqlLedgerTest:122`'s one `RawSql` → 0; `RawGridSchema.SchemaReferee` deleted (form i) or replaced by the planner's oracle (form ii) | 1 week | zero roster movement, or each demanding body posted; `PROBE` census 0 |
-| **S4** | the interpreter: `BodyCompiler` and `Segments` deleted; `BodyDriver.execute` = plan once, run the sequence, judge at the verdicts; `specs()`/`resolved()` no longer called | 1 week | zero roster movement; `theDriverCompilesNothing` added; the driver's size pins shrink to the residue |
+| **S1** | the vocabulary: `Verdict.Database`, `Verdict.Host`, the wire-decided column fact, the rows-fill-regions step for column names (`Keyed` or a sibling, per H1/H2), (`Keyed` in a `Sequence`, per-step targets if H6/H7 say so); runner arms; JSON round trip (`testcases/PlanRoundTrip`); no caller yet | 3 days | `core_tests_planner`, `exec`, `testcases`; nothing in the driver changes |
+| **S2a–S2j** | the body planner, kind by kind, as a strangler: the driver keeps its loop but, kind by kind, asks the body planner for the step and runs it through the runner; the driver's own branch for that kind is deleted in the same commit. Order from H4's frequencies; provisional: a (values), b (value, handle, alias lets), c (staged lets), d (effects), e (database-judge asserts), f (host-judge asserts, BOTH), g (frames), h (the system route), i (engine-text asserts), j (the generator's fold) | 1 to 3 days each, 2 to 3 weeks in all | each: zero roster movement; `BodyDriver`'s size pin shrinks (dated); the `JavaEvalLedgerTest` registers move by name; D30's residue list re-pinned |
+| **S3a** | the dynamic pivot in bodies as `Keyed` (the product path's form, S110); `DynamicPivot.staticize` deleted; ColumnProbe deleted, the deferred TDS's column list a per-key region of the `Keyed` body (S110's form) where H1 shows the pivot is its origin, else the rows-fill-regions step of S1 | 3 to 5 days | zero roster movement; `PROBE` census drops by the pivots' count; `DynamicPivotKeyLiteralH2Test` becomes a planner test; `JavaEvalLedgerTest:217` (DynamicPivot's pin) deleted |
+| **S3b** | wire-decided kinds decoded by the wire at the row (§3.2); `WireProbe.reconcile`/`staticized` deleted; `describe` has no caller in the driver | 3 to 5 days | `WIRE_RETYPED` before equals the wire-decoded count after; zero roster movement; `WireProbeTest` rewritten as a decode test in `exec` |
+| **S3c** | raw grids: undemanded as wire-decided columns with the names region-filled; demanded per the user's ruling (§3.5); `GridProbe` deleted; `RawSqlLedgerTest:122`'s one `RawSql` → 0; `RawGridSchema.SchemaReferee` deleted (form i) or replaced by the planner's oracle (form ii) | 1 week | zero roster movement, or each demanding body posted; `PROBE` census 0 |
+| **S4** | the driver as the runner and the judges: `BodyCompiler` and `Segments` deleted; `BodyDriver.execute` = plan once, run the sequence, judge at the verdicts; `specs()`/`resolved()` no longer called | 1 week | zero roster movement; `theDriverCompilesNothing` added; the driver's size pins shrink to the residue |
 | **S5** | the boundary: `TypedQuery`'s internals into `planner/` (package-private again), `PlanMaker`'s three driver statics package-private, `JudgePlans` in `planner/`, F3 and F4 deleted, `core-layers.txt`'s driver line cut, the registers closed; the JPMS spike if the user says so | 3 days (+1 for the spike) | `//tools/deps:core_layering_test`; `ArchitectureTest`; `JavaEvalLedgerTest` |
 | **Z** | the final audit and the landing handed to the user | 2 days | CI on every OS on the branch; the PR; the user's word |
 
@@ -248,15 +256,15 @@ the user rules; S2 onward each need their own brief.
 
 ## 5. What stays, by name, and why
 
-- **The two judges and the verdict batch** (`com.legend.judge`, D7, D71): a verdict over typed rows is lite's form of
-  upstream's `assertEquals` in Pure; the program moves the judges' PLANS to the planner and leaves the judging where
-  the rows are.
-- **`Keyed`** (S106 to S110): the user's ruled form of the dynamic pivot; this program extends its use to bodies.
+- **The two judges and the verdict batch** (`com.legend.judge`, D7, D71): the database computes the verdict; the host
+  judge over typed rows is the kept exception; the program moves the judges' PLANS to the planner and leaves the
+  judging where the rows arrive.
+- **`Keyed`** (S106 to S110): the user's ruled form of a shape the planner cannot know; this program extends its
+  pattern (rows fill the next statement's regions) to the body's other such shapes.
+- **Compile-time splicing and staged tables for lets** (the plan path program §5): a let is never a value Java holds.
 - **The engine-text dialect** (`EngineStyleH2`, `SqlTextVerdicts`'s expectations): plan-time text, planning-side.
 - **D30's residue** (`assertError`, `print`, `$plan` navigation, `planToString`, `toSQLString`): named, pinned; the
   generator's fold is the one D30 said to revisit (S2j).
-- **Compile-time splicing of lets** (no `${var}` templating): the plan path program's ruled form; upstream's holes
-  are the same information filled later.
 
 ## 6. Decisions for the user, before any code
 
@@ -277,11 +285,15 @@ output is spelled without asking me first, one case at a time, with the expressi
 answer of mine to a question is not a go to build something else; ask"; "A guard pin or allowlist moves only with a
 dated justification"; "Never read, print or copy credentials; lane sessions measure only"; "Run the start page's §6
 checks before each commit; commit and push to the branch; records (GATES, IN_FLIGHT, the program's §9, register
-rows) land with the code"; "Plan each step with the user and get agreement before writing code". The
-upstream-fidelity tenet: every divergence posted, then a row of `docs/SEMANTICS_REGISTER.md`; upstream read from the
-pinned sources (the evidence files here), never recalled.
+rows) land with the code"; "Plan each step with the user and get agreement before writing code". The execution
+tenet: Java orchestrates, the database executes; the judges in the database or the host judge; no host interpreter.
+The upstream-fidelity tenet: upstream is read from the pinned sources for what an answer IS (a spelling, an outcome,
+an error, a type, a rule), never recalled, and never copied as an execution model; every divergence in an answer is
+posted, then a row of `docs/SEMANTICS_REGISTER.md`.
 
 ## 8. Status
 
-- 2026-10-30: the homework done (two independent read-only agents: CODE, UPSTREAM); this plan written; posted to the
-  user with §2's findings and §6's questions. **No code.** Next: the user's rulings on §6.
+- 2026-10-30: the homework done (two independent read-only agents: CODE, UPSTREAM); the plan written and posted; the
+  user's correction the same day ("Who said to copy upstream? That's not our execution model in lite ours is in
+  database or host judge"): the first draft's allocation node, variable map and "as upstream does it" framing
+  withdrawn; this version states the design in lite's model (D75). **No code.** Next: the user's rulings on §6.
