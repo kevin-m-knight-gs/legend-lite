@@ -16546,3 +16546,40 @@ The decisions log D71.
    the runner's fetch of `tomcat-dbcp`; commented on the PR); this push is its re-run.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam's step B2, the wall: exec depends on no planning library; the ratchet deleted, execReachesNoPlanning the rule
+
+The decisions log D72.
+
+1. **Built:** the five reaches D71 left, one cut each, no behavior. The judges' column and row (`exec.Column`,
+   `exec.Row`) to `judge`; the four driver decode facts from the dialect to the connector
+   (`DatabaseConnector.decoding`, a `DatabaseConnector.Decoding`; overridden where the dialect overrode: Databricks,
+   Snowflake, BigQuery, DuckDB, Trino; the hooks deleted from `SqlDialect`, whose seam is rendering alone); the
+   session source to the execution door (`Execution.Source`, `Execution.Source.given`); `SystemDatabase` to the
+   driver (the root), reaching exec through public doors alone; `WireTypes` naming a type (`pureTypeNameOf`,
+   `pureTypeNameOrNull`) with the root's `WireProbe` rebuilding the typer's primitive. `//core:exec` depends on
+   base, json, cache, diagnostics, error, execution_plan, model, result, sql and values (`tools/deps/core-layers.txt`,
+   dated). Pins, dated: `ArchitectureTest.EXEC_PLANNING_REFERENCES` DELETED (sixteen rows at its widest) and
+   `execReachesNoPlanning` is the wall -- an exec class may reach exactly `//core:exec`'s packages and exec itself,
+   no other of `com.legend` (an allowlist, the audit's finding: a planning-package blacklist left the root and the
+   judge open to the two jars built against `:core`); the no-JDBC rule covers `SystemDatabase`; the ledger's
+   `EXEC_CLASSES` loses three, `JUDGE_CLASSES` gains two, `ROOT_CLASSES` one; GridProbe's size pin 53 -> 52 (the wire
+   table import gone). The audit's four should-fixes and eight nits folded: the fact's record the connector's own,
+   `ConnectorsTest` pinning all eleven JDBC connectors' four booleans (nothing had pinned the dialect's hooks), the
+   allowlist wall, an unbuilt connector refusing `decoding` by name, four stale comments, two loose sentences.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user; l20):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test
+   skipped), `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`
+   (the wall rule among them), `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB
+   parity lanes: 178 of 179, 1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2` 12 of 12 (the judge actions ran on the patch's jars at the build and wrote reports identical
+   to the last run's, so the ten roster shards were cache hits and the two verdicts re-ran: zero roster movement,
+   the oracle); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12
+   (`//python:engine_test` the container's segmentation fault at the headless host's V8, as at every chain);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. After the fold (the connector's
+   record, the pin test, the allowlist wall, comments): `bazel build //core:all //spec:spec_tests_lib //pct:all` green;
+   `//core:guardrails`, `//core:census`, `//core:core_tests_exec` (the pin test among them), `//core:core_tests_root`,
+   `//core:core_tests_server`, `//core:core_tests_sql`, `//tools/deps:core_layering_test` 7 of 7.
+3. **CI:** PR #82 (a draft). On step B1's head (7a6c899e), 51 of 51 checks green on Linux, macOS, Windows and arm
+   (`gates green` included); this push runs again.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+

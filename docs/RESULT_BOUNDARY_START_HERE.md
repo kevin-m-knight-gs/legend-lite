@@ -710,12 +710,17 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
   `//core:exec` loses lowering, plan and platform, and the ratchet (`EXEC_PLANNING_REFERENCES`) shrinks from sixteen
   rows to the runtime's five (`Column`, `JdbcStatements`, `Sessions`, `SystemDatabase`, `WireTypes`). Zero roster
   movement in every lane.
-- Step B2 next: the runtime's row on the plan's column (`exec.Column` replaced by `ExecutionPlan.Column`), the three
-  leaks (the timestamp fact on the connector, the session source to the driver, the system database's seed steps
-  handed in), `//core:exec`'s deps cut to the records, the ratchet a wall; zero roster movement in GATES.
+- **Step B2 built 2026-10-30, THE WALL** (the decisions log D72; GATES, step B2's entry): `exec` depends on no
+  planning library. The judges' column and row to `judge` (the runtime's rows were the plan's columns already), the
+  four driver decode facts from the dialect to the connector (`DatabaseConnector.decoding`; the dialect's seam is
+  rendering alone), the session source to the execution door (`Execution.Source`), the system database to the driver
+  (the root), the wire table a NAME of a type (`WireTypes.pureTypeNameOf`; the root's `WireProbe` rebuilds the typer's
+  primitive). `//core:exec` depends on base, json, cache, diagnostics, error, execution_plan, model, result, sql and
+  values; the ratchet map is deleted and `ArchitectureTest.execReachesNoPlanning` asserts the empty set. Zero roster
+  movement in every lane.
 - **Step C after B2 (the user, 2026-10-30: "Step C is fine, let's make sure we do it"):** the root dissolved. The
   root package `com.legend` holds two layers in one Java package today (the plan side's nine files, `//core:planner`;
-  the execution side's twenty-seven, `//core:driver`), told apart by Bazel alone. Step C keeps only the public doors
+  the execution side's twenty-eight since D72, `//core:driver`), told apart by Bazel alone. Step C keeps only the public doors
   at the root (`Compiler`, `Execution`, `TypedQuery`, `ExecuteOptions`, `HeldModels`), moves the plan machinery into
   `planner/` and the execution loop, the judges' arms, the seeds and the probes into `driver/` (one public entry on
   the driver side for the front door, pinned by an ArchUnit rule as the verdict seam is), so the package names say

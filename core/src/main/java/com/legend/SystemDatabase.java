@@ -1,6 +1,10 @@
-package com.legend.exec;
+package com.legend;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.exec.PlanRunner;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.Sessions;
+import com.legend.exec.StatementOrigin;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.DatabaseDefinition;
 import com.legend.setup.Ddl;
@@ -14,7 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
- * THE system database of a compiled graph (user ruling 2026-09-02): the
+ * THE system database of a compiled graph (user ruling 2026-09-02; the driver's since D72, 2026-10-30 -- it is
+ * keyed by the compiled graph and seeds through the plan side's DDL and dialect, planning work the runtime does not
+ * carry; it holds its sessions through the seam's public doors): the
  * metamodel rows live in a database of their own, SEPARATE from every user
  * connection &mdash; one per graph per database engine, written ONCE the
  * first time a query of that graph reads the metamodel, alive as long as

@@ -274,4 +274,30 @@ class ConnectorsTest {
                     : "no storeless runtime on " + type + ": the platform does not execute on it", refused.getMessage());
         }
     }
+
+    /** The four driver facts each connector answers ({@code DatabaseConnector.decoding}; D72, 2026-10-30, the facts
+     *  the dialect's four hooks held until then, carried: the D72 audit asked that they be pinned, since nothing had
+     *  pinned the hooks). Positional, so a swapped argument shows here. The eleven JDBC connectors; MongoDB's
+     *  statements read no JDBC row. */
+    @Test
+    void eachConnectorAnswersItsDriversDecodeFacts() {
+        DatabaseConnector.Decoding dflt = new DatabaseConnector.Decoding(true, false, false, false);
+        Map<DatabaseType, DatabaseConnector.Decoding> expected = new LinkedHashMap<>();
+        for (DatabaseType t : List.of(DatabaseType.H2, DatabaseType.SQLite, DatabaseType.Postgres, DatabaseType.MariaDB,
+                DatabaseType.MySQL, DatabaseType.ClickHouse)) {
+            expected.put(t, dflt);
+        }
+        // no java.time re-fetch (the drivers refuse getObject(int, LocalDateTime.class); a BC date-time is designed)
+        expected.put(DatabaseType.Databricks, new DatabaseConnector.Decoding(false, false, false, false));
+        expected.put(DatabaseType.Snowflake, new DatabaseConnector.Decoding(false, false, false, false));
+        // a decimal's trailing zeros dropped by the driver (BIGNUMERIC '3.0' reads 3), padded back to the slot's scale
+        expected.put(DatabaseType.BigQuery, new DatabaseConnector.Decoding(true, true, false, false));
+        // JSON spells a non-finite double as a bare token
+        expected.put(DatabaseType.DuckDB, new DatabaseConnector.Decoding(true, false, false, true));
+        // a failed statement's result opens with no columns, its error on the first read
+        expected.put(DatabaseType.Trino, new DatabaseConnector.Decoding(true, false, true, false));
+        for (Map.Entry<DatabaseType, DatabaseConnector.Decoding> e : expected.entrySet()) {
+            assertEquals(e.getValue(), Connectors.of(e.getKey()).decoding(), e.getKey().toString());
+        }
+    }
 }

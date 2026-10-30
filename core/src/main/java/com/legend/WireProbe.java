@@ -38,6 +38,28 @@ public final class WireProbe {
     private WireProbe() {
     }
 
+    /** The compiler's type for a SQL type the database reports: the plan's NAME of it ({@link WireTypes#pureTypeNameOf},
+     *  the wire table's) rebuilt as the typer's primitive on the driver side (D72, 2026-10-30: the runtime names a type,
+     *  never holds one); an unmapped SQL type is refused by the table, by name. */
+    public static Type pureOfSqlType(String sqlType) {
+        return primitive(WireTypes.pureTypeNameOf(sqlType));
+    }
+
+    /** {@link #pureOfSqlType}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted Any). */
+    public static @com.legend.base.Nullable Type pureOfSqlTypeOrNull(String sqlType) {
+        String name = WireTypes.pureTypeNameOrNull(sqlType);
+        return name == null ? null : primitive(name);
+    }
+
+    private static Type primitive(String name) {
+        for (Type.Primitive p : Type.Primitive.values()) {
+            if (p.typeName().equals(name)) {
+                return p;
+            }
+        }
+        throw new IllegalStateException("the wire table names '" + name + "', no primitive of the typer's");
+    }
+
     /** A plan the compiler could not type (a raw {@code executeInDb} grid: no
      * outputs) framed as {@code SELECT * FROM (plan)} with the database's
      * reported columns as its outputs — the LIMIT-0 probe's own pattern

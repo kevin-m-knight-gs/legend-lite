@@ -354,7 +354,7 @@ public final class PureTestRunner implements AutoCloseable {
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
-                    com.legend.exec.Sessions.given(target), null, null, options);
+                    com.legend.Execution.Source.given(target), null, null, options);
         } finally {
             if (isolated) {
                 observer.fixtureIsolated(conn);
@@ -473,7 +473,7 @@ public final class PureTestRunner implements AutoCloseable {
             String failure = null;
             try {
                 Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
-                        com.legend.exec.Sessions.given(conn),
+                        com.legend.Execution.Source.given(conn),
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {

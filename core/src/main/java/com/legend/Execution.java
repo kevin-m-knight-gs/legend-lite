@@ -22,6 +22,24 @@ public final class Execution {
      *  up (its own tables, its own connection). */
     public enum Establish { DECLARED_SETUP, AS_GIVEN }
 
+    /** Where execution gets the session for the target the compiler decided (the server's connection resolver; a
+     *  caller's own session, {@link #given}). {@code ctx} is the compiled model the target was decided from. Exec's
+     *  {@code Sessions.Source} until D72 (2026-10-30): a contract spelled in the compiler's types is the driver's,
+     *  never the runtime's. */
+    @FunctionalInterface
+    public interface Source {
+        com.legend.exec.Sessions.Session open(com.legend.database.Target target, ModelContext ctx);
+
+        /** A source of {@code session} as the caller holds it: a non-closing view of it for every target (D68,
+         *  2026-10-30: the test runners hold sessions, not connections). It checks nothing at open: its callers are
+         *  the program entry, whose {@code dialectOf} checks the session against the database the compiler decided,
+         *  and the query entry, whose runner checks each statement's target (D70's audit: a check here was a second
+         *  metadata read per body). */
+        static Source given(com.legend.exec.Sessions.Session session) {
+            return (target, ctx) -> com.legend.exec.Sessions.view(session);
+        }
+    }
+
     /**
      * THE PRODUCTION EXECUTION (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state recorded 2026-10-27): a query
      * typed once, planned as typed rows, run by the plan's runner, its rows streamed in batches to the sink the caller
@@ -32,7 +50,7 @@ public final class Execution {
      * on a database of its own, a database the user names or a URL reaches keeps it). Returns the plan that ran.
      */
     public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions,
             com.legend.exec.PlanSessions.Source planSessions, Establish establish,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
             throws java.io.IOException {
@@ -40,11 +58,11 @@ public final class Execution {
                 com.legend.result.Batcher.DEFAULT_CAPACITY);
     }
 
-    /** {@link #run(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.PlanSessions.Source,
+    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source,
      *  Establish, java.util.function.Function)} with the rows handed to the sink in batches of up to
      *  {@code batchRows} (the stream's granularity: a writer writes and flushes each batch as it arrives). */
     public static com.legend.executionplan.ExecutionPlan run(TypedQuery typed,
-            @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions,
             com.legend.exec.PlanSessions.Source planSessions, Establish establish,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
@@ -68,21 +86,21 @@ public final class Execution {
         }
     }
 
-    /** {@link #run(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.PlanSessions.Source,
+    /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source,
      *  Establish, java.util.function.Function)} for a model's text and a query's text, the session as the caller set
      *  it up. */
     public static com.legend.executionplan.ExecutionPlan run(String model, String query,
-            @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions,
             com.legend.exec.PlanSessions.Source planSessions,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
             throws java.io.IOException {
         return run(model, query, runtimeFqn, sessions, planSessions, sinkOf, com.legend.result.Batcher.DEFAULT_CAPACITY);
     }
 
-    /** {@link #run(String, String, String, com.legend.exec.Sessions.Source, com.legend.exec.PlanSessions.Source,
+    /** {@link #run(String, String, String, Source, com.legend.exec.PlanSessions.Source,
      *  java.util.function.Function)} in batches of up to {@code batchRows}. */
     public static com.legend.executionplan.ExecutionPlan run(String model, String query,
-            @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
+            @com.legend.base.Nullable String runtimeFqn, Source sessions,
             com.legend.exec.PlanSessions.Source planSessions,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
@@ -120,10 +138,10 @@ public final class Execution {
      * production passes neither), nothing materialized returned: the last statement's answer, where a caller wants
      * it, streams to the sink the caller hands for its shape ({@link Answer}; the doors, 2026-10-29: until then the
      * last side came back materialized, {@code ProgramReport.last}). The session is closed when the program ends
-     * (the source's lease: nothing for a caller's own, {@link com.legend.exec.Sessions#given}).
+     * (the source's lease: nothing for a caller's own, {@link Source#given}).
      */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
@@ -132,11 +150,11 @@ public final class Execution {
         }
     }
 
-    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.judge.AssertListener,
+    /** {@link #runProgram(TypedQuery, String, Source, com.legend.judge.AssertListener,
      *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} with no answer wanted: the body's last statement
      *  runs as every other and answers nothing to anyone (the corpus's bodies, whose verdicts are the listener's). */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
@@ -151,7 +169,7 @@ public final class Execution {
         com.legend.result.ResultSink of(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape);
     }
 
-    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.judge.AssertListener,
+    /** {@link #runProgram(TypedQuery, String, Source, com.legend.judge.AssertListener,
      *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} on a session the caller holds and keeps (the old
      *  door's connection): checked, its dialect decided, the body driver run on it; the one place a program's
      *  session meets its JDBC connection. A program leaves nothing behind: its verdicts are the listener's, one

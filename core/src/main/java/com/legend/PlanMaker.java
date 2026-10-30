@@ -397,7 +397,7 @@ final class PlanMaker {
     /**
      * The system metamodel store's tables a query reads ({@code Class.all()}: the typed tree's references to
      * {@link com.legend.builtin.SystemMetamodel#STORE_FQN}), carried by the plan as the legacy route seeded them on
-     * the graph's own system database ({@code exec.SystemDatabase}; the plan path program's step 9): each referenced
+     * the graph's own system database ({@code SystemDatabase}; the plan path program's step 9): each referenced
      * table with the graph's facts ({@link MetamodelSeeds}, written at plan time), so a model-free runner answers the
      * query on the plan's session. On an engine in this process (2026-10-18) the tables are the target's setup, in
      * their schema, as the private instance held them. On a SERVER engine (2026-10-19; the user's design of

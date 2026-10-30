@@ -884,8 +884,8 @@ final class ArchitectureTest {
      * <strong>The runner is model-free (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3).</strong>
      * What runs is the plan's own statement, reviewed when the plan was made: the runner, its parameter checks, its
      * sessions and the bulk load read the plan records, a connection's definition and {@code java.sql}, never the
-     * compiler, the resolver, the lowering, the SQL tree or a dialect, the plan side's setup, or the legacy plan. (The
-     * rest of {@code exec} still reaches them; the step-3 guard on its references shrinks them to none.) One call is
+     * compiler, the resolver, the lowering, the SQL tree or a dialect, the plan side's setup, or the legacy plan. (Since
+     * D72, 2026-10-30, no class of {@code exec} does: {@code execReachesNoPlanning}, the wall.) One call is
      * the SQL typing owner's, and only one (2026-10-09, step 3's audit, S3): a Float value is bound as its literal is
      * typed (the numeric charter's Rule 1, {@code SqlTyping.floatDecimal}, the one owner the dialects spell a Float
      * literal by), which only its value decides, at run time; the SQL layer may depend on nothing outside itself, so
@@ -924,41 +924,24 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
-    /** The planning libraries {@code exec} is to stop reaching (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8: the
-     *  compiler, lowering, dialect and plan libraries; at none, exec depends only on //base, //json, the plan records
-     *  and java.sql). The SQL tree ({@code com.legend.sql}) is not among them: it is the plan records' own vocabulary
-     *  (a plan's {@code Sql} carries it), and the one owner of SQL typing the runner binds by. */
-    private static final java.util.List<String> PLANNING_PACKAGES = java.util.List.of("com.legend.compiler",
-            "com.legend.resolver", "com.legend.lowering", "com.legend.sql.dialect", "com.legend.setup",
-            "com.legend.plan", "com.legend.builtin", "com.legend.parser", "com.legend.normalizer",
-            "com.legend.platform", "com.legend.database");
+    /** The packages an exec class may reach inside {@code com.legend}: exactly {@code //core:exec}'s dependency list
+     *  (core/BUILD.bazel; tools/deps/core-layers.txt pins it) and exec itself -- the records (the plan, the model, the
+     *  SQL tree, the values, the result boundary) and the switchboards (cache, diagnostics, error) beside base and
+     *  json. Everything else of {@code com.legend} is planning or the driver side: the compiler, the resolver,
+     *  lowering, the dialects ({@code com.legend.sql.dialect} is NOT {@code com.legend.sql}), setup, the plan side's
+     *  database facts, the platform, the parser, the normalizer, the root, the judge, the generator, the server. An
+     *  allowlist, not a blacklist of planning packages (the D72 audit): the two jars built against the whole of core
+     *  ({@code duckdb_load}, {@code postgres_cells}) hold exec classes this rule judges too, and a blacklist left the
+     *  root and the judge open to them. */
+    private static final java.util.Set<String> EXEC_MAY_REACH = java.util.Set.of("com.legend.exec", "com.legend.base",
+            "com.legend.json", "com.legend.cache", "com.legend.diagnostics", "com.legend.error",
+            "com.legend.executionplan", "com.legend.model", "com.legend.result", "com.legend.sql", "com.legend.values");
 
-    /** Each exec class that still reaches a planning library, with how many planning classes it reaches (a nested class
-     *  counted as its top-level class), measured 2026-10-09 (step 3): a count only goes down, a class leaves this map
-     *  when it reaches none, and none joins it. The judges and the probes (CanonRider 1, ColumnProbe 1, DynamicPivot 1,
-     *  Equality 1, GridProbe 3, InstanceIds 1, PureAsserts 1, SqlReplayReferee 1, TypedSide 2, VerdictBatch 1) left exec
-     *  2026-10-30 (D71, the seam-and-wall program's B1: com.legend.judge and the root), and Census (1) stopped naming
-     *  the dialect's scan-order counter the same day. What remains is the runtime's own reach, B2's to cut (the row on
-     *  the plan's column, the timestamp fact on the connector, the session source and the system database's seed on
-     *  the driver); at none the map is empty and the build rule (tools/deps/core-layers.txt) is the wall. */
-    private static final java.util.Map<String, Integer> EXEC_PLANNING_REFERENCES = java.util.Map.ofEntries(
-            java.util.Map.entry("Column", 2),
-            // 0 -> 2 (2026-10-18, the plan path program's step 7, found at main's merge 2026-10-22): the typed seam reads
-            // whether its driver re-reads a timestamp as java.time, the dialect's fact (refetchesTimestampAsJavaTime),
-            // as Executor does among its 7; the fact belongs with the connector, a later move
-            java.util.Map.entry("JdbcStatements", 2),
-            // 2 -> 3 (2026-10-19, the plan path program's step 9): whether a database type runs in this process is
-            // the plan side's fact (Databases.inProcess), read by the session owner; 3 -> 2 (2026-10-22, main's merge):
-            // the connector answers it (main's Phase 5), and the plan side's is the dialect's
-            java.util.Map.entry("Sessions", 2),
-            // SetupRunner (4) left 2026-10-29 (the doors): deleted; the seeds, the session statements and the system
-            // store's rows are plan setup steps the runner sends (PlanRunner.setUp), their form the plan side's own
-            // (CsvSeed.planned, Ddl.metamodelSteps)
-            java.util.Map.entry("SystemDatabase", 3),
-            // 3 -> 1 (2026-10-30, D71): the probe half (staticized, reconcile -- the compiler's expression types, the
-            // plan's query through the dialect) left for the root's WireProbe; the table keeps the compiler's Type,
-            // the Pure kind a SQL type delivers
-            java.util.Map.entry("WireTypes", 1));
+    /* EXEC_PLANNING_REFERENCES, the ratchet of exec's reaches into planning (2026-10-09 to 2026-10-30): sixteen rows at
+     * its widest, five after D71 (the judges and the probes out), none after D72 (the seam-and-wall program's B2: the
+     * judges' column and row to judge, the driver's decode facts to the connector, the session source and the system
+     * database to the driver, the wire table's compiler type a name in the plan's vocabulary). Deleted with the map
+     * empty: the rule below is the wall. */
 
     /** {@code c}'s top-level class's name: a nested class's is its top-level class's, an array's its element's. */
     private static String topLevel(com.tngtech.archunit.core.domain.JavaClass c) {
@@ -968,14 +951,16 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>exec's references into planning only shrink (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8,
-     * §9 step 3).</strong> {@code exec} still holds planning work (decoding with compiler types, rendering for a
-     * session; the judges and the probes until D71, 2026-10-30); each exec class that reaches a planning library is pinned with the number of planning classes it
-     * reaches. A class that newly reaches one, or reaches more, fails; one that reaches fewer, or none, is re-pinned
-     * lower or leaves the map. At none, it becomes a build rule.
+     * <strong>THE WALL: the runtime reaches no planning library (D72, 2026-10-30, the seam-and-wall program's B2;
+     * a shrink-only ratchet from 2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, until its map emptied).</strong>
+     * {@code exec} is a plan and a session to typed rows: every type and spelling fact it reads is the plan's
+     * ({@code executionplan}), every driver fact its connector's. No class of it depends on the compiler, the
+     * resolver, lowering, a dialect, the plan side's setup or database facts, the platform, the parser or the
+     * normalizer; the build says the same (`//core:exec`'s deps, pinned by tools/deps/core-layers.txt), this rule
+     * says it at the class level, where a reach through a type name the build would not list still shows.
      */
     @Test
-    void execsReachIntoPlanningOnlyShrinks() {
+    void execReachesNoPlanning() {
         java.util.Map<String, java.util.Set<String>> reached = new java.util.TreeMap<>();
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
             if (!c.getPackageName().equals("com.legend.exec")) {
@@ -983,33 +968,14 @@ final class ArchitectureTest {
             }
             for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
                 String pkg = d.getTargetClass().getBaseComponentType().getPackageName();
-                if (PLANNING_PACKAGES.stream().anyMatch(p -> pkg.equals(p) || pkg.startsWith(p + "."))) {
+                if ((pkg.equals("com.legend") || pkg.startsWith("com.legend.")) && !EXEC_MAY_REACH.contains(pkg)) {
                     reached.computeIfAbsent(topLevel(c).substring("com.legend.exec.".length()),
                             k -> new java.util.TreeSet<>()).add(topLevel(d.getTargetClass()));
                 }
             }
         }
-        java.util.Map<String, Integer> actual = new java.util.TreeMap<>();
-        reached.forEach((c, targets) -> actual.put(c, targets.size()));
-        java.util.List<String> grew = new java.util.ArrayList<>();
-        java.util.List<String> shrank = new java.util.ArrayList<>();
-        java.util.Set<String> all = new java.util.TreeSet<>(actual.keySet());
-        all.addAll(EXEC_PLANNING_REFERENCES.keySet());
-        for (String c : all) {
-            int now = actual.getOrDefault(c, 0);
-            int pinned = EXEC_PLANNING_REFERENCES.getOrDefault(c, 0);
-            if (now > pinned) {
-                grew.add(c + " " + pinned + " -> " + now + " " + reached.get(c));
-            } else if (now < pinned) {
-                shrank.add(c + " " + pinned + " -> " + now);
-            }
-        }
-        StringBuilder measured = new StringBuilder();
-        actual.forEach((c, n) -> measured.append("\n    java.util.Map.entry(\"").append(c).append("\", ").append(n)
-                .append("),"));
-        org.junit.jupiter.api.Assertions.assertTrue(grew.isEmpty() && shrank.isEmpty(), "exec's references into"
-                + " planning changed -- grew (planning work in exec: move it to the plan side): " + grew
-                + "; shrank (re-pin lower): " + shrank + "; measured:" + measured);
+        org.junit.jupiter.api.Assertions.assertTrue(reached.isEmpty(), "the runtime reaches planning (the wall, D72):"
+                + " move the work to the plan side or the driver, or carry the fact in the plan records -- " + reached);
     }
 
     /**
@@ -1187,6 +1153,8 @@ final class ArchitectureTest {
             .that().haveNameMatching("com\\.legend\\.(BodyDriver|BodyCompiler|HostJudge|DatabaseJudge"
                     + "|JudgePlans|AssertVerdicts|SqlTextVerdicts|AgreementArm|VerdictArm|CsvLoad|SeedSqlForms"
                     + "|AssertErrorNative|ColumnProbe|GridProbe|WireProbe|DynamicPivot"
+                    // the system database since 2026-10-30 (D72: the driver's; it holds sessions through the seam)
+                    + "|SystemDatabase"
                     + "|judge\\.[A-Za-z0-9_]+"
                     + "|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
                     + "(\\$.*)?")

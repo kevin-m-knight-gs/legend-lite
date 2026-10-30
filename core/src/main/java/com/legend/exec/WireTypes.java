@@ -3,7 +3,6 @@
 
 package com.legend.exec;
 
-import com.legend.compiler.element.type.Type;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.SqlType;
 
@@ -11,7 +10,7 @@ import java.sql.Types;
 import java.util.List;
 
 /** THE WIRE TABLE: JDBC's type codes and a database's SQL type names to the SQL vocabulary and the Pure kind a
- * column delivers ({@link #sqlTypeOf}, {@link #pureOfSqlType}), and a column as the database REPORTS it for a prepared
+ * column delivers ({@link #sqlTypeOf}, {@link #pureTypeNameOf}), and a column as the database REPORTS it for a prepared
  * statement ({@link ReportedColumn}, what the session's state memoizes per statement text). The wire kind of a
  * wire-decided column is the database's (leg 3.3, docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4t): the reconciliation
  * that reads this table -- one prepare through the plan runner, a stamped kind cast to the reported one, the census of
@@ -27,7 +26,7 @@ public final class WireTypes {
     }
 
     /** JDBC's type code to the SQL vocabulary (the kinds
-     * {@link Type#kindOfSqlType} names). */
+     * {@code Type.kindOfSqlType} names). */
     static @com.legend.base.Nullable SqlType sqlTypeOf(int jdbcType, int precision, int scale) {
         return switch (jdbcType) {
             case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, Types.NCHAR, Types.NVARCHAR,
@@ -46,42 +45,37 @@ public final class WireTypes {
         };
     }
 
-    /** The Pure primitive a column the database reports by its SQL type name carries (a pivot-generated column, a
-     *  probed grid's): every known name explicit -- an unrecognized one is a gap in this table, refused by name, never a
-     *  String (audit 15: the silent String default corrupted result typing invisibly). */
-    public static com.legend.compiler.element.type.Type pureOfSqlType(String sqlType) {
-        com.legend.compiler.element.type.Type t = pureOfSqlTypeOrNull(sqlType);
+    /** The Pure primitive's NAME a column the database reports by its SQL type name carries -- a plan column's
+     *  {@code type} ({@code ExecutionPlan.Column}: a pivot-generated column, a probed grid's); the compiler's own
+     *  {@code Type} is the driver side's to rebuild from it (the root's wire probe; D72, 2026-10-30: the runtime
+     *  names a type, never holds one). Every known name explicit -- an unrecognized one is a gap in this table,
+     *  refused by name, never a String (audit 15: the silent String default corrupted result typing invisibly). */
+    public static String pureTypeNameOf(String sqlType) {
+        String t = pureTypeNameOrNull(sqlType);
         if (t == null) {
             throw new IllegalStateException("no Pure primitive mapped for SQL type '" + sqlType
-                    + "' (a column the database reports) -- add it to WireTypes.pureOfSqlType");
+                    + "' (a column the database reports) -- add it to WireTypes.pureTypeNameOrNull");
         }
         return t;
     }
 
-    /** {@link #pureOfSqlType}'s name: the Pure primitive's name a plan column carries (track B's B1a, 2026-10-29: the
-     *  static pivot's key column; read by the root's {@code DynamicPivot} and the generator, by name). */
-    public static String pureTypeNameOf(String sqlType) {
-        return pureOfSqlType(sqlType).typeName();
-    }
-
-    /** {@link #pureOfSqlType}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted
+    /** {@link #pureTypeNameOf}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted
      *  Any, GridProbe). The parameter suffix strips once ({@code DECIMAL(38,9)} is {@code DECIMAL}); the table is
      *  exact-match. */
-    public static com.legend.compiler.element.type.@com.legend.base.Nullable Type pureOfSqlTypeOrNull(String sqlType) {
+    public static @com.legend.base.Nullable String pureTypeNameOrNull(String sqlType) {
         String t = sqlType.toUpperCase(java.util.Locale.ROOT);
         int paren = t.indexOf('(');
         if (paren > 0) {
             t = t.substring(0, paren).strip();
         }
         return switch (t) {
-            case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
-                    com.legend.compiler.element.type.Type.Primitive.INTEGER;
-            case "FLOAT", "DOUBLE", "REAL" -> com.legend.compiler.element.type.Type.Primitive.FLOAT;
-            case "BOOLEAN" -> com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
-            case "DATE" -> com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
-            case "TIMESTAMP" -> com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
-            case "DECIMAL", "NUMERIC" -> com.legend.compiler.element.type.Type.Primitive.DECIMAL;
-            case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" -> com.legend.compiler.element.type.Type.Primitive.STRING;
+            case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" -> "Integer";
+            case "FLOAT", "DOUBLE", "REAL" -> "Float";
+            case "BOOLEAN" -> "Boolean";
+            case "DATE" -> "StrictDate";
+            case "TIMESTAMP" -> "DateTime";
+            case "DECIMAL", "NUMERIC" -> "Decimal";
+            case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" -> "String";
             default -> null;
         };
     }

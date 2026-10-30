@@ -21,7 +21,7 @@ import java.sql.SQLException;
  *
  * <p>A server lane is also the host of a SYSTEM CONNECTION ({@link #systemConnections}): where the platform's system
  * database for that engine lives (a query reading the metamodel store runs there, apart from the user's session;
- * exec.SystemDatabase). This harness gives it the lane's own server and credentials, as its choice; a host
+ * SystemDatabase). This harness gives it the lane's own server and credentials, as its choice; a host
  * configures it apart. An in-process lane needs none (the platform opens its own private instance).
  *
  * <p>Both channels run on it (2026-10-11, the user's ask): channel A's adapter ({@link PctExecuteNative}) and channel

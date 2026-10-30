@@ -132,7 +132,7 @@ class SqlTextRatchetTest {
         // exec/Sessions.java -> exec/MariaDbConnector.java (2026-10-16, the dialect program's Phase 5): the
         // read is MariaDB's connector's (DatabaseConnector.raisedMessage), the owner of its sessions' state
         // (the plan's §4: the connector owns the held raise). exec may not reach the dialect for it
-        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side.
+        // (ArchitectureTest.execReachesNoPlanning), so the statement stays on the execution side.
         // 2026-10-29 (D65, the three routings): the connector DECLARES the read and the reset as data
         // (DatabaseConnector.raiseRecovery) and the seam runs them (JdbcStatements.held); the one SQL-shaped
         // literal is the same SELECT, the count unmoved

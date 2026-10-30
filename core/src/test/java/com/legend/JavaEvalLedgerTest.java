@@ -240,7 +240,7 @@ class JavaEvalLedgerTest {
             // Statements.columns; its own JDBC statement and metadata read are gone)
             // 46 -> 48 (2026-10-29, the doors): the LIMIT-0 probe is a plan statement of the body's target the plan
             // runner runs (PlanRunner.columns) -- two lines of parameters, no evaluation
-            Map.entry("core/src/main/java/com/legend/GridProbe.java", 53),   // 48 -> 53 (2026-10-30, D71): at the root, out of exec -- the same five exec imports; no rule changed
+            Map.entry("core/src/main/java/com/legend/GridProbe.java", 52),   // 48 -> 53 (2026-10-30, D71): at the root, out of exec -- the same five exec imports; 53 -> 52 (D72, the same day): the wire table import gone, the type rebuilt by the root's WireProbe; no rule changed
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -1131,7 +1131,6 @@ class JavaEvalLedgerTest {
                     // egress: they write text and rows); SetupRunner.java was CsvSeed.run, the half
                     // that ran them on a connection -- deleted 2026-10-29 (the doors): the runner runs the
                     // steps (PlanRunner.setUp)
-                    "Column.java",
                     // execution plan step 3 (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): THE RUNNER -- a plan's own statement run as the plan says, model-free
                     // (ArchitectureTest.theRunnerIsModelFree): PlanRunner binds the plan's slots and
@@ -1153,7 +1152,7 @@ class JavaEvalLedgerTest {
                     // stays for a document's row and a JSON-carried cell
                     "JdbcDecode.java",
                     // the JSON a database writes with a bare token for a double that is not finite (2026-10-27,
-                    // the result boundary program's phase 5; SqlDialect.jsonSpellsNonFiniteNumbers): the typed
+                    // the result boundary program's phase 5; DatabaseConnector.decoding().nonFiniteJson): the typed
                     // reader's parse of such a cell, the token kept to be written back; nothing computed
                     "NonFiniteJson.java",
                     "Statements.java", "JdbcStatements.java",
@@ -1165,6 +1164,9 @@ class JavaEvalLedgerTest {
                     // judgment the verdict arm's — no value compared here
                     // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): counters only —
                     // one storage, one snapshot; no value is produced or compared
+                    // D72, 2026-10-30 (B2, the wall): Column and Row left for judge (a judged side's column in the
+                    // compiler's types; the runtime's row is typed by the plan's own column), SystemDatabase for the
+                    // root (the driver's: keyed by the graph, seeded through the plan side's DDL and dialect)
                     "Census.java",
                     // bulk load (2026-09-23): the seam an engine's own bulk API
                     // joins through, for rows of TEXT cells the database casts
@@ -1208,7 +1210,6 @@ class JavaEvalLedgerTest {
                     // bodies ROUTE to it (BodyDriver). Egress only:
                     // seed DDL + content-addressed constructed rows; no
                     // value a verdict reads is produced here
-                    "SystemDatabase.java",
                     // Phase 2 (One-Platform Plan): THE COMPARISON LAYER —
                     // the platform assert family (spec = legend-pure's
                     // essential/tests/*.pure) + the TDS-grid compare
@@ -1272,7 +1273,6 @@ class JavaEvalLedgerTest {
                     // StatementOrigin (2026-09-20): the statement-origin CENSUS — a thread-scoped
                     // mark + counters; sends nothing, reads no value; printed by the corpus lanes
                     "StatementOrigin.java",
-                    "Row.java",
                     // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
                     // REFERENCE render + its divergence census. Pure
                     // MEASUREMENT beside the comparison layer — probes
@@ -1350,6 +1350,7 @@ class JavaEvalLedgerTest {
                     "Equality.java",
                     "CanonicalForm.java", "CanonicalDivergence.java",
                     "TypedSide.java",
+                    "Column.java", "Row.java",   // the judged side's column and row, exec's until D72 (2026-10-30)
                     "VerdictBatch.java",
                     "CanonRider.java",
                     "InstanceIds.java",
@@ -1477,6 +1478,9 @@ class JavaEvalLedgerTest {
                     // D71, 2026-10-30: the schema probes, out of exec -- each asks the plan runner (columns, describe)
                     // and reads the compiler's types; WireProbe is the probe half of exec's WireTypes
                     "ColumnProbe.java", "GridProbe.java", "DynamicPivot.java", "WireProbe.java",
+                    // D72, 2026-10-30: the graph's system database, out of exec -- it is keyed by the compiled graph and
+                    // seeds through the plan side's DDL and dialect; its sessions it holds through the seam's doors
+                    "SystemDatabase.java",
                     "package-info.java");
 
     /** The RESULT PACKAGE is a CLOSED REGISTER too (2026-10-28, the result boundary program's R3 and R8; the start

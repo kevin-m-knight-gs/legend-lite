@@ -502,6 +502,11 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the seam's step B2, the wall** (the decisions log D72; GATES, step B2's entry): `exec` depends on no
+  planning library -- the judges' column and row to `judge`, the driver's four decode facts from the dialect to the
+  connector, the session source to the execution door, the system database to the driver, the wire table a name of a
+  type; `//core:exec`'s deps cut to base, json and the plan-side records, the ratchet map deleted and
+  `ArchitectureTest.execReachesNoPlanning` the wall. Zero roster movement. Next: step C (the root dissolved).
 - **2026-10-30, the seam's step B1** (the decisions log D71; GATES, step B1's entry): the judge layer out of `exec`
   into `com.legend.judge` (`//core:judge`, thirteen classes moved verbatim), the schema probes to the root
   (`WireProbe` split from the wire table), the census's dialect name gone; `//core:exec` loses lowering, plan and

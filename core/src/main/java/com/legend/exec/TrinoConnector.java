@@ -84,4 +84,11 @@ final class TrinoConnector implements DatabaseConnector {
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
+
+    /** {@inheritDoc} The dialect's {@code opensFailedResultsWithoutColumns} until D72 (2026-10-30), carried: Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
+     *  read; a statement that succeeds always reports its columns. */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(true, false, true, false);
+    }
 }

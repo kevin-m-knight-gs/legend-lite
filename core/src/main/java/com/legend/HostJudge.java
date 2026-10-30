@@ -634,7 +634,7 @@ final class HostJudge {
      * spec's toString(true) grid rendering is message-position only;
      * no witness pins its spelling). */
     static String summarize(TypedSide.Tabular t) {
-        return t.columns().stream().map(com.legend.exec.Column::name)
+        return t.columns().stream().map(com.legend.judge.Column::name)
                 .toList() + " (" + t.rows().size() + " rows)";
     }
 
@@ -659,9 +659,9 @@ final class HostJudge {
                         .doubleValue()
                 : 0.0;
         List<String> c1 = one.columns().stream()
-                .map(com.legend.exec.Column::name).toList();
+                .map(com.legend.judge.Column::name).toList();
         List<String> c2 = two.columns().stream()
-                .map(com.legend.exec.Column::name).toList();
+                .map(com.legend.judge.Column::name).toList();
         if (!c1.equals(c2) || one.rows().size() != two.rows().size()) {
             return AssertVerdicts.fail("\n" + summarize(one) + "\n is not"
                     + " equivalent to:\n" + summarize(two));

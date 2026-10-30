@@ -36,7 +36,7 @@ public final class ConnectionResolver {
      *  the platform's DuckDB for a runtime binding only model data. One session per query: a runtime whose
      *  connections are DIFFERENT definitions is refused by name. Public since D67 (2026-10-30): the tests' twin reads
      *  the server's route through it ({@code testing.Lean.service}). */
-    public static final com.legend.exec.Sessions.Source SOURCE = ConnectionResolver::open;
+    public static final com.legend.Execution.Source SOURCE = ConnectionResolver::open;
 
     /** Upstream {@code pure/v1/execution/execute} (E8), the {@link PureV1Api.Runner} the server hands the API (D67,
      *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): a query that

@@ -32,9 +32,13 @@
 > is made by `exec` alone -- its connection the seam's, its state its own --
 > `onlyTheSeamMakesSessions`, D70, 2026-10-30; the judges and the
 > probes are planning-side work the runtime does not carry --
-> `com.legend.judge` and the root, D71, 2026-10-30 -- and `exec`'s
-> remaining reaches into planning are a shrinking register,
-> `ArchitectureTest.EXEC_PLANNING_REFERENCES`, five rows, B2's to cut),
+> `com.legend.judge` and the root, D71, 2026-10-30 -- and THE WALL:
+> `exec` depends on no planning library: `//core:exec`'s deps are base,
+> json, the records (model, execution_plan, sql, values, result) and the
+> switchboards (cache, diagnostics, error), pinned by
+> `tools/deps/core-layers.txt`, and the class-level rule
+> `ArchitectureTest.execReachesNoPlanning` allows an exec class those
+> packages and no other of `com.legend` -- D72, 2026-10-30),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's

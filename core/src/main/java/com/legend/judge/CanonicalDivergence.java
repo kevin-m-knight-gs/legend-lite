@@ -4,7 +4,6 @@
 package com.legend.judge;
 
 import com.legend.exec.Census;
-import com.legend.exec.Row;
 
 import java.util.ArrayList;
 import java.util.List;

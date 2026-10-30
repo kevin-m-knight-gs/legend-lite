@@ -1,7 +1,5 @@
 package com.legend.judge;
 
-import com.legend.exec.Column;
-import com.legend.exec.Row;
 
 import com.legend.compiler.element.type.Type;
 

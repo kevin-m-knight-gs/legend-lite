@@ -8,11 +8,11 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.Column;
+import com.legend.judge.Column;
 import com.legend.judge.TypedSide;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
-import com.legend.exec.Row;
+import com.legend.judge.Row;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.lowering.TypedRows;
 import com.legend.lowering.VerdictSql;
@@ -181,13 +181,13 @@ final class JudgePlans {
             case TypedSide.Tabular t -> {
                 shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION;
                 java.util.List<com.legend.executionplan.ExecutionPlan.Column> cs = new java.util.ArrayList<>();
-                for (com.legend.exec.Column c : t.columns()) {
+                for (com.legend.judge.Column c : t.columns()) {
                     // the side's column carries the typer's multiplicity where the judge had one; one otherwise
                     cs.add(hostColumn(c.name(), c.pureType().typeName(), c.multiplicity() == null ? one
                             : com.legend.plan.PlanColumns.multiplicity(c.multiplicity())));
                 }
                 columns = cs;
-                for (com.legend.exec.Row r : t.rows()) {
+                for (com.legend.judge.Row r : t.rows()) {
                     rows.add(new java.util.ArrayList<>(r.values()));
                 }
             }

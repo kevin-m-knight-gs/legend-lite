@@ -7,7 +7,6 @@ import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.StatementOrigin;
 import com.legend.exec.Statements;
-import com.legend.exec.WireTypes;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.SqlSelect;
@@ -56,7 +55,7 @@ public final class GridProbe {
         for (String[] c : probeColumns(sql, writtenFor, sessions, target, dialect)) {
             // typed by the name its dialect reads the driver's into, where that name says the type
             String wire = dialect.typingWireName(c[1]);
-            com.legend.compiler.element.type.Type t = wire == null ? null : WireTypes.pureOfSqlTypeOrNull(wire);
+            com.legend.compiler.element.type.Type t = wire == null ? null : WireProbe.pureOfSqlTypeOrNull(wire);
             cols.add(t == null
                     ? com.legend.compiler.element.type.Type.RelationType
                             .trustedColumn(c[0])

@@ -1697,7 +1697,7 @@ final class AssertVerdicts {
      * close of the disagree-9 burn). */
     static List<Object> cells(TypedSide.Tabular t) {
         List<Object> out = new java.util.ArrayList<>();
-        for (com.legend.exec.Row r : t.rows()) {
+        for (com.legend.judge.Row r : t.rows()) {
             out.addAll(r.values());
         }
         return out;

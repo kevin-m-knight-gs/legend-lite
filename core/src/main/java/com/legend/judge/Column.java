@@ -1,9 +1,10 @@
-package com.legend.exec;
+package com.legend.judge;
 
 import com.legend.compiler.element.type.Type;
 
 /**
- * One result column: the name and the PURE type — the OBJECT, not a
+ * One column of a judged side ({@code TypedSide}; exec's until D72, 2026-10-30: a column in the compiler's types is
+ * the judges', the runtime's row is typed by the plan's own column): the name and the PURE type — the OBJECT, not a
  * name string. Consumers convert values by pureType only. (The
  * informational sqlType field is DELETED, documented-debts batch
  * 2026-08-18: §11 closed its last consumer with F5.1/F5.3B, so the

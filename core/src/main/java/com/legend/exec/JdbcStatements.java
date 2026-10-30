@@ -35,7 +35,7 @@ final class JdbcStatements implements Statements {
     /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
      *  {@code java.time}, a decimal's trailing zeros dropped, a failing statement's result opened with no columns),
      *  known once {@link #check} has checked the session against the plan's target; null before. */
-    private JdbcDecode.@com.legend.base.Nullable Driver driver;
+    private DatabaseConnector.@com.legend.base.Nullable Decoding driver;
 
     JdbcStatements(Connection c, SessionState state) {
         this(c, state, null);
@@ -107,9 +107,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void check(ExecutionPlan.Target target) {
         Sessions.check(c, target.database().type());
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(target.database().type());
-        driver = new JdbcDecode.Driver(dialect.refetchesTimestampAsJavaTime(), dialect.dropsDecimalTrailingZeros(),
-                dialect.opensFailedResultsWithoutColumns(), dialect.jsonSpellsNonFiniteNumbers());
+        driver = Connectors.of(target.database().type()).decoding();   // the driver's facts are its connector's (D72)
         switch (target.servers()) {
             case ExecutionPlan.Servers.Every every -> {
                 // the spelling depends on no version
@@ -227,7 +225,7 @@ final class JdbcStatements implements Statements {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
-            JdbcDecode.Driver driver = this.driver;
+            DatabaseConnector.Decoding driver = this.driver;
             if (driver == null) {
                 throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
                         + " how its driver answers is its database's fact");

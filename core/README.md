@@ -187,22 +187,27 @@ core/src/main/java/com/legend/
 │   │                                         D70; PlanSessions.java the sessions a plan's target names)
 │   ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
 │   ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
-│   ├── WireTypes.java                       (the wire TABLE: JDBC's type codes to the SQL vocabulary)
-│   ├── Connectors.java + *Connector.java    (each database's driver facts)
-│   ├── Row.java
-│   └── Column.java                          (result-side column; distinct from element/store/Column)
+│   ├── WireTypes.java                       (the wire TABLE: JDBC's type codes to the SQL vocabulary, a SQL type's
+│   │                                         Pure NAME; the runtime names a type, never holds one, D72)
+│   ├── DatabaseConnector.java + Connectors   (each database's driver facts, its decode facts among them, D72)
+│   └── *Connector.java                      (the twelve; exec depends on NO planning library since D72, 2026-10-30:
+│                                             the wall, ArchitectureTest.execReachesNoPlanning)
 │
 ├── judge/                             the verdict layer (D71, 2026-10-30; out of exec: planning-side work the
 │   ├── PureAsserts.java + Equality.java     runtime must not carry): a test body's assertion judged over typed
 │   ├── TdsCompare.java                      rows -- the host lattice, the grid compare, the canonical instruments
 │   ├── CanonicalForm.java + ...Divergence   (CanonicalForm, CanonicalDivergence), the verdict batch, the SQL
 │   ├── VerdictBatch.java                    replay referee, the censuses, the assert listener; reachable from the
-│   └── TypedSide.java                       verdict seam alone (the judges' collected side; ExecutionResult
-│                                            until 2026-10-29)
+│   ├── TypedSide.java                       verdict seam alone (the judges' collected side; ExecutionResult
+│   │                                        until 2026-10-29)
+│   └── Column.java + Row.java               (a judged side's column in the compiler's Type, and its row; exec's
+│                                            until D72)
 │
 └── (the root)                         the driver side's probes (D71): ColumnProbe, GridProbe, DynamicPivot and
                                        WireProbe (the probe half of WireTypes) ask the plan runner and read the
-                                       compiler's types
+                                       compiler's types; SystemDatabase (D72): the graph's system store, keyed by
+                                       the compiled graph, seeded through the plan side's DDL; Execution.Source
+                                       (D72): where execution gets the session for the target the compiler decided
 ```
 
 ## Naming conventions

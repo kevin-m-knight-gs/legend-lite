@@ -1,4 +1,4 @@
-package com.legend.exec;
+package com.legend.judge;
 
 import java.util.List;
 

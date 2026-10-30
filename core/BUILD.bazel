@@ -201,10 +201,12 @@ legend_java_library(
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    # D71, 2026-10-30 (the seam-and-wall program's B1): the judges and the probes left for :judge and the root, and with
-    # them exec's reaches into :lowering, :plan and :platform. What remains of its planning reaches (:compiler,
-    # :compiler_element_type, :database, :setup, :sql_dialect) is B2's to cut (ArchitectureTest.EXEC_PLANNING_REFERENCES).
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":model", ":result", ":setup", ":sql", ":sql_dialect", ":values"],
+    # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
+    # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
+    # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every
+    # type and spelling fact the runtime reads, the connector every driver fact. ArchitectureTest.execReachesNoPlanning
+    # says it at the class level; tools/deps/core-layers.txt pins this list.
+    deps = ["//base", "//json", ":cache", ":diagnostics", ":error", ":execution_plan", ":model", ":result", ":sql", ":values"],
 )
 # THE JUDGE (D71, 2026-10-30, the seam-and-wall program's B1): the verdict layer -- equality, the asserts, the TDS
 # compare, the canonical form, the SQL replay referee, the censuses -- out of exec. It reads the compiler's types and

@@ -3,7 +3,6 @@
 
 package com.legend.exec;
 
-import com.legend.database.Target;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
@@ -40,7 +39,7 @@ public final class Sessions {
     private Sessions() {
     }
 
-    /** A session handed to execution for a {@link Target}: closing it releases it -- for a session the caller owns,
+    /** A session handed to execution for a target (the driver's {@code Execution.Source} since D72, 2026-10-30): closing it releases it -- for a session the caller owns,
      *  nothing; for one the source opened, whatever that source's lease says. Its state ({@link SessionState}: the
      *  seeds established on it, the database's reported column types, the session statements run, D66) is the owning
      *  session's own, one per connection, shared by every {@link #view} of it -- until D70 a process-wide weak map
@@ -270,15 +269,8 @@ public final class Sessions {
         return metadata(session.connection(), true);
     }
 
-    /** Where execution gets the session for a target the compiler decided (the server's connection resolver; a caller's
-     *  own session, {@link #given}). {@code ctx} is the compiled model the target was decided from. */
-    @FunctionalInterface
-    public interface Source {
-        Session open(Target target, com.legend.compiler.element.ModelContext ctx);
-    }
-
     /** Opens a session on a system connection: the HOST's to configure, apart from every runtime's (the platform holds
-     *  no server credential, C3b) -- a server engine's system database lives in it ({@link SystemDatabase}). */
+     *  no server credential, C3b) -- a server engine's system database lives in it (the driver's {@code SystemDatabase} since D72). */
     @FunctionalInterface
     public interface Opener {
         Connection open() throws SQLException;
@@ -302,15 +294,6 @@ public final class Sessions {
     /** The product name the JDBC driver of {@code type} reports ({@code DatabaseMetaData.getDatabaseProductName}). */
     public static String jdbcProduct(DatabaseType type) {
         return Connectors.of(type).jdbcProduct();
-    }
-
-    /** A source of {@code session} as the caller holds it: a non-closing view of it for every target (D68,
-     *  2026-10-30: the test runners hold sessions, not connections). It checks nothing at open: its callers are the
-     *  program entry, whose {@code dialectOf} checks the session against the database the compiler decided, and the
-     *  query entry, whose runner checks each statement's target (D70's audit: a check here was a second metadata
-     *  read per body). */
-    public static Source given(Session session) {
-        return (target, ctx) -> view(session);
     }
 
     /** {@code session} is a session on {@code declared}: a session on another database is refused, never

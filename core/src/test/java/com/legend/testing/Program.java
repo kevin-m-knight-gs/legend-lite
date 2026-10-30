@@ -91,7 +91,7 @@ public final class Program {
         // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
-        Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, Sessions.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
+        Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
                 options, sink::of);
         return new Report(List.copyOf(verdicts), sink.answered());
     }

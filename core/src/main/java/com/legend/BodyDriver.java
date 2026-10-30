@@ -199,7 +199,7 @@ final class BodyDriver {
          * its session, and the store's tables as that session names them,
          * added to the table renames (a conflicting rename throws — never a
          * silent pick). */
-        ExecEnv withSystemRoute(com.legend.exec.SystemDatabase.Route route) {
+        ExecEnv withSystemRoute(SystemDatabase.Route route) {
             ExecEnv on = withSession(route.session());
             if (route.renames().isEmpty()) {
                 return on;
@@ -2019,7 +2019,7 @@ final class BodyDriver {
     /** THE SYSTEM DATABASE ROUTE (user ruling 2026-09-02): a body reading
      * the metamodel store executes on the GRAPH's own system database —
      * separate from every user connection, written once per graph, never
-     * per execution ({@link com.legend.exec.SystemDatabase}); on a server
+     * per execution ({@link SystemDatabase}); on a server
      * engine, the host's system connection, its tables read through the
      * route's renames (2026-10-11). A body reading
      * BOTH the store and a user store has no single session: LOUD (the
@@ -2045,7 +2045,7 @@ final class BodyDriver {
                 new IllegalStateException("the system metamodel store is"
                         + " not in the model — injection regressed"));
         ModelContext ctx = env.ctx();
-        return env.withSystemRoute(com.legend.exec.SystemDatabase.of(ctx)
+        return env.withSystemRoute(SystemDatabase.of(ctx)
                 .routeFor(Compiler.executesOn(ctx, env.runtimeFqn()).type(), env.dialect(), store,
                         table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections()));
     }
@@ -2104,7 +2104,7 @@ final class BodyDriver {
                     plan, lowerer.deferredTds(),
                     inner -> ColumnProbe.probe(
                             inner, fDialect, fSessions, fTarget),
-                    com.legend.exec.WireTypes::pureOfSqlType);
+                    WireProbe::pureOfSqlType);
         }
         return named ? lowerer.namedColumns(plan) : plan;
     }

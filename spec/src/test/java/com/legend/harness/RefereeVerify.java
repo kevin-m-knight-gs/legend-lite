@@ -4,7 +4,7 @@
 package com.legend.harness;
 
 import com.legend.judge.TypedSide;
-import com.legend.exec.Row;
+import com.legend.judge.Row;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
