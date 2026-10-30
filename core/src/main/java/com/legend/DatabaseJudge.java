@@ -7,8 +7,8 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.TypedSide;
-import com.legend.exec.PureAsserts;
+import com.legend.judge.TypedSide;
+import com.legend.judge.PureAsserts;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,7 +66,7 @@ final class DatabaseJudge {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
                 // never sees
-                com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+                com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
                 return wantEqual ? AssertVerdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
                         + " vs " + AssertVerdicts.typeName(aSpec) + ")") : AssertVerdicts.ok();
             }
@@ -93,8 +93,8 @@ final class DatabaseJudge {
                 frameE = en.fqn();
             }
         }
-        var re = new com.legend.exec.CanonRider(false, false, frameE);
-        var ra = new com.legend.exec.CanonRider(false, false, frameA);
+        var re = new com.legend.judge.CanonRider(false, false, frameE);
+        var ra = new com.legend.judge.CanonRider(false, false, frameA);
         // the golden's ^TDSNull() cells spell the bare sentinel (direction-
         // aware: the EXPECTED side only, as TdsCompare.peerElementCanons) —
         // rewritten at plan time so the cell rides the literal channel as
@@ -142,7 +142,7 @@ final class DatabaseJudge {
                         env.withSession(we.storeFree() ? wa.session() : we.session()));
             } else {
                 BodyDriver.WrappedSide gw = gridE ? we : wa;
-                com.legend.exec.CanonRider pr = gridE ? ra : re;
+                com.legend.judge.CanonRider pr = gridE ? ra : re;
                 BodyDriver.WrappedSide pw = gridE ? wa : we;
                 var schema = AssertVerdicts.effectiveSchema(java.util.Objects.requireNonNull(gw));
                 int width = schema == null ? 0 : schema.columns().size();
@@ -210,13 +210,13 @@ final class DatabaseJudge {
      * (never NULL) with the two framed canons as the message. */
     static TypedSide runVerdict(String name, boolean wantEqual,
             com.legend.sql.SqlQuery vq, BodyDriver.ExecEnv runOn) {
-        com.legend.exec.VerdictBatch batch = runOn.verdictBatch();
+        com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
         // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6)
-        return verdictOf(name, wantEqual, com.legend.exec.VerdictBatch.executeOne(
+        return verdictOf(name, wantEqual, com.legend.judge.VerdictBatch.executeOne(
                 name, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
                 runOn.session(), JudgePlans.runner(runOn)));
     }
@@ -243,11 +243,11 @@ final class DatabaseJudge {
         if (!(row.get(0) instanceof Boolean held)) {
             throw new IllegalStateException(name + ": the verdict column is not a boolean: " + row.get(0));
         }
-        com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+        com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
         if (row.size() > 4 && Boolean.TRUE.equals(row.get(4))) {
             // the declared 2-ULP Float leniency decided it — counted as
             // host mode counts its own firings
-            com.legend.exec.CanonicalDivergence.sqlUlpPolicy("database " + name);
+            com.legend.judge.CanonicalDivergence.sqlUlpPolicy("database " + name);
         }
         if (held == wantEqual) {
             return AssertVerdicts.ok();
@@ -283,7 +283,7 @@ final class DatabaseJudge {
     static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             boolean canonicalJson, @com.legend.base.Nullable String enumFrame, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        var rider = new com.legend.exec.CanonRider(false, canonicalJson, enumFrame);
+        var rider = new com.legend.judge.CanonRider(false, canonicalJson, enumFrame);
         TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
         BodyDriver.PlannedValue pv = BodyDriver.planValue(s, letPrefix, specs, env, rider, hook);
         BodyDriver.WrappedSide w = pv.side() != null ? pv.side()
@@ -309,7 +309,7 @@ final class DatabaseJudge {
     }
 
     static TypedSide unjudged(String name, String why, String detail) {
-        com.legend.exec.CanonicalDivergence.sqlUnjudged(name, why);
+        com.legend.judge.CanonicalDivergence.sqlUnjudged(name, why);
         throw com.legend.error.AssertFailed.unjudged(why,
                 name + ": UNJUDGED in database mode — " + why + detail);
     }
@@ -393,7 +393,7 @@ final class DatabaseJudge {
         List<String> n1 = s1.columns().stream().map(c -> c.name()).toList();
         List<String> n2 = s2.columns().stream().map(c -> c.name()).toList();
         if (!n1.equals(n2)) {
-            com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+            com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
             return AssertVerdicts.fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
         }
         List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
@@ -464,7 +464,7 @@ final class DatabaseJudge {
      * kind (the caller reports it unjudged by kind). */
     static BodyDriver.@com.legend.base.Nullable WrappedSide constantSide(
             @com.legend.base.Nullable TypedSide answered, TypedSpec spec,
-            com.legend.exec.CanonRider rider, boolean canonicalOrder,
+            com.legend.judge.CanonRider rider, boolean canonicalOrder,
             BodyDriver.ExecEnv env, BodyDriver.ExecEnv on) {
         if (answered == null) {
             return null;
@@ -501,7 +501,7 @@ final class DatabaseJudge {
 
     /** A planned side for the predicate forms, or a reason it could not be. */
     record SideRows(BodyDriver.@com.legend.base.Nullable WrappedSide side,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
+            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
             @com.legend.base.Nullable String why) {
         /** The side's canon rows; {@code literal} = the pair compares in the
          * literal channel (decided for BOTH sides — one channel per pair). */
@@ -553,7 +553,7 @@ final class DatabaseJudge {
     /** A statically identified {@code is} pair: decided by the compiler (the same count as
      * the static kind gate). */
     static void staticallyDecided(String name) {
-        com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+        com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
     }
 
     /** The database arm, chosen once per adjudication by the router. */
@@ -727,7 +727,7 @@ final class DatabaseJudge {
                         placeable = false;
                     }
                     if (placeable) {
-                        com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
+                        com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
                         return runVerdict(name, true, mq, ja.on(env));
                     }
                 }
@@ -742,7 +742,7 @@ final class DatabaseJudge {
         if (je.why() != null || ja.why() != null) {
             return unjudged(name, "json side: " + (je.why() != null ? je.why() : ja.why()));
         }
-        com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
+        com.legend.judge.CanonicalDivergence.sqlRoute(name, "json-bytes");
         return runVerdict(name, true,
                 com.legend.lowering.VerdictSql.jsonText(je.textRows(), ja.textRows()),
                 ja.on(env));

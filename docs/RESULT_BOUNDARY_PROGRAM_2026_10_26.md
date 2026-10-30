@@ -502,6 +502,10 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, the seam's step B1** (the decisions log D71; GATES, step B1's entry): the judge layer out of `exec`
+  into `com.legend.judge` (`//core:judge`, thirteen classes moved verbatim), the schema probes to the root
+  (`WireProbe` split from the wire table), the census's dialect name gone; `//core:exec` loses lowering, plan and
+  platform and its planning ratchet shrinks to the runtime's five rows, B2's to cut. A move: zero roster movement.
 - **2026-10-30, the seam's step A** (the decisions log D70; GATES, step A's entry): one way into the session seam
   (`Sessions.owned`, `borrowed`, `view`; the openers return sessions), the driver's connection the seam's alone (a
   session is an abstract class no class outside `exec` can extend), the session's state the owning session's own and

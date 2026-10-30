@@ -56,7 +56,7 @@ import java.util.stream.Stream;
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE
- *     production entry with the platform's {@link com.legend.exec.AssertListener};
+ *     production entry with the platform's {@link com.legend.judge.AssertListener};
  *     every assert is the platform's verdict; the harness attaches its referee
  *     and its census through {@link TestObserver} and owns no judgment;</li>
  * <li><b>referee</b> — {@link com.legend.harness.ReplayReferee#INSTANCE}
@@ -553,9 +553,9 @@ public final class MinimalCorpus {
             com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
             // the byte-channel census attributes its disagreement samples
             // (leg 3.0: database mode's bug list) to the running test
-            com.legend.exec.CanonicalDivergence.attributeTo(t::fqn);
+            com.legend.judge.CanonicalDivergence.attributeTo(t::fqn);
             // the primitive census's per-test tally (measurement only, under -Dlegend.diagnostics=primitives=per-test)
-            com.legend.exec.PrimitiveCensus.attributeTo(t::fqn);
+            com.legend.judge.PrimitiveCensus.attributeTo(t::fqn);
             if (com.legend.diagnostics.Diagnostics.on("progress")) {
                 System.err.println("[corpus2] > " + t.fqn());
             }
@@ -614,7 +614,7 @@ public final class MinimalCorpus {
         }
 
         @Override
-        public com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
+        public com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
             return referee;
         }
 

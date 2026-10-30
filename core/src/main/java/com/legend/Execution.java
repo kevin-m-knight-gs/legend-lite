@@ -123,8 +123,8 @@ public final class Execution {
      * (the source's lease: nothing for a caller's own, {@link com.legend.exec.Sessions#given}).
      */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            com.legend.exec.Sessions.Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
@@ -132,12 +132,12 @@ public final class Execution {
         }
     }
 
-    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.AssertListener,
-     *  com.legend.exec.SqlReplayReferee, ExecuteOptions, Answer)} with no answer wanted: the body's last statement
+    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.judge.AssertListener,
+     *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} with no answer wanted: the body's last statement
      *  runs as every other and answers nothing to anyone (the corpus's bodies, whose verdicts are the listener's). */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
+            com.legend.exec.Sessions.Source sessions, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
@@ -151,15 +151,15 @@ public final class Execution {
         com.legend.result.ResultSink of(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape);
     }
 
-    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.exec.AssertListener,
-     *  com.legend.exec.SqlReplayReferee, ExecuteOptions, Answer)} on a session the caller holds and keeps (the old
+    /** {@link #runProgram(TypedQuery, String, com.legend.exec.Sessions.Source, com.legend.judge.AssertListener,
+     *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} on a session the caller holds and keeps (the old
      *  door's connection): checked, its dialect decided, the body driver run on it; the one place a program's
      *  session meets its JDBC connection. A program leaves nothing behind: its verdicts are the listener's, one
      *  event each, its last statement's answer the sink's ({@code ProgramReport}, the one materialized side a public
      *  entry returned, went 2026-10-29 with the doors). */
     static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Session session, com.legend.exec.@com.legend.base.Nullable AssertListener listener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            com.legend.exec.Sessions.Session session, com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);

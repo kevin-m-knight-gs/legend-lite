@@ -9,7 +9,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.Column;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Row;
@@ -120,7 +120,7 @@ final class JudgePlans {
                 Type.RelationType schema = Type.schemaView(info.type());
                 boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
                 if (lateBound) {
-                    plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(), on, target(env),
+                    plan = WireProbe.staticized(plan, env.dialect(), on, target(env),
                             w.session().state().wireTypes());
                     schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
                 }
@@ -309,10 +309,10 @@ final class JudgePlans {
         }
     }
 
-    /** The database judge's statements as plans ({@link com.legend.exec.VerdictBatch.Runner}): a verdict statement's
+    /** The database judge's statements as plans ({@link com.legend.judge.VerdictBatch.Runner}): a verdict statement's
      *  one row, or a fused batch's rows, decoded by the verdict schema. */
-    static com.legend.exec.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
-        return new com.legend.exec.VerdictBatch.Runner() {
+    static com.legend.judge.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
+        return new com.legend.judge.VerdictBatch.Runner() {
             @Override
             public List<List<Object>> rows(SqlQuery statement, PlanSessions.Source on, boolean fused) {
                 Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
@@ -437,7 +437,7 @@ final class JudgePlans {
         boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
         if (lateBound) {
             // a raw grid (executeInDbToTDS) has no typed outputs: the database's reported columns frame it
-            plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
+            plan = WireProbe.staticized(plan, env.dialect(),
                     PlanSessions.of(w.session(), env.trace()), target(env), w.session().state().wireTypes());
             schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
         }

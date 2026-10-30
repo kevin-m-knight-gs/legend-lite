@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.judge;
 
 /**
  * F13 — SYNTHETIC INSTANCE IDENTITY as DATA: each keyless-class
@@ -12,7 +12,7 @@ package com.legend.exec;
  * to itself): the same let-bound constructor reaches both assert sides
  * as the same site, two textually distinct constructors are two.
  *
- * <p>Scoped to ONE {@link com.legend.BodyDriver.ExecEnv} (both
+ * <p>Scoped to ONE {@code com.legend.BodyDriver.ExecEnv} (both
  * sides of every verdict in a test share the env, so ids agree across
  * side lowerings by construction). Single-threaded like the env itself.
  */

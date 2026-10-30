@@ -5,7 +5,7 @@ package com.legend;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.setup.Ddl;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 
@@ -39,8 +39,8 @@ final class BodyDriver {
             @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             com.legend.exec.Sessions.Session session,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
+            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         SpecCompiler specs = typed.specs();
@@ -101,19 +101,19 @@ final class BodyDriver {
             com.legend.exec.Sessions.Session session,
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace,
-            com.legend.exec.InstanceIds instanceIds,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
+            com.legend.judge.InstanceIds instanceIds,
+            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                     planRows,
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
             com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext frame,
             ExecuteOptions options,
             com.legend.exec.ExecutionTrace trace,
-            com.legend.exec.@com.legend.base.Nullable VerdictBatch verdictBatch,
+            com.legend.judge.@com.legend.base.Nullable VerdictBatch verdictBatch,
             com.legend.exec.@com.legend.base.Nullable EffectSink effectSink) {
         /** Leg 3.4: the body's deferred verdicts (database mode). */
-        ExecEnv withVerdictBatch(com.legend.exec.VerdictBatch b) {
+        ExecEnv withVerdictBatch(com.legend.judge.VerdictBatch b) {
             return new ExecEnv(ctx, runtimeFqn, dialect, session, queryLets, tableReplace,
                     instanceIds, assertListener, replayReferee, planRows, protocolBody, frame,
                     options, trace, b, effectSink);
@@ -132,9 +132,9 @@ final class BodyDriver {
                 com.legend.exec.Sessions.Session session,
                 java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
-                com.legend.exec.InstanceIds instanceIds,
-                com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-                com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
+                com.legend.judge.InstanceIds instanceIds,
+                com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
+                com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
                 java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                         planRows) {
             this(ctx, runtimeFqn, dialect, session, queryLets,
@@ -158,8 +158,8 @@ final class BodyDriver {
             return new ExecEnv(ctx, runtimeFqn, dialect, session, queryLets, tr, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
-        ExecEnv withListeners(com.legend.exec.@com.legend.base.Nullable AssertListener l,
-                com.legend.exec.@com.legend.base.Nullable SqlReplayReferee o) {
+        ExecEnv withListeners(com.legend.judge.@com.legend.base.Nullable AssertListener l,
+                com.legend.judge.@com.legend.base.Nullable SqlReplayReferee o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, session, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
@@ -232,7 +232,7 @@ final class BodyDriver {
                 com.legend.exec.Sessions.Session session,
                 java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
-                com.legend.exec.InstanceIds instanceIds) {
+                com.legend.judge.InstanceIds instanceIds) {
             this(ctx, runtimeFqn, dialect, session, queryLets, tableReplace, instanceIds, null, null,
                     new java.util.LinkedHashMap<>());
         }
@@ -244,7 +244,7 @@ final class BodyDriver {
                 java.util.Map<String, String> tableReplace) {
             // F13: one site-id minter per env — both sides of every
             // verdict share it, so identity ids agree across lowerings
-            this(ctx, runtimeFqn, dialect, session, queryLets, tableReplace, new com.legend.exec.InstanceIds());
+            this(ctx, runtimeFqn, dialect, session, queryLets, tableReplace, new com.legend.judge.InstanceIds());
         }
 
         ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
@@ -290,8 +290,8 @@ final class BodyDriver {
 
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
      * statement as a plan (JudgePlans, step 6). */
-    static com.legend.exec.VerdictBatch newVerdictBatch(ExecEnv env) {
-        return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch, DatabaseJudge::verdictOf,
+    static com.legend.judge.VerdictBatch newVerdictBatch(ExecEnv env) {
+        return new com.legend.judge.VerdictBatch(com.legend.lowering.VerdictSql::batch, DatabaseJudge::verdictOf,
                 JudgePlans.runner(env), env.trace());
     }
 
@@ -1356,7 +1356,7 @@ final class BodyDriver {
      * failure wrapped — F1.3 keeps the JDBC surface (its exception type
      * included) out of the resolver. */
     static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(ExecEnv env) {
-        return (sql, writtenFor) -> com.legend.exec.GridProbe.probeTypedColumns(
+        return (sql, writtenFor) -> GridProbe.probeTypedColumns(
                 sql, writtenFor, env.planSessions(), env.target(), env.dialect());
     }
 
@@ -1587,10 +1587,10 @@ final class BodyDriver {
             }
         }
         if (env.verdictBatch() != null) {
-            com.legend.exec.VerdictBatch.frame(extentRows != null ? com.legend.exec.VerdictBatch.FrameRead.CLASS_CTE
-                    : plan != null ? com.legend.exec.VerdictBatch.FrameRead.CTE
-                    : assembled.relationRooted() ? com.legend.exec.VerdictBatch.FrameRead.PASTED
-                    : com.legend.exec.VerdictBatch.FrameRead.CLASS);
+            com.legend.judge.VerdictBatch.frame(extentRows != null ? com.legend.judge.VerdictBatch.FrameRead.CLASS_CTE
+                    : plan != null ? com.legend.judge.VerdictBatch.FrameRead.CTE
+                    : assembled.relationRooted() ? com.legend.judge.VerdictBatch.FrameRead.PASTED
+                    : com.legend.judge.VerdictBatch.FrameRead.CLASS);
         }
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec, plan, plannedInfo,
@@ -2083,7 +2083,7 @@ final class BodyDriver {
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
         // post-process, then two-phase dynamic pivot (DynamicPivot doc)
-        plan = com.legend.exec.DynamicPivot.staticize(
+        plan = DynamicPivot.staticize(
                 com.legend.lowering.SqlPostProcessors.applyRecorded(plan,
                         env.tableReplace(),
                         env.postProcessors().extractCtes(),
@@ -2102,17 +2102,17 @@ final class BodyDriver {
             // raises DataError (unchecked) itself
             plan = com.legend.lowering.Render.resolveAllDeferredTds(
                     plan, lowerer.deferredTds(),
-                    inner -> com.legend.exec.ColumnProbe.probe(
+                    inner -> ColumnProbe.probe(
                             inner, fDialect, fSessions, fTarget),
                     com.legend.exec.WireTypes::pureOfSqlType);
         }
         return named ? lowerer.namedColumns(plan) : plan;
     }
 
-    /** A static pivot's key reader ({@link com.legend.exec.DynamicPivot.KeyReader}): the keys' query run as TYPED
+    /** A static pivot's key reader ({@link DynamicPivot.KeyReader}): the keys' query run as TYPED
      *  rows on the body's session, as every statement the body sends is (phase 5; track B's B1a, 2026-10-29: the
      *  pivot reads no JDBC itself). */
-    private static com.legend.exec.DynamicPivot.KeyReader keyReader(ExecEnv env) {
+    private static DynamicPivot.KeyReader keyReader(ExecEnv env) {
         return (query, columns) -> JudgePlans.run(new com.legend.executionplan.ExecutionPlan.TdsResult(
                 com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, columns,
                 PlanMaker.sql(query, env.dialect(), JudgePlans.target(env))),
@@ -2373,7 +2373,7 @@ final class BodyDriver {
 
     private static Prelude prelude(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
+            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
             boolean identityLane) {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
@@ -2546,7 +2546,7 @@ final class BodyDriver {
         env = p.plannedEnv();
         TypedSpec root = p.plannedRoot();
         com.legend.compiler.element.type.ExprType declaredInfo = p.declaredInfo();
-        com.legend.exec.TypedSide folded = LiteralFold.fold(root);
+        com.legend.judge.TypedSide folded = LiteralFold.fold(root);
         if (folded != null) {
             return answered(folded, answer);
         }
@@ -2666,7 +2666,7 @@ final class BodyDriver {
     static PlannedValue planValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
+            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         return planned(planBare(value, letPrefix, specs, env, rider, hook), rider);
@@ -2704,7 +2704,7 @@ final class BodyDriver {
         return planned(b, null);
     }
 
-    private static PlannedValue planned(BarePlan b, com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
+    private static PlannedValue planned(BarePlan b, com.legend.judge.@com.legend.base.Nullable CanonRider rider) {
         if (b.answered() != null) {
             return new PlannedValue(null, b.answered(), null);
         }
@@ -2752,7 +2752,7 @@ final class BodyDriver {
     private static BarePlan planBare(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
+            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         return planStaged(sideBody(value, letPrefix, specs, env, hook), value, env, rider, false, false);
@@ -2763,7 +2763,7 @@ final class BodyDriver {
      *  ({@link #executeTyped}'s: the identity lane's flag alone, no wire reconciliation) where the database judge's
      *  side takes the verdict lane's. */
     private static BarePlan planStaged(java.util.List<TypedSpec> body, TypedSpec value, ExecEnv env,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
+            com.legend.judge.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
         java.util.Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec n : body) {
             collectStores(n, stores);
@@ -2794,7 +2794,7 @@ final class BodyDriver {
             // database's (a store declaration is not a cast); a store-free
             // side's stamp is the compiler's own fact
             var batch = penv.verdictBatch();
-            plan = com.legend.exec.WireTypes.reconcile(plan,
+            plan = WireProbe.reconcile(plan,
                     collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
                             : com.legend.plan.ResultShape.valueInfo(root.info()),
                     penv.dialect(), penv.planSessions(), penv.target(), penv.session().state().wireTypes(),
@@ -2809,7 +2809,7 @@ final class BodyDriver {
     private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,
             TypedSpec root,
             com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
-            com.legend.exec.@com.legend.base.Nullable CanonRider rider, ExecEnv env) {
+            com.legend.judge.@com.legend.base.Nullable CanonRider rider, ExecEnv env) {
         com.legend.compiler.element.type.ExprType shapeInfo =
                 declaredInfo != null ? declaredInfo
                         : com.legend.plan.ResultShape.valueInfo(root.info());
@@ -2825,7 +2825,7 @@ final class BodyDriver {
             if (plan.outputs().isEmpty() && (schema == null || schema.isLateBound())) {
                 // leg 3.3: a raw grid (executeInDbToTDS) has no typed outputs —
                 // the database's reported columns frame it (WireTypes)
-                plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
+                plan = WireProbe.staticized(plan, env.dialect(),
                         env.planSessions(), env.target(), env.session().state().wireTypes());
                 schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
             }

@@ -1,7 +1,9 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.judge;
+
+import com.legend.exec.Census;
 
 import com.legend.compiler.element.type.Type;
 

@@ -4,7 +4,7 @@
 package com.legend;
 
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 
 /** The plan-text ENVELOPE assembly (extracted from BodyDriver at
  * the file guardrail): applies the temp-table IN protocol

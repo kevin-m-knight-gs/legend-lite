@@ -7,8 +7,8 @@ import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.TypedSide;
-import com.legend.exec.VerdictBatch;
+import com.legend.judge.TypedSide;
+import com.legend.judge.VerdictBatch;
 import java.util.List;
 import java.util.Map;
 

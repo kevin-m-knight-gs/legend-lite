@@ -16508,3 +16508,41 @@ The decisions log D70.
    lost an input and Bazel's retry hit the runner's filesystem; commented on the PR, the re-run API refused to the
    integration); this push is its re-run.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+## 2026-10-30 — The seam's step B1: the judge layer out of exec (com.legend.judge); the probes to the root; the census's dialect name gone
+
+The decisions log D71.
+
+1. **Built:** a move, no behavior. Thirteen classes `exec/` -> `judge/` (`//core:judge`: `PureAsserts`, `TdsCompare`,
+   `Equality`, `CanonicalForm`, `CanonicalDivergence`, `TypedSide`, `VerdictBatch`, `CanonRider`, `InstanceIds`,
+   `SqlTypeCensus`, `PrimitiveCensus`, `AssertListener`, `SqlReplayReferee`), each file's diff a package line and
+   imports (`InstanceIds`: one javadoc link made `{@code}`); the probes `ColumnProbe`, `GridProbe`, `DynamicPivot` to
+   the root and `WireProbe` split from the wire table `exec/WireTypes`; `Census` without `SCAN_ORDER_FIRINGS` (the
+   corpus lane reads `StableScanOrder.firings` itself); `//core:exec` minus `:lowering`, `:plan`, `:platform`
+   (`tools/deps/core-layers.txt`, dated); the planning ratchet `EXEC_PLANNING_REFERENCES` sixteen rows -> five
+   (`Column` 2, `JdbcStatements` 2, `Sessions` 2, `SystemDatabase` 3, `WireTypes` 1). Pins, dated: the ledger's
+   `EXEC_CLASSES` loses the sixteen, `JUDGE_CLASSES` is new (14, exact both ways), `ROOT_CLASSES` gains the four
+   probes; size pins GridProbe 48 -> 53, DynamicPivot 113 -> 118, Equality 447 -> 448 (the import lines the move
+   needs, no rule changed); the verdict-seam rule, the no-JDBC rule (the whole judge package and the four probes), the
+   RawSql quarantine, the static-state register, `VerdictChannelRegisterTest`, `HarnessDisciplineTest` re-pathed. The
+   audit's eleven findings (paperwork and javadoc; verdict: a pure move with the walls intact) folded: the start
+   page's live map, exec's package javadoc with no link into judge, the wire table's javadoc trimmed to the table and
+   its census stub moved to the probe, the root's package javadoc, four javadoc short forms, the no-JDBC rule's judge
+   alternation widened to `judge\.[A-Za-z0-9_]+`, the seam rule's exemption of the long-deleted `exec.JsonCompare`
+   deleted.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user; l19):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test
+   skipped), `//core:core_tests` (every lane, the new `core_tests_judge` among them), `//core:core_tests_lanes` (the
+   floors unmoved), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four
+   DuckDB parity lanes: 178 of 179, 1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`,
+   `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the judge actions ran on the patch's jars at the build and
+   wrote reports identical to the last run's, so the ten roster shards were cache hits and the two verdicts re-ran:
+   zero roster movement, the move's oracle); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the
+   readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless host's V8, as at every
+   chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. After the fold (javadoc and
+   two guard texts): `bazel build //core:all //spec:spec_tests_lib //pct:all` green; `//core:guardrails`, `//core:census`,
+   `//core:core_tests_exec`, `//core:core_tests_root` 4 of 4.
+3. **CI:** PR #82 (a draft). On step A's head (fd060846), 49 of 50 lane jobs green on Linux, macOS, Windows and arm
+   (the macOS datacube re-run green); `windows / pct_channel_b` red before any test ran (Maven Central answered 403 to
+   the runner's fetch of `tomcat-dbcp`; commented on the PR); this push is its re-run.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+

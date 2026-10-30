@@ -65,8 +65,8 @@ library in the product.
 | Running a plan | `exec/PlanRunner.java` (`stream`, `rows`, `update`, `effect`), `exec/JdbcStatements.java` (the JDBC boundary; stamps the trace comment), `exec/JdbcDecode.java` (a JDBC cell by the plan's facts; `Driver` holds the drivers' quirks as facts), `exec/PlanSessions.java`, `exec/NonFiniteJson.java`, `core/src/main/mongodb/.../MongoDbDecode.java` |
 | The result and the writers | `result/`: `ResultSink`, `Batch`, `Batcher`, `Collector` (collect into memory), `RowDecode` (a cell from a JSON row), `HostRows` (rows a host ran), `CellText` (every cell spelling: Pure's print forms, legend-engine's tokens, lite's), `PureV1Writer` (LEGACY), `JsonRowsWriter` and `CsvWriter` (LEAN) |
 | The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`); the HTTP door's runner `server/ConnectionResolver.RUNNER` over `Execution.run` (`QueryService` and its streaming text routes deleted 2026-10-30, D67) |
-| The old door (DELETED, track D, 2026-10-29) | `Execution.execute*`, `executeResolved`, the materialized `ExecutionResult`, `QueryService`'s three materialized `execute` methods: gone; `exec/TypedSide` is the judges' collected side, `BodyDriver` (`StatementExecutor` until then) the body driver behind `Execution.runProgram` |
-| The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `exec/VerdictBatch`, `exec/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
+| The old door (DELETED, track D, 2026-10-29) | `Execution.execute*`, `executeResolved`, the materialized `ExecutionResult`, `QueryService`'s three materialized `execute` methods: gone; `judge/TypedSide` is the judges' collected side, `BodyDriver` (`StatementExecutor` until then) the body driver behind `Execution.runProgram` |
+| The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `judge/VerdictBatch`, `judge/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `PctExecuteNative` (the native the reference calls), `PctPlanRoute` (plan, run; a relation through `PureV1Api.engineWriter`), `ValueBridge` (`engineTDS` for a relation, `values` for a value), `PctBackend` (the lane's sessions, `LEGENDLITE_PCT_BACKEND`); `pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure` (the Pure adapter; `engineTDS` = legend-engine's `getTDSResultFromProtocol`), `pct_types.pure`; `pct/.../channelb/ChannelB.java` (channel B); the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java` |
 | The corpus | `spec/src/test/java/com/legend/rcorpus/` (`MinimalCorpus`, `JudgeLedger`), its rosters `spec/src/test/resources/rcorpus/`, the referee `spec/src/test/java/com/legend/harness/ReplayReferee.java`, `RefereeVerify.java` |
 | What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/src/main/java/com/legend/testing/Rows.java` (the `//testing` module; 23 call sites in 7 test files -- a row-sorting and multiset-comparing helper that executes nothing, the Z audit's correction); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
@@ -703,11 +703,25 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
   `onlyTheSeamMakesSessions`), the session's state the owning session's own and the process-wide map keyed by the
   connection deleted; the server's lease a session; the test side keeps one session per connection it opened
   (`TestSessions`). Four more files off the census (18 rows; the server package holds no `java.sql`).
-- Step B1 next: the judge layer out of `exec` (`com.legend.judge`, its own target), the probes to the root, the
-  census's one dialect name; the ratchet shrinks to the runtime's reaches.
-- Step B2 then: the runtime's row on the plan's column (`exec.Column` replaced by `ExecutionPlan.Column`), the three
+- **Step B1 built 2026-10-30** (the decisions log D71; GATES, step B1's entry): a move, no behavior. The judge layer
+  out of `exec` into `com.legend.judge` (`//core:judge`; thirteen classes, each diff a package line and imports), the
+  schema probes to the root (`ColumnProbe`, `GridProbe`, `DynamicPivot`, and `WireProbe` split from the wire table
+  `exec/WireTypes`), the census's one dialect name gone (`StableScanOrder` read by the corpus lane itself);
+  `//core:exec` loses lowering, plan and platform, and the ratchet (`EXEC_PLANNING_REFERENCES`) shrinks from sixteen
+  rows to the runtime's five (`Column`, `JdbcStatements`, `Sessions`, `SystemDatabase`, `WireTypes`). Zero roster
+  movement in every lane.
+- Step B2 next: the runtime's row on the plan's column (`exec.Column` replaced by `ExecutionPlan.Column`), the three
   leaks (the timestamp fact on the connector, the session source to the driver, the system database's seed steps
   handed in), `//core:exec`'s deps cut to the records, the ratchet a wall; zero roster movement in GATES.
+- **Step C after B2 (the user, 2026-10-30: "Step C is fine, let's make sure we do it"):** the root dissolved. The
+  root package `com.legend` holds two layers in one Java package today (the plan side's nine files, `//core:planner`;
+  the execution side's twenty-seven, `//core:driver`), told apart by Bazel alone. Step C keeps only the public doors
+  at the root (`Compiler`, `Execution`, `TypedQuery`, `ExecuteOptions`, `HeldModels`), moves the plan machinery into
+  `planner/` and the execution loop, the judges' arms, the seeds and the probes into `driver/` (one public entry on
+  the driver side for the front door, pinned by an ArchUnit rule as the verdict seam is), so the package names say
+  the layers (`planner`, `driver`, `judge`, `exec`, `result`) and the planner-driver wall is a language wall as well
+  as a build wall. A B1-sized rename, about twice the surface; the root tests that rely on package-private access
+  move with the driver. After B2, because B2 moves root-adjacent pieces that a rename first would re-do.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

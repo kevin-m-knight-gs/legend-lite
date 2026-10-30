@@ -6,7 +6,7 @@ package com.legend;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.AssertFailed;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -70,7 +70,7 @@ final class AgreementArm implements VerdictArm {
 
     /** Both arms over the same sides; the host's verdict of record, the database's agreement checked. */
     static @com.legend.base.Nullable TypedSide agree(String name,
-            com.legend.exec.@com.legend.base.Nullable AssertListener listener,
+            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             Supplier<@com.legend.base.Nullable TypedSide> hostArm,
             Supplier<@com.legend.base.Nullable TypedSide> databaseArm) {
         TypedSide hostHeld;

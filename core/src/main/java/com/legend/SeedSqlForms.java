@@ -4,7 +4,7 @@
 package com.legend;
 
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 
 /**
  * The TWO faces of {@code setUpDataSQLs} (engine toDDL.pure): the

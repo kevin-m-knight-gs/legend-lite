@@ -4,8 +4,8 @@
 package com.legend.test;
 
 import com.legend.ExecuteOptions;
-import com.legend.exec.AssertListener;
-import com.legend.exec.SqlReplayReferee;
+import com.legend.judge.AssertListener;
+import com.legend.judge.SqlReplayReferee;
 
 /**
  * The seam a caller instruments a {@link PureTestRunner} through. Every
@@ -99,7 +99,7 @@ public interface TestObserver extends AssertListener {
     }
 
     /** The runner seeded {@code storeFqn} on demand by running {@code
-     *  setupFqn} mid-test ({@link com.legend.exec.AssertListener#provideStore}):
+     *  setupFqn} mid-test ({@link com.legend.judge.AssertListener#provideStore}):
      *  the rows leg of an assert reads a mapping over a store another
      *  package's fixture owns. */
     default void fixtureProvided(String storeFqn, String setupFqn) {

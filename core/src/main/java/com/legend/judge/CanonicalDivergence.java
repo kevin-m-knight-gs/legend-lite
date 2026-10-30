@@ -1,7 +1,10 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.judge;
+
+import com.legend.exec.Census;
+import com.legend.exec.Row;
 
 import java.util.ArrayList;
 import java.util.List;

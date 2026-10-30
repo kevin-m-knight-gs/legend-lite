@@ -8,7 +8,7 @@ import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 
 import java.util.List;
 

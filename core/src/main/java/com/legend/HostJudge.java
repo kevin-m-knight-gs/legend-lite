@@ -7,15 +7,15 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.TypedSide;
-import com.legend.exec.PureAsserts;
+import com.legend.judge.TypedSide;
+import com.legend.judge.PureAsserts;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * THE HOST JUDGE (task #27, 2026-09-21 — split out of AssertVerdicts): both sides of an
- * assert EXECUTE in the database and Java compares the rows ({@link com.legend.exec.Equality},
- * {@link com.legend.exec.PureAsserts}, {@link com.legend.exec.TdsCompare}) — the verdict of
+ * assert EXECUTE in the database and Java compares the rows ({@link com.legend.judge.Equality},
+ * {@link com.legend.judge.PureAsserts}, {@link com.legend.judge.TdsCompare}) — the verdict of
  * record in host mode, the parallel referee of the byte channel. The router
  * ({@link AssertVerdicts}) classifies the assert and hands the sides over; the database
  * judge ({@link DatabaseJudge}) is the other arm of the same router.
@@ -41,10 +41,10 @@ final class HostJudge {
             String detail,
             java.util.function.Supplier<@com.legend.base.Nullable String> hostMessage) {
         if (byteHeld != null) {
-            com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
+            com.legend.judge.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
         } else {
-            com.legend.exec.CanonicalDivergence.sqlNoChannel();   // census residue, by construction
+            com.legend.judge.CanonicalDivergence.sqlNoChannel();   // census residue, by construction
         }
         // JUDGING_TWO_MODES: the host judge's verdict is the verdict of
         // record; the byte channel reported as a census above and never
@@ -102,15 +102,15 @@ final class HostJudge {
         if (mixedFlatVsTds) {
             hostHeld = false;
         } else {
-            List<com.legend.exec.Equality.Typed> te = com.legend.exec.Equality.grid(e, kinds);
-            List<com.legend.exec.Equality.Typed> ta = com.legend.exec.Equality.grid(a, kinds);
-            hostHeld = com.legend.exec.Equality.ordered(te, ta) == null;
+            List<com.legend.judge.Equality.Typed> te = com.legend.judge.Equality.grid(e, kinds);
+            List<com.legend.judge.Equality.Typed> ta = com.legend.judge.Equality.grid(a, kinds);
+            hostHeld = com.legend.judge.Equality.ordered(te, ta) == null;
             if (!hostHeld && incidental && e.size() == a.size()) {
                 // ROW COHESION (audit 9): the incidental-order fallback
                 // matches ROW TUPLES of the grid's width — cross-row
                 // cell shuffles must FAIL; width 1 = the pool multiset
                 int w = g != null ? g.columns().size() : 1;
-                hostHeld = com.legend.exec.Equality.rowMultiset(
+                hostHeld = com.legend.judge.Equality.rowMultiset(
                         te, ta, w > 1 && e.size() % w == 0 ? w : 1);
             }
         }
@@ -138,16 +138,16 @@ final class HostJudge {
                 // hold BY POLICY — counted in the policy's own census
                 // row, never a disagreement rescue.
                 if (!byteHeld && hostHeld
-                        && com.legend.exec.Equality.differByLeniencyOnly(
-                                com.legend.exec.Equality.grid(e, kinds),
-                                com.legend.exec.Equality.grid(a, kinds))) {
-                    com.legend.exec.CanonicalDivergence.sqlUlpPolicy(
-                            "grid " + com.legend.exec.TdsCompare
+                        && com.legend.judge.Equality.differByLeniencyOnly(
+                                com.legend.judge.Equality.grid(e, kinds),
+                                com.legend.judge.Equality.grid(a, kinds))) {
+                    com.legend.judge.CanonicalDivergence.sqlUlpPolicy(
+                            "grid " + com.legend.judge.TdsCompare
                                     .firstCanonDiff(es, as2));
                     byteHeld = true;
                 }
                 detail = "tds rows=" + ec.size() + "/" + ac.size()
-                        + (byteHeld ? "" : com.legend.exec.TdsCompare
+                        + (byteHeld ? "" : com.legend.judge.TdsCompare
                                 .firstCanonDiff(es, as2));
             }
         }
@@ -156,8 +156,8 @@ final class HostJudge {
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
                         : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
-                                com.legend.exec.Equality.grid(e, kinds),
-                                com.legend.exec.Equality.grid(a, kinds))));
+                                com.legend.judge.Equality.grid(e, kinds),
+                                com.legend.judge.Equality.grid(a, kinds))));
     }
 
     /** The TDSRow.values failure narrative — the host lattice's text
@@ -177,9 +177,9 @@ final class HostJudge {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
-                && com.legend.exec.Equality.rowMultiset(
-                        com.legend.exec.Equality.Typed.all(e, null),
-                        com.legend.exec.Equality.Typed.all(a, null), 1);
+                && com.legend.judge.Equality.rowMultiset(
+                        com.legend.judge.Equality.Typed.all(e, null),
+                        com.legend.judge.Equality.Typed.all(a, null), 1);
         List<String> ec = AssertVerdicts.sideCellCanons(ef, true);
         List<String> ac = AssertVerdicts.sideCellCanons(af, false);
         Boolean byteHeld = null;
@@ -191,7 +191,7 @@ final class HostJudge {
             as2.sort(String::compareTo);
             byteHeld = es.equals(as2);
             detail = "tds cells=" + ec.size() + "/" + ac.size()
-                    + (byteHeld ? "" : com.legend.exec.TdsCompare
+                    + (byteHeld ? "" : com.legend.judge.TdsCompare
                             .firstCanonDiff(es, as2));
         }
         return finish(family, true, hostHeld, byteHeld,
@@ -245,7 +245,7 @@ final class HostJudge {
         if ((!eAny && !ef.rider().literalOnly() && KindClass.Fine.mixed(eVals))
                 || (!aAny && !af.rider().literalOnly()
                         && KindClass.Fine.mixed(aVals))) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
+            com.legend.judge.CanonicalDivergence.sqlDeclined(
                     "mixed-kind-collection");
             return null;
         }
@@ -264,7 +264,7 @@ final class HostJudge {
         boolean anyAny = eAny || aAny;
         if (ke == null || ka == null
                 || (!anyNil && !anyAny && !ke.equals(ka))) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined("kind-gate: "
+            com.legend.judge.CanonicalDivergence.sqlDeclined("kind-gate: "
                     + AssertVerdicts.typeName(eSpec) + " / " + AssertVerdicts.typeName(aSpec));
             return null;
         }
@@ -272,12 +272,12 @@ final class HostJudge {
         // a decline recorded by the wrap (non-SQL arm, unclaimed kind,
         // non-scalar shape) routes the pair to the host lattice.
         if (ef.rider().declined() != null) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
+            com.legend.judge.CanonicalDivergence.sqlDeclined(
                     "side-e: " + ef.rider().declined());
             return null;
         }
         if (af.rider().declined() != null) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
+            com.legend.judge.CanonicalDivergence.sqlDeclined(
                     "side-a: " + af.rider().declined());
             return null;
         }
@@ -296,7 +296,7 @@ final class HostJudge {
             scope.add(eSpec);
             scope.add(aSpec);
             if (AssertVerdicts.keylessCtorUnderLambda(scope, env)) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                com.legend.judge.CanonicalDivergence.sqlDeclined(
                         "keyless-ctor-in-lambda: " + ke);
                 return null;
             }
@@ -307,7 +307,7 @@ final class HostJudge {
                 if (v instanceof java.util.Map<?, ?> m
                         && m.get(com.legend.compiler.element.ClassLayouts
                                 .SYNTHETIC_ID) == null) {
-                    com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    com.legend.judge.CanonicalDivergence.sqlDeclined(
                             "identityless-instance-wire: " + ke);
                     return null;
                 }
@@ -321,7 +321,7 @@ final class HostJudge {
         // pairs decline to the host lattice's engine-FALSE.
         if (!anyNil && anyAny
                 && (ke instanceof KindClass.Enum || ka instanceof KindClass.Enum)) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
+            com.legend.judge.CanonicalDivergence.sqlDeclined(
                     "any-pair: enum against an untyped (Any) wire: "
                             + (ke instanceof KindClass.Enum ? ke : ka));
             return null;
@@ -335,7 +335,7 @@ final class HostJudge {
             ei = ef.rider().literalIndex();
             ai = af.rider().literalIndex();
             if (ei < 0 || ai < 0) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                com.legend.judge.CanonicalDivergence.sqlDeclined(
                         "any-pair: no literal channel: " + AssertVerdicts.typeName(eSpec)
                                 + " / " + AssertVerdicts.typeName(aSpec));
                 return null;
@@ -344,20 +344,20 @@ final class HostJudge {
             KindClass.Fine fe = selectedFineKind(ef, eVals);
             KindClass.Fine fa = selectedFineKind(af, aVals);
             if (fe == null || fa == null) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                com.legend.judge.CanonicalDivergence.sqlDeclined(
                         "unrefined-number: " + AssertVerdicts.typeName(eSpec) + " / "
                                 + AssertVerdicts.typeName(aSpec));
                 return null;
             }
             if (fe != fa) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                com.legend.judge.CanonicalDivergence.sqlDeclined(
                         "cross-kind-numeric: " + fe + "/" + fa);
                 return null;
             }
             ei = candidateIndex(ef, fe);
             ai = candidateIndex(af, fa);
             if (ei < 0 || ai < 0) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                com.legend.judge.CanonicalDivergence.sqlDeclined(
                         "unrefined-number: no candidate for " + fe);
                 return null;
             }
@@ -365,7 +365,7 @@ final class HostJudge {
         Framed fe2 = frame(ef, ei);
         Framed fa2 = frame(af, ai);
         if (fe2.decline() != null || fa2.decline() != null) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
+            com.legend.judge.CanonicalDivergence.sqlDeclined(
                     fe2.decline() != null ? "render-e: " + fe2.decline()
                             : "render-a: " + fa2.decline());
             return null;
@@ -375,7 +375,7 @@ final class HostJudge {
             // an Any cell held a JSON tree — the literal channel cannot
             // spell it (F10 proper's kind-tagged carrier will); decline,
             // never compare markers (equal trees would fabricate)
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
+            com.legend.judge.CanonicalDivergence.sqlDeclined(
                     "any-wire-tree: " + AssertVerdicts.typeName(eSpec) + " / "
                             + AssertVerdicts.typeName(aSpec));
             return null;
@@ -395,7 +395,7 @@ final class HostJudge {
         // pairs declined as unrefined NUMBER and the host policy
         // decided; the refinement must not silently retire the policy.
         if (!byteEqual && AssertVerdicts.withinDeclaredUlp(eVals, aVals)) {
-            com.legend.exec.CanonicalDivergence.sqlUlpPolicy(detail);
+            com.legend.judge.CanonicalDivergence.sqlUlpPolicy(detail);
             return new SqlVerdict(true, "2ulp-policy " + detail);
         }
         // DECLARED TDSNull-sentinel policy (PureAsserts equalScalar:
@@ -407,7 +407,7 @@ final class HostJudge {
         // POLICY — counted in its own census row (the 2-ULP shape),
         // never a silent rescue.
         if (!byteEqual && hostHeld && AssertVerdicts.containsTdsNullSentinel(eVals)) {
-            com.legend.exec.CanonicalDivergence.sqlTdsNullPolicy(detail);
+            com.legend.judge.CanonicalDivergence.sqlTdsNullPolicy(detail);
             return new SqlVerdict(true, "tdsnull-policy " + detail);
         }
         return new SqlVerdict(byteEqual, detail);
@@ -575,7 +575,7 @@ final class HostJudge {
      * the row-major CELLS, NULL slots kept — engine TDSRow semantics,
      * column names OUT) and its canon is the rider's per-ROW texts. */
     record SideFetch(List<Object> values,
-            com.legend.exec.CanonRider rider,
+            com.legend.judge.CanonRider rider,
             TypedSide.@com.legend.base.Nullable Tabular grid) {
     }
 
@@ -584,9 +584,9 @@ final class HostJudge {
     /** A side's values paired with the kind its DECLARATION gives them — the
      * argument's type (a collection's element type); the judge lets a fine
      * primitive kind decide and takes the carrier's for Number / classes. */
-    static List<com.legend.exec.Equality.Typed> typedSide(List<Object> values,
+    static List<com.legend.judge.Equality.Typed> typedSide(List<Object> values,
             TypedSpec arg) {
-        return com.legend.exec.Equality.Typed.all(values, arg.info().type());
+        return com.legend.judge.Equality.Typed.all(values, arg.info().type());
     }
 
     static SideFetch sideCanon(TypedSpec arg,
@@ -597,14 +597,14 @@ final class HostJudge {
         // the byte channel that rode the side query declines here by name -- the database judge is the referee
         // (the agreement gate, AgreementArm) -- and the rider's wrap machinery is dead by construction until the
         // deletions (step 11)
-        var rider = new com.legend.exec.CanonRider(canonicalOrder);
+        var rider = new com.legend.judge.CanonRider(canonicalOrder);
         rider.decline("plan path: the database judge is the referee");
         // a side the rider rode was never folded (a literal evaluates in the database here too) and rode the
         // identity lane (a keyless instance's identity, minted per construction site, is the rider's layout)
         TypedSide r = JudgePlans.evalSide(arg, letPrefix, specs, env, true, false, hook);
         if (r instanceof TypedSide.Tabular t) {
             List<Object> cells = AssertVerdicts.cells(t);
-            com.legend.exec.CanonicalDivergence.v7SideRows(cells.size());
+            com.legend.judge.CanonicalDivergence.v7SideRows(cells.size());
             return new SideFetch(cells, rider, t);
         }
         // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): a
@@ -666,7 +666,7 @@ final class HostJudge {
             return AssertVerdicts.fail("\n" + summarize(one) + "\n is not"
                     + " equivalent to:\n" + summarize(two));
         }
-        String d = com.legend.exec.TdsCompare.tdsEquivalent(
+        String d = com.legend.judge.TdsCompare.tdsEquivalent(
                 AssertVerdicts.cells(one), AssertVerdicts.cells(two), delta, timeDelta);
         return d == null ? AssertVerdicts.ok() : AssertVerdicts.fail(d);
     }
@@ -717,7 +717,7 @@ final class HostJudge {
             return null;   // non-[1] value arg — generic path
         }
         boolean member = coll.stream().anyMatch(x ->
-                com.legend.exec.Equality.same(com.legend.exec.Equality.Typed.of(x), com.legend.exec.Equality.Typed.of(val.get(0))));
+                com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(x), com.legend.judge.Equality.Typed.of(val.get(0))));
         return member ? AssertVerdicts.ok()
                 : AssertVerdicts.fail("assertContains: " + coll
                         + " does not contain " + val.get(0));
@@ -727,7 +727,7 @@ final class HostJudge {
     static TypedSide tolerance(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        String d = com.legend.exec.PureAsserts.assertEqWithinTolerance(
+        String d = com.legend.judge.PureAsserts.assertEqWithinTolerance(
                 (Number) AssertVerdicts.one(AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook),
                         "tolerance expected"),
                 (Number) AssertVerdicts.one(AssertVerdicts.side(args.get(1), letPrefix, specs, env, hook),
@@ -756,7 +756,7 @@ final class HostJudge {
                     env, hook);
             List<Object> missing = need.stream()
                     .filter(n2 -> have.stream().noneMatch(h ->
-                            com.legend.exec.Equality.same(com.legend.exec.Equality.Typed.of(n2), com.legend.exec.Equality.Typed.of(h))))
+                            com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(n2), com.legend.judge.Equality.Typed.of(h))))
                     .toList();
             boolean subsetHolds = missing.isEmpty();
             if (subsetHolds == wantTrue) {
@@ -877,8 +877,8 @@ final class HostJudge {
         Object aa = AssertVerdicts.one(af.values(), "assertEq actual");
         // host judgment FIRST: eq's non-primitive identity rule
         // throws LOUD here (P2-5) before any byte verdict
-        String d = com.legend.exec.PureAsserts.assertEq(ee, aa);
-        com.legend.exec.CanonicalDivergence.probeEqual("assertEq",
+        String d = com.legend.judge.PureAsserts.assertEq(ee, aa);
+        com.legend.judge.CanonicalDivergence.probeEqual("assertEq",
                 java.util.Collections.singletonList(ee),
                 java.util.Collections.singletonList(aa), d == null);
         // V5/V11 — byte verdict of record (primitive eq
@@ -915,7 +915,7 @@ final class HostJudge {
             return ok ? AssertVerdicts.ok() : AssertVerdicts.fail("expected an instance of " + type
                     + ", actual: " + wireType);
         }
-        String d = com.legend.exec.PureAsserts.assertInstanceOf(v, type);
+        String d = com.legend.judge.PureAsserts.assertInstanceOf(v, type);
         return d == null ? AssertVerdicts.ok() : AssertVerdicts.fail(d);
     }
 
@@ -970,10 +970,10 @@ final class HostJudge {
                 ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
         List<Object> a = ik != null
                 ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
-        String d = com.legend.exec.Equality.sameElements(
+        String d = com.legend.judge.Equality.sameElements(
                 typedSide(e, args.get(0)), typedSide(a, args.get(1))) == null
-                ? null : com.legend.exec.PureAsserts.assertSameElements(e, a);
-        com.legend.exec.CanonicalDivergence.probeSameElements(
+                ? null : com.legend.judge.PureAsserts.assertSameElements(e, a);
+        com.legend.judge.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
         // arrive ORDER BY canon text (the wrap's sort key) in
@@ -1045,14 +1045,14 @@ final class HostJudge {
                 ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
         List<Object> a = ik != null
                 ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
-        List<com.legend.exec.Equality.Typed> te = typedSide(e, args.get(0));
-        List<com.legend.exec.Equality.Typed> ta = typedSide(a, args.get(1));
+        List<com.legend.judge.Equality.Typed> te = typedSide(e, args.get(0));
+        List<com.legend.judge.Equality.Typed> ta = typedSide(a, args.get(1));
         boolean equal = incidental
-                ? com.legend.exec.Equality.sameElements(te, ta) == null
-                : com.legend.exec.Equality.ordered(te, ta) == null;
+                ? com.legend.judge.Equality.sameElements(te, ta) == null
+                : com.legend.judge.Equality.ordered(te, ta) == null;
         // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
         // host lattice vs host byte channel, measurement only
-        com.legend.exec.CanonicalDivergence.probeEqual(
+        com.legend.judge.CanonicalDivergence.probeEqual(
                 name, e, a, equal, incidental);
         // R2a/V11 — THE BYTE VERDICT OF RECORD for scalar-kind
         // sides: the canon rode the SIDE QUERY ITSELF (one
@@ -1068,8 +1068,8 @@ final class HostJudge {
                 byteVerdict == null ? null : byteVerdict.held(),
                 byteVerdict == null ? "" : byteVerdict.detail(),
                 () -> incidental
-                        ? com.legend.exec.PureAsserts.assertSameElements(e, a)
-                        : com.legend.exec.PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()));
+                        ? com.legend.judge.PureAsserts.assertSameElements(e, a)
+                        : com.legend.judge.PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()));
     }
 
     /** {@code assertJsonStringsEqual(golden, actual)}: both strings executed, parsed, the
@@ -1115,8 +1115,8 @@ final class HostJudge {
         boolean incidentalRoot = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
                 == com.legend.compiler.spec.OrderView.INCIDENTAL;
                         String diff = incidentalRoot
-                ? com.legend.exec.Equality.pureJsonUnorderedRoot(expected, actual)
-                : com.legend.exec.Equality.pureJson(expected, actual);
+                ? com.legend.judge.Equality.pureJsonUnorderedRoot(expected, actual)
+                : com.legend.judge.Equality.pureJson(expected, actual);
         return diff == null ? AssertVerdicts.ok()
                                 : AssertVerdicts.fail("assertJsonStringsEqual: FIRST DIFF at "
                         + diff);
@@ -1138,7 +1138,7 @@ final class HostJudge {
             boolean sorted = orderedForm
                     && (eForm == null ^ aForm == null)
                     && com.legend.compiler.spec.OrderView.of(rendered, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
-            boolean held = com.legend.exec.TdsCompare.renderedText(
+            boolean held = com.legend.judge.TdsCompare.renderedText(
                     aForm != null ? et : at, aForm != null ? at : et,
                     form, sorted);
             if (held != wantEqual) {

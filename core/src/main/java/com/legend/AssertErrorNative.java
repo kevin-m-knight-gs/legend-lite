@@ -10,7 +10,7 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +32,7 @@ import java.util.List;
  * and adjudicates with the pure {@code assertError/4} body's EXACT
  * failure spellings (assertError.pure:24-26). Adjudication of
  * orchestration artifacts is host-side by charter (the
- * {@code exec.PureAsserts} precedent).
+ * {@code judge.PureAsserts} precedent).
  */
 final class AssertErrorNative {
 

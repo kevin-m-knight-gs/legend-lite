@@ -1,7 +1,13 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.judge;
+
+import com.legend.exec.Census;
+import com.legend.exec.ExecutionTrace;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.PrepTrace;
+import com.legend.exec.Sessions;
 
 import com.legend.sql.SqlQuery;
 

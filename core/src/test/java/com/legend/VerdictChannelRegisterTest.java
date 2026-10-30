@@ -34,11 +34,11 @@ class VerdictChannelRegisterTest {
             // classifies and dispatches
             "core/src/main/java/com/legend/HostJudge.java",
             // message facades: the assert family's spellings, decided by the judge
-            "core/src/main/java/com/legend/exec/PureAsserts.java",
+            "core/src/main/java/com/legend/judge/PureAsserts.java",
             // the grid compare policy (row order / multiset), cells by the judge —
             // and since 2026-09-20 its float cell rule is the judge's own
             // (Equality.withinTwoUlp; the printed-precision tolerance deleted)
-            "core/src/main/java/com/legend/exec/TdsCompare.java",
+            "core/src/main/java/com/legend/judge/TdsCompare.java",
             // the service-test runner's EqualToJson routes to serviceJson
             "core/src/main/java/com/legend/test/TestAssertions.java",
             // 2026-09-20 (one float rule): the corpus REFEREE's float cell
@@ -46,9 +46,10 @@ class VerdictChannelRegisterTest {
             // calls the one home (the ten-digit normalization it replaced
             // was a second definition of "equal float"; deleted)
             "spec/src/test/java/com/legend/harness/RefereeVerify.java",
-            "core/src/test/java/com/legend/exec/EqualityJsonUnorderedRootTest.java",
-            "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",
-            "core/src/test/java/com/legend/exec/PureAssertsTest.java");
+            // the judges and their tests under com.legend.judge since 2026-10-30 (D71)
+            "core/src/test/java/com/legend/judge/EqualityJsonUnorderedRootTest.java",
+            "core/src/test/java/com/legend/judge/EqualityWorldsConformanceTest.java",
+            "core/src/test/java/com/legend/judge/PureAssertsTest.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");

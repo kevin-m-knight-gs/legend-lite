@@ -11,8 +11,8 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.TypedSide;
-import com.legend.exec.PureAsserts;
+import com.legend.judge.TypedSide;
+import com.legend.judge.PureAsserts;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +51,8 @@ final class AssertVerdicts {
             BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
-        com.legend.exec.AssertListener l = env.assertListener();
-        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        com.legend.judge.AssertListener l = env.assertListener();
+        com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null) {
             return batched(batch, bare, letPrefix, specs, env, rawHook);
         }
@@ -64,7 +64,7 @@ final class AssertVerdicts {
         // (side-evaluation errors fail the same test either way — the
         // detail says which). Judgment itself is untouched.
         boolean settled = false;
-        com.legend.exec.CanonicalDivergence.sqlEnter();   // census: a new assert, no family yet
+        com.legend.judge.CanonicalDivergence.sqlEnter();   // census: a new assert, no family yet
         try {
             TypedSide v = adjudicate(bare, letPrefix, specs, env,
                     rawHook);
@@ -78,7 +78,7 @@ final class AssertVerdicts {
             // the seam: a FALSE verdict or a side-evaluation data error
             // fails the same test either way — the detail says which
             settled = true;
-            com.legend.exec.CanonicalDivergence.sqlRaised();
+            com.legend.judge.CanonicalDivergence.sqlRaised();
             if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
                 l.unjudged(listenerName(bare), af.unjudgedReason());
             }
@@ -88,7 +88,7 @@ final class AssertVerdicts {
             if (!settled) {
                 // any other exit (a wall, a not-implemented shape) leaves
                 // without a verdict: counted for the census, never caught
-                com.legend.exec.CanonicalDivergence.sqlRaised();
+                com.legend.judge.CanonicalDivergence.sqlRaised();
             }
         }
     }
@@ -97,12 +97,12 @@ final class AssertVerdicts {
      * (VerdictBatch); a decided outcome or a raise is a step in order,
      * reported at the flush. Any other exit (a wall) flushes what came
      * before — those verdicts were already the body's — then surfaces. */
-    private static @com.legend.base.Nullable TypedSide batched(com.legend.exec.VerdictBatch batch,
+    private static @com.legend.base.Nullable TypedSide batched(com.legend.judge.VerdictBatch batch,
             TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
-        com.legend.exec.CanonicalDivergence.sqlEnter();
+        com.legend.judge.CanonicalDivergence.sqlEnter();
         batch.open(listenerName(bare));
         TypedSide v = null;
         RuntimeException deferred = null;
@@ -115,7 +115,7 @@ final class AssertVerdicts {
             deferred = e;
         } finally {
             if (!settled) {
-                com.legend.exec.CanonicalDivergence.sqlRaised();
+                com.legend.judge.CanonicalDivergence.sqlRaised();
                 batch.discard();
                 flush(batch, env);
             }
@@ -133,7 +133,7 @@ final class AssertVerdicts {
         return v;
     }
 
-    static void flush(com.legend.exec.VerdictBatch batch, BodyDriver.ExecEnv env) {
+    static void flush(com.legend.judge.VerdictBatch batch, BodyDriver.ExecEnv env) {
         batch.flush(env.assertListener());
     }
 
@@ -278,7 +278,7 @@ final class AssertVerdicts {
             return null;
         }
         String name = fn.bareName();
-        com.legend.exec.CanonicalDivergence.sqlFamily(name);   // leg 3.0 census
+        com.legend.judge.CanonicalDivergence.sqlFamily(name);   // leg 3.0 census
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
                 (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
                 letPrefix, specs);
@@ -308,7 +308,7 @@ final class AssertVerdicts {
                 TypedSide sv = SqlTextVerdicts.tryArm(name,
                         wantEqual, args, letPrefix, specs, env, hook);
                 if (sv != null) {
-                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "sql-text");
+                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "sql-text");
                     yield sv;
                 }
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
@@ -319,7 +319,7 @@ final class AssertVerdicts {
                 TypedSide ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
                 if (ra != null) {
-                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "rendered-text");
+                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
                     yield ra;
                 }
                 // a bare no-key sort() over a FLAT-CELLS side
@@ -356,10 +356,10 @@ final class AssertVerdicts {
                                 "relation-stamped assert side executed"
                                         + " to a non-tabular result");
                     }
-                    boolean held = com.legend.exec.TdsCompare.grids(te,
+                    boolean held = com.legend.judge.TdsCompare.grids(te,
                             ta, com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
                                     == com.legend.compiler.spec.OrderView.SORTED);
-                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "grid-pair");
+                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "grid-pair");
                     if (held != wantEqual) {
                         yield fail(name + ":\n" + HostJudge.summarize(te)
                                 + "\n does not match:\n" + HostJudge.summarize(ta));
@@ -395,7 +395,7 @@ final class AssertVerdicts {
                 TypedSide rse = renderedArm(name, true, args,
                         letPrefix, specs, env, hook, false);
                 if (rse != null) {
-                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "rendered-text");
+                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
                     yield rse;
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
@@ -479,7 +479,7 @@ final class AssertVerdicts {
             }
         };
         if (adjudicated == null) {
-            com.legend.exec.CanonicalDivergence.sqlFellThrough();
+            com.legend.judge.CanonicalDivergence.sqlFellThrough();
         }
         return adjudicated;
     }
@@ -856,12 +856,12 @@ final class AssertVerdicts {
     /** A side's per-ROW canon texts via the grid policy owner: a
      * grid side reads its harvested row canons; a value peer frames
      * rows from its literal-channel element canons ({@link
-     * com.legend.exec.TdsCompare} owns every rule and decline). */
+     * com.legend.judge.TdsCompare} owns every rule and decline). */
     static @com.legend.base.Nullable List<String> sideRowCanons(
             HostJudge.SideFetch side, int width, boolean isExpected) {
         return side.grid() != null
-                ? com.legend.exec.TdsCompare.tdsRowCanons(side.rider())
-                : com.legend.exec.TdsCompare.peerRowCanons(side.rider(),
+                ? com.legend.judge.TdsCompare.tdsRowCanons(side.rider())
+                : com.legend.judge.TdsCompare.peerRowCanons(side.rider(),
                         side.values().size(), width, isExpected);
     }
 
@@ -870,8 +870,8 @@ final class AssertVerdicts {
     static @com.legend.base.Nullable List<String> sideCellCanons(
             HostJudge.SideFetch side, boolean isExpected) {
         return side.grid() != null
-                ? com.legend.exec.TdsCompare.tdsCellCanons(side.rider())
-                : com.legend.exec.TdsCompare.peerElementCanons(
+                ? com.legend.judge.TdsCompare.tdsCellCanons(side.rider())
+                : com.legend.judge.TdsCompare.peerElementCanons(
                         side.rider(), side.values().size(), isExpected);
     }
 
@@ -1010,10 +1010,10 @@ final class AssertVerdicts {
      * extent-subset fact, the ORDER VIEW (ends in a sort = order is
      * contract), and the tail-most sort's keys. Typed-tree navigation
      * only — nothing evaluated. */
-    static com.legend.exec.SqlReplayReferee.ReplayFacts replayFacts(
+    static com.legend.judge.SqlReplayReferee.ReplayFacts replayFacts(
             TypedSpec chain, List<TypedSpec> letPrefix) {
         boolean ordered = com.legend.compiler.spec.OrderView.of(chain, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
-        return new com.legend.exec.SqlReplayReferee.ReplayFacts(
+        return new com.legend.judge.SqlReplayReferee.ReplayFacts(
                 com.legend.compiler.spec.VerdictQueries.extentSubset(chain),
                 ordered,
                 ordered ? sortKeys(chain, letPrefix, new java.util.HashSet<>()) : null);
@@ -1269,7 +1269,7 @@ final class AssertVerdicts {
         var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
                 schema, r.grid() ? null : r.value().info().type());
         if (parsed.headerMismatch()) {
-            com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+            com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
             return fail(name + ": " + parsed.reason());   // a static verdict
         }
         if (parsed.literal() == null) {
@@ -1290,7 +1290,7 @@ final class AssertVerdicts {
      * CSVJOIN:sep (the calendar family's one-line spelling), and a
      * makeString/joinStrings join over an INCIDENTAL-order chain →
      * CSVJOIN:sep (token multiset — sep-joined DB arrival order).
-     * The comparison policy is {@link com.legend.exec.TdsCompare
+     * The comparison policy is {@link com.legend.judge.TdsCompare
      * #renderedText} — the one owner, probed by its own R1b census. */
     static @com.legend.base.Nullable String renderForm(TypedSpec s0,
             List<TypedSpec> lets) {
@@ -1477,9 +1477,9 @@ final class AssertVerdicts {
      * PureAsserts OWNS the tolerance, this only vectorizes it. */
     static boolean withinDeclaredUlp(List<Object> eVals,
             List<Object> aVals) {
-        return com.legend.exec.Equality.differByLeniencyOnly(
-                com.legend.exec.Equality.Typed.all(eVals, null),
-                com.legend.exec.Equality.Typed.all(aVals, null));
+        return com.legend.judge.Equality.differByLeniencyOnly(
+                com.legend.judge.Equality.Typed.all(eVals, null),
+                com.legend.judge.Equality.Typed.all(aVals, null));
     }
 
     static String typeName(TypedSpec spec) {
@@ -1623,7 +1623,7 @@ final class AssertVerdicts {
         // V7 §5-1 instrument: the side-size histogram (VALUES-literal
         // cost bracket for V12's fused-verdict design) — measurement
         // only, fed from the one place every side already flows through
-        com.legend.exec.CanonicalDivergence.v7SideRows(side.size());
+        com.legend.judge.CanonicalDivergence.v7SideRows(side.size());
         return side;
     }
 

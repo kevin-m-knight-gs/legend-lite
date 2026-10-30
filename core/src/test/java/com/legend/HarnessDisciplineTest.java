@@ -237,7 +237,10 @@ class HarnessDisciplineTest {
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code
-                "core/src/main/java/com/legend/exec"}) {
+                "core/src/main/java/com/legend/exec",
+                // D71 (2026-10-30): the comparison policy moved on, out of exec into
+                // the judge layer (com.legend.judge) -- the discipline follows it
+                "core/src/main/java/com/legend/judge"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))

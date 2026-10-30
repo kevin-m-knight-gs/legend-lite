@@ -23,7 +23,9 @@
  *   <li>{@code resolver/}   — logical {@code TypedSpec} → physical {@code TypedSpec} (StoreResolver, phase H)</li>
  *   <li>{@code lowering/}   — {@code TypedSpec} → {@code sql.SqlQuery} (Lowerer, phase I)</li>
  *   <li>{@code sql/dialect/} — {@code SqlQuery} → SQL string (phase J)</li>
- *   <li>{@code exec/}       — SQL string + JDBC → typed {@code TypedSide} (Executor, phase K)</li>
+ *   <li>{@code exec/}       — a plan + a session → typed rows (PlanRunner, phase K)</li>
+ *   <li>{@code judge/}      — the verdict layer (D71, 2026-10-30): a test body's assertion judged over typed rows</li>
+ *   <li>the root's probes  — {@code ColumnProbe}, {@code GridProbe}, {@code DynamicPivot}, {@code WireProbe}: schema asked of the plan runner</li>
  * </ol>
  *
  * <h2>Invariants</h2>

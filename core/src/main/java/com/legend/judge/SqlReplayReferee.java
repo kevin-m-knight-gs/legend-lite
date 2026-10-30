@@ -1,7 +1,9 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.judge;
+
+import com.legend.exec.Sessions;
 
 /**
  * THE REPLAY-ORACLE SPI (SQLTEXT_ROW_VERDICT_CHARTER §2, the

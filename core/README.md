@@ -181,16 +181,28 @@ core/src/main/java/com/legend/
 │       ├── DuckDb.java
 │       └── Sqlite.java
 │
-└── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
-    ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
-    ├── Sessions.java + SessionState.java    (the typed session seam: a session made here alone, its state its own,
-    │                                         D70; PlanSessions.java the sessions a plan's target names)
-    ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
-    ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
-    ├── TypedSide.java                       (the judges' collected side; ExecutionResult until 2026-10-29)
-    ├── Connectors.java + *Connector.java    (each database's driver facts)
-    ├── Row.java
-    └── Column.java                          (result-side column; distinct from element/store/Column)
+├── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
+│   ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
+│   ├── Sessions.java + SessionState.java    (the typed session seam: a session made here alone, its state its own,
+│   │                                         D70; PlanSessions.java the sessions a plan's target names)
+│   ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
+│   ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
+│   ├── WireTypes.java                       (the wire TABLE: JDBC's type codes to the SQL vocabulary)
+│   ├── Connectors.java + *Connector.java    (each database's driver facts)
+│   ├── Row.java
+│   └── Column.java                          (result-side column; distinct from element/store/Column)
+│
+├── judge/                             the verdict layer (D71, 2026-10-30; out of exec: planning-side work the
+│   ├── PureAsserts.java + Equality.java     runtime must not carry): a test body's assertion judged over typed
+│   ├── TdsCompare.java                      rows -- the host lattice, the grid compare, the canonical instruments
+│   ├── CanonicalForm.java + ...Divergence   (CanonicalForm, CanonicalDivergence), the verdict batch, the SQL
+│   ├── VerdictBatch.java                    replay referee, the censuses, the assert listener; reachable from the
+│   └── TypedSide.java                       verdict seam alone (the judges' collected side; ExecutionResult
+│                                            until 2026-10-29)
+│
+└── (the root)                         the driver side's probes (D71): ColumnProbe, GridProbe, DynamicPivot and
+                                       WireProbe (the probe half of WireTypes) ask the plan runner and read the
+                                       compiler's types
 ```
 
 ## Naming conventions
@@ -199,7 +211,7 @@ core/src/main/java/com/legend/
 |---|---|---|
 | **Single top prefix** `com.legend.*` | `com.legend.lexer.Lexer` | Distinct from `com.gs.legend.*` (engine); makes the wall unambiguous |
 | **Folder = package**, 1:1 | folder `lexer/` ↔ package `com.legend.lexer` | One name per concept |
-| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/` | Matches engine convention; matches Java idioms |
+| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/`, `judge/` | Matches engine convention; matches Java idioms |
 | **Element / Spec symmetry, everywhere** | `parser/element/` + `parser/spec/`; `compiler/element/` + `compiler/spec/`; `ElementParser`+`SpecParser`; `ElementCompiler`+`SpecCompiler` | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
 | **Pure data records** for every IR node | `record TypedFilter(...)` | No identity, free equality, free serialization |
 | **Sealed roots** for every variant family | `sealed interface TypedSpec permits ...` | Compile-time exhaustiveness on every dispatch site |

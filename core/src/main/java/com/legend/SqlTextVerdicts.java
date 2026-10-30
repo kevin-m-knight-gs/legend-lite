@@ -9,8 +9,8 @@ import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.TypedSide;
-import com.legend.exec.SqlReplayReferee;
+import com.legend.judge.TypedSide;
+import com.legend.judge.SqlReplayReferee;
 
 import java.util.List;
 
@@ -1006,7 +1006,7 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
             // TASK #14 LEG 2 (2026-09-21): the TDG fetch-text assert IS a verdict row of
             // the body's statement — the golden fetch text against ours, string
@@ -1359,7 +1359,7 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayReferee.TempTable> temps) {
-        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
             // BLOCK-COMPILER RUNG 2a (2026-09-21): the text assert IS a verdict row of
             // the body's statement — the golden text against our rendered text, the
@@ -1402,11 +1402,11 @@ final class SqlTextVerdicts {
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayReferee.TempTable> temps) {
         TypedSide rows;
-        boolean priorSuspend = com.legend.exec.SqlTypeCensus
+        boolean priorSuspend = com.legend.judge.SqlTypeCensus
                 .probeSuspended();
         provideStores(env, mappingFqn);
         try {
-            com.legend.exec.SqlTypeCensus.probeSuspend(true);
+            com.legend.judge.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
             rows = JudgePlans.evalSide(rowsRead,
                     letPrefix, specs, env, false, true, hook);
@@ -1420,14 +1420,14 @@ final class SqlTextVerdicts {
                     : fail(name + " (sql-text, rows underivable — " + e.getClass().getSimpleName()
                             + ": " + e.getMessage() + "): expected " + golden + ", got " + ours);
         } finally {
-            com.legend.exec.SqlTypeCensus.probeSuspend(priorSuspend);
+            com.legend.judge.SqlTypeCensus.probeSuspend(priorSuspend);
         }
         if (populationRead != null && rows != null) {
             // the PAGE-MEMBERSHIP verdict's population (batch 0.5b): our rows
             // for the same chain without its tail page. No catch: the paged
             // read just executed, so a failure here is a FAULT of ours and
             // fails the test loudly — never a decline that rescues the text
-            com.legend.exec.SqlTypeCensus.probeSuspend(true);
+            com.legend.judge.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
                 TypedSide population = JudgePlans.evalSide(populationRead,
                         letPrefix, specs, env, false, true, hook);
@@ -1435,7 +1435,7 @@ final class SqlTextVerdicts {
                     facts = facts.withPopulation(population);
                 }
             } finally {
-                com.legend.exec.SqlTypeCensus.probeSuspend(priorSuspend);
+                com.legend.judge.SqlTypeCensus.probeSuspend(priorSuspend);
             }
         }
         if (rows == null) {
@@ -1618,7 +1618,7 @@ final class SqlTextVerdicts {
      * {@code textEqual ? ok() : fail(...)} uncounted). */
     private static void declined(BodyDriver.ExecEnv env, String name,
             String reason) {
-        com.legend.exec.AssertListener l = env.assertListener();
+        com.legend.judge.AssertListener l = env.assertListener();
         if (l != null) {
             l.declined(name, reason);
         }
@@ -1627,12 +1627,12 @@ final class SqlTextVerdicts {
     /** Fixture on demand (corpus-zero program, 2026-09-12): before the rows
      * leg reads, every store the golden's mapping reads (the compiled
      * mapping model's class-binding sources, includes followed) is offered
-     * to the runner ({@link com.legend.exec.AssertListener#provideStore}),
+     * to the runner ({@link com.legend.judge.AssertListener#provideStore}),
      * which seeds it when exactly one fixture does. Model navigation only:
      * no SQL text, no driver message, no judgment. */
     private static void provideStores(BodyDriver.ExecEnv env,
             @com.legend.base.Nullable String mappingFqn) {
-        com.legend.exec.AssertListener l = env.assertListener();
+        com.legend.judge.AssertListener l = env.assertListener();
         if (l == null || mappingFqn == null) {
             return;
         }
@@ -1667,7 +1667,7 @@ final class SqlTextVerdicts {
      * witness. */
     private static void refereed(BodyDriver.ExecEnv env, String name,
             SqlReplayReferee.RowVerdict rv) {
-        com.legend.exec.AssertListener l = env.assertListener();
+        com.legend.judge.AssertListener l = env.assertListener();
         if (l != null) {
             l.refereed(name, rv.outcome().name());
         }
@@ -1685,7 +1685,7 @@ final class SqlTextVerdicts {
     private static TypedSide textVerdict(BodyDriver.ExecEnv env, String name,
             String golden, String ours, boolean textEqual,
             java.util.function.Supplier<String> message) {
-        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        com.legend.judge.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
                     env.session(), () -> fail(message.get()));

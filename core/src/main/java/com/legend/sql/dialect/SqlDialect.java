@@ -196,7 +196,7 @@ public interface SqlDialect {
     }
 
     /** Whether dynamic PIVOT needs the two-phase staticization
-     * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
+     * pre-pass ({@link com.legend.DynamicPivot} — no native
      * dynamic pivot on this backend). */
     default boolean needsStaticPivot() {
         return false;

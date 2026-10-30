@@ -30,7 +30,11 @@
 > -- and no `java.sql` or driver type in a public signature outside `exec`,
 > `noJdbcTypeInAPublicSignatureOutsideTheSeam`; D69, 2026-10-30; a session
 > is made by `exec` alone -- its connection the seam's, its state its own --
-> `onlyTheSeamMakesSessions`, D70, 2026-10-30),
+> `onlyTheSeamMakesSessions`, D70, 2026-10-30; the judges and the
+> probes are planning-side work the runtime does not carry --
+> `com.legend.judge` and the root, D71, 2026-10-30 -- and `exec`'s
+> remaining reaches into planning are a shrinking register,
+> `ArchitectureTest.EXEC_PLANNING_REFERENCES`, five rows, B2's to cut),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's
@@ -195,6 +199,7 @@ order.
 | **Lowerer** | `TypedSpec` → `SqlQuery` | naming SQL functions; SQL syntax; importing a dialect; any `String` field encoding a SQL operation |
 | **SqlDialect** | `SqlQuery` → SQL string | inferring types; rewriting HIR; consulting the model |
 | **PlanRunner / the writers** | a plan + a session → typed rows; a cell's text at the boundary (`result/`) | everything above; a writer decides nothing (`WriterCarriageGuardTest`) |
+| **The judges** (`judge/`, D71 2026-10-30) | a test body's verdict over typed rows: the host lattice, the grid compare, the canonical instruments, the referee, the verdict batch | sending a statement; reaching a connection; a product query's path (reachable from the verdict seam alone: `hostVerdictIsReachableOnlyFromTheVerdictSeam`) |
 
 ## Invariants
 

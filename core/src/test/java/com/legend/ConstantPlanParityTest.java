@@ -86,10 +86,10 @@ class ConstantPlanParityTest {
                         + " differential parity leg in THIS test first");
         assertTrue(LiteralFold.fold(new TypedCString("x",
                 ExprType.one(Type.Primitive.STRING)))
-                instanceof com.legend.exec.TypedSide.Scalar);
+                instanceof com.legend.judge.TypedSide.Scalar);
         assertTrue(LiteralFold.fold(new TypedCBoolean(true,
                 ExprType.one(Type.Primitive.BOOLEAN)))
-                instanceof com.legend.exec.TypedSide.Scalar);
+                instanceof com.legend.judge.TypedSide.Scalar);
     }
 
     private static Object scalar(Lean.Result r) {
