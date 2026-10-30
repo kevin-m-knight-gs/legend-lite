@@ -734,6 +734,13 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
   as a build wall. A B1-sized rename, about twice the surface; the root tests that rely on package-private access
   move with the driver. After B2, because B2 moves root-adjacent pieces that a rename first would re-do.
 
+- **Next program, PLANNED 2026-10-30, not ratified: the planner-driver seam** (`docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`,
+  its evidence `docs/planner-driver-seam-homework/`; the decisions log D74). Step C left the driver talking to the planner
+  through a wide informal interface (it takes `specs()` and `resolved()` off the query and re-runs G½/H/I/J itself; four
+  probes read the session to finish planning). The plan: the test body planned ONCE as one `Sequence` (upstream's own
+  one-pass form for a multi-statement lambda, read in the pinned sources), the driver an interpreter over it, the probes
+  retired shape by shape, the widenings reverted. Starts after PR #82 lands, on the user's rulings on the plan's §6.
+
 ## 5. How we work (the user's rules; each learned the hard way)
 
 **Before code**
