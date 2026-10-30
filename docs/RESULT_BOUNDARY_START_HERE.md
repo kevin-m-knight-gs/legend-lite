@@ -742,8 +742,9 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
   host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed`
   pattern, the user 2026-10-20), the driver the runner plus the judges, the probes retired shape by shape, the widenings
   reverted. Upstream was read as spec input (a body with lets needs no result to plan the next statement; planning
-  reaches no database), not as an execution model (the user's correction, D75). Starts after PR #82 lands, on the
-  user's rulings on the plan's §6.
+  reaches no database), not as an execution model (the user's correction, D75). **RULED 2026-10-30 (D77): a GO**, on a
+  fresh branch from `main` after PR #82 lands (the user merges when green); step H (read-only measurements) started
+  that day; the raw grid takes the pivot's pattern (D76); the defect F1 closes inside S3c; no JPMS spike.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

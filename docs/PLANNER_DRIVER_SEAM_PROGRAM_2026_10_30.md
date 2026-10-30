@@ -261,7 +261,7 @@ only; no credentials read, printed or copied).
 | step | what | size | oracle and guards that move |
 |---|---|---|---|
 | **H** | the homework completions, read-only, lanes measure only: **H1** deferred TDS registrations by origin (pivot vs other) on the corpus and channel B; **H2** raw grids demanded vs undemanded, and whether each demanding body declares its columns; **H3** `WIRE_RETYPED` / `WIRE_SLOT_SKEW` per lane; **H4** a statement-kind census per body (the table in §3.3) and the frame lets whose rows are read before the end; **H5** bodies on the system route, bodies with the generator's fold; **H6** bodies whose non-last statement is an uncast dynamic pivot; **H7** bodies mixing the platform and a declared target | 2 to 3 days | none: measurements, posted as a report |
-| **S0** | F1 closed: the plan side refuses a late-bound raw grid by name | half a day | a new planner test; no roster moves (the product lanes never plan one: measured by the refusal firing nowhere in the PCT main lanes) |
+| **S0** | F1 closed inside the program (the user, 2026-10-30: "We will do the grid fix as part of the program"): the plan side refuses a late-bound raw grid by name until S3c gives it its real form, then plans it; built with S3c, not as its own commit | folded into S3c | a planner test; no roster moves (the product lanes never plan one) |
 | **S1** | the vocabulary: `Verdict.Database`, `Verdict.Host`, the wire-decided column fact, the reported-columns-as-rows step with its per-column regions (`Keyed` or a sibling, S1's brief), `Keyed` inside a `Sequence` (F5, required), per-step targets if H7 says so; runner arms; JSON round trip (`testcases/PlanRoundTrip`); no caller yet | 3 days | `core_tests_planner`, `exec`, `testcases`; nothing in the driver changes |
 | **S2a–S2j** | the body planner, kind by kind, as a strangler: the driver keeps its loop but, kind by kind, asks the body planner for the step and runs it through the runner; the driver's own branch for that kind is deleted in the same commit. Order from H4's frequencies; provisional: a (values), b (value, handle, alias lets), c (staged lets), d (effects), e (database-judge asserts), f (host-judge asserts, BOTH), g (frames), h (the system route), i (engine-text asserts), j (the generator's fold) | 1 to 3 days each, 2 to 3 weeks in all | each: zero roster movement; `BodyDriver`'s size pin shrinks (dated); the `JavaEvalLedgerTest` registers move by name; D30's residue list re-pinned |
 | **S3a** | the dynamic pivot in bodies as `Keyed` (the product path's form, S110); `DynamicPivot.staticize` deleted; ColumnProbe deleted, the deferred TDS's column list a per-key region of the `Keyed` body (S110's form) where H1 shows the pivot is its origin, else the rows-fill-regions step of S1 | 3 to 5 days | zero roster movement; `PROBE` census drops by the pivots' count; `DynamicPivotKeyLiteralH2Test` becomes a planner test; `JavaEvalLedgerTest:217` (DynamicPivot's pin) deleted |
@@ -286,14 +286,34 @@ the user rules; S2 onward each need their own brief.
 - **D30's residue** (`assertError`, `print`, `$plan` navigation, `planToString`, `toSQLString`): named, pinned; the
   generator's fold is the one D30 said to revisit (S2j).
 
-## 6. Decisions for the user, before any code
+## 6. Decisions for the user, before any code -- RULED 2026-10-30
+
+The user, 2026-10-30: "Yes I'll merge when green / Yes program is a go / We will do the grid fix as part of the
+program / Fresh branch / Order sounds good / Yes pivot model unless you think that's bad/wrong". So: Q1 GO; Q2 the
+defect F1 closed inside the program (S0 folded into S3c, which gives the raw grid its real form; no separate commit);
+Q3 the pivot's pattern is the ruled form; Q4 answered below (the build already gives the compiler guarantee at the
+library level; the four member-level rules are the named residue; no JPMS spike); Q5 a fresh branch from `main` after
+PR #82 lands (the user merges when run 2280 is green); Q6 by H4's frequencies, asserts early. The questions as asked,
+for the record:
+
 
 - **Q1. The program as a whole:** §0 to §4 as the plan, or changes. (A yes starts H.)
 - **Q2. F1 now:** the plan-side refusal of a late-bound raw grid (S0) as its own small commit, or held.
 - **Q3. The raw grid (§3.5):** the pivot's pattern as the ruled form (recommended: a reported-columns step, per-column
   regions, cells decoded by the wire; no probe into the compiler, no oracle door), or another form.
 - **Q4. JPMS:** spend one day on the `module-info.java` spike at S5, or rely on the ArchUnit rules and
-  package-privacy (recommended: the rules; the spike only if the user wants the mechanical guarantee).
+  package-privacy. **Answered 2026-10-30 (the user: "Why when we are done with the program do we still not get
+  compiler guarantee? ... what would still be crossing packages?"):** every LIBRARY-level edge is already refused by
+  the build (a target compiles against its declared deps alone, rules_java's strict deps; the lists pinned by
+  `tools/deps/core-layers.txt`): the planner cannot name a runtime or driver class, the runtime cannot name a planning
+  class (D72), and after S5 the driver cannot name a compiler, resolver, lowering or dialect class. What the build
+  cannot express is a MEMBER-level rule, "this one public entry is called by that one class", because Java's
+  package-private, Bazel's deps and JPMS's exports all work at package, target or module grain, and the doors in the
+  root package force their entries public. The residue after S5 is four such rules, each an ArchUnit test:
+  `BodyDriver.execute` called by `Execution` alone; `BodyPlanner.plan` and `PlanMaker.plan` called by the doors and the
+  driver alone; a session's `Statements` sent by the plan runner alone; the judges' entries reached from the verdict
+  seam alone. JPMS would add nothing here: it exports packages, not methods, and the root package `com.legend` is split
+  across the planner and driver targets, which a module system forbids outright. No spike.
 - **Q5. The branch:** this program starts after PR #82 lands, on a fresh branch from `main` (recommended), or on top
   of the seam-and-wall branch.
 - **Q6. The strangler order (S2a to S2j):** by H4's frequencies (recommended), or the user's order.
@@ -319,4 +339,6 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   withdrawn; this version states the design in lite's model (D75). The same day, from the user's questions ("What is
   a raw grid exactly?", "Is this similar to dynamic pivot?", "a metadata read or a limit 0 query?", "is this the right
   plan?"): the raw grid as the pivot's pattern and the oracle door withdrawn (§3.5), `Keyed` in a `Sequence` required
-  (F5), the heavy lanes by hand at S2d and S3 (D76). **No code.** Next: the user's rulings on §6.
+  (F5), the heavy lanes by hand at S2d and S3 (D76). The user's rulings on §6 the same day (D77): GO; the raw grid
+  defect inside the program; the pivot's pattern; no JPMS spike; a fresh branch after PR #82; the order by frequency.
+  **Step H started 2026-10-30** (read-only measurements; the report lands on the fresh branch). No code yet.
